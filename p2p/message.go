@@ -27,7 +27,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/event"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -44,6 +46,14 @@ type Msg struct {
 	Size       uint32 // size of the paylod
 	Payload    io.Reader
 	ReceivedAt time.Time
+}
+
+func (msg *Msg) GoString() string {
+	j, err := json.Marshal(msg)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
 }
 
 // Decode parses the RLP content of a message into

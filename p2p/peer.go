@@ -275,16 +275,19 @@ func (p *Peer) readLoop(errc chan<- error) {
 func (p *Peer) handle(msg Msg) error {
 	switch {
 	case msg.Code == pingMsg:
-		p.log.Proto("<< DEVP2P_PING", "obj", fmt.Sprintf("%#v", msg))
+		p.log.Proto("<< DEVP2P_PING", "obj", msg.GoString())
 		msg.Discard()
 		p.log.Proto(">> DEVP2P_PONG")
 		go SendItems(p.rw, pongMsg)
+	case msg.Code == pongMsg:
+		p.log.Proto("<< DEVP2P_PONG", "obj", msg.GoString())
+		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
-		p.log.Proto("<< DEVP2P_DISC", "reason", discReasonToString[reason[0]], "obj", fmt.Sprintf("%#v", msg))
+		p.log.Proto("<< DEVP2P_DISC", "reason", discReasonToString[reason[0]], "obj", msg.GoString())
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
