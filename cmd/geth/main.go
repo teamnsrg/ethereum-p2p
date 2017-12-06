@@ -25,17 +25,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/node"
+	"github.com/teamnsrg/go-ethereum/accounts"
+	"github.com/teamnsrg/go-ethereum/accounts/keystore"
+	"github.com/teamnsrg/go-ethereum/cmd/utils"
+	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/go-ethereum/console"
+	"github.com/teamnsrg/go-ethereum/eth"
+	"github.com/teamnsrg/go-ethereum/ethclient"
+	"github.com/teamnsrg/go-ethereum/internal/debug"
+	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/go-ethereum/metrics"
+	"github.com/teamnsrg/go-ethereum/node"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -134,12 +134,6 @@ var (
 		utils.IPCDisabledFlag,
 		utils.IPCPathFlag,
 	}
-
-	whisperFlags = []cli.Flag{
-		utils.WhisperEnabledFlag,
-		utils.WhisperMaxMessageSizeFlag,
-		utils.WhisperMinPOWFlag,
-	}
 )
 
 func init() {
@@ -179,7 +173,6 @@ func init() {
 	app.Flags = append(app.Flags, rpcFlags...)
 	app.Flags = append(app.Flags, consoleFlags...)
 	app.Flags = append(app.Flags, debug.Flags...)
-	app.Flags = append(app.Flags, whisperFlags...)
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())

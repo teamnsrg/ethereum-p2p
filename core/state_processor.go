@@ -19,14 +19,14 @@ package core
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/go-ethereum/consensus"
+	"github.com/teamnsrg/go-ethereum/consensus/misc"
+	"github.com/teamnsrg/go-ethereum/core/state"
+	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/go-ethereum/core/vm"
+	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/go-ethereum/params"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning

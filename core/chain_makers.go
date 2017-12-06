@@ -20,14 +20,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/go-ethereum/consensus/ethash"
+	"github.com/teamnsrg/go-ethereum/consensus/misc"
+	"github.com/teamnsrg/go-ethereum/core/state"
+	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/go-ethereum/core/vm"
+	"github.com/teamnsrg/go-ethereum/ethdb"
+	"github.com/teamnsrg/go-ethereum/params"
 )
 
 // So we can deterministically seed different blockchains

@@ -22,8 +22,8 @@ import (
 	"io"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/internal/debug"
+	"github.com/teamnsrg/go-ethereum/cmd/utils"
+	"github.com/teamnsrg/go-ethereum/internal/debug"
 	"gopkg.in/urfave/cli.v1"
 	"strings"
 )
@@ -205,10 +205,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.FakePoWFlag,
 			utils.NoCompactionFlag,
 		}, debug.Flags...),
-	},
-	{
-		Name:  "WHISPER (EXPERIMENTAL)",
-		Flags: whisperFlags,
 	},
 	{
 		Name: "DEPRECATED",

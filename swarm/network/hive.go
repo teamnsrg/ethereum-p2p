@@ -22,12 +22,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/netutil"
-	"github.com/ethereum/go-ethereum/swarm/network/kademlia"
-	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/go-ethereum/p2p/netutil"
+	"github.com/teamnsrg/go-ethereum/swarm/network/kademlia"
+	"github.com/teamnsrg/go-ethereum/swarm/storage"
 )
 
 // Hive is the logistic manager of the swarm
