@@ -704,19 +704,19 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	running := srv.running
 	srv.lock.Unlock()
 	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
-	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	if !running {
-		closeConnAndLog(c, clog, errServerStopped)
+		closeConnAndLog(c, nil, errServerStopped)
 		return
 	}
 	// Run the encryption handshake.
 	var err error
 	if c.id, err = c.doEncHandshake(srv.PrivateKey, dialDest); err != nil {
 		log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
-		closeConnAndLog(c, clog, err)
+		closeConnAndLog(c, nil, err)
 		return
 	}
 	// For dialed connections, check that the remote public key matches.
+	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	if dialDest != nil && c.id != dialDest.ID {
 		closeConnAndLog(c, clog, DiscUnexpectedIdentity)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
@@ -728,9 +728,9 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	clog.Proto("<< HELLO", "obj", fmt.Sprintf("%#v", srv.ourHandshake))
+	clog.Proto(">> HELLO", "obj", fmt.Sprintf("%#v", srv.ourHandshake))
 	phs, err := c.doProtoHandshake(srv.ourHandshake)
-	clog.Proto(">> HELLO", "obj", fmt.Sprintf("%#v", phs))
+	clog.Proto("<< HELLO", "obj", fmt.Sprintf("%#v", phs))
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		closeConnAndLog(c, clog, err)
@@ -753,7 +753,11 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 
 func closeConnAndLog(c *conn, logger log.Logger, err error) {
 	if r, ok := err.(DiscReason); ok {
-		logger.Proto(">> DEVP2P_DISCONNECT", "reason", discReasonToString[r])
+		if logger == nil {
+			log.Proto(">> DEVP2P_DISCONNECT", "reason", discReasonToString[r])
+		} else {
+			logger.Proto(">> DEVP2P_DISCONNECT", "reason", discReasonToString[r])
+		}
 	}
 	c.close(err)
 }
