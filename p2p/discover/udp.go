@@ -30,6 +30,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rlp"
+	"encoding/json"
 )
 
 const Version = 4
@@ -59,7 +60,7 @@ const (
 
 // RPC packet types
 const (
-	pingPacket = iota + 1 // zero is 'reserved'
+	pingPacket      = iota + 1 // zero is 'reserved'
 	pongPacket
 	findnodePacket
 	neighborsPacket
@@ -117,6 +118,30 @@ type (
 		TCP uint16 // for RLPx protocol
 	}
 )
+
+func marshalObj(obj interface{}) string {
+	j, err := json.Marshal(obj)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
+}
+
+func (pkt *ping) GoString() string {
+	return marshalObj(pkt)
+}
+
+func (pkt *pong) GoString() string {
+	return marshalObj(pkt)
+}
+
+func (pkt *findnode) GoString() string {
+	return marshalObj(pkt)
+}
+
+func (pkt *neighbors) GoString() string {
+	return marshalObj(pkt)
+}
 
 func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
 	ip := addr.IP.To4()
@@ -294,7 +319,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 			nreceived++
 			n, err := t.nodeFromRPC(toaddr, rn)
 			if err != nil {
-				log.Trace("Invalid neighbor node received", "ip", rn.IP, "addr", toaddr, "err", err)
+				log.Trace("Invalid neighbor node received", "neighbor_ip", rn.IP, "sender_ip", toaddr, "err", err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -465,7 +490,7 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Trace(">> "+req.name(), "addr", toaddr, "err", err)
+	log.Trace(">> "+req.name(), "err", err, "obj", fmt.Sprintf("%#v", req))
 	return err
 }
 
@@ -520,7 +545,7 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		return err
 	}
 	err = packet.handle(t, from, fromID, hash)
-	log.Trace("<< "+packet.name(), "addr", from, "err", err)
+	log.Trace("<< "+packet.name(), "addr", from, "err", err, "str", fmt.Sprintf("%#v", packet))
 	return err
 }
 
