@@ -25,12 +25,12 @@ import (
 	"net"
 	"time"
 
+	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rlp"
-	"encoding/json"
 )
 
 const Version = 4
@@ -60,7 +60,7 @@ const (
 
 // RPC packet types
 const (
-	pingPacket      = iota + 1 // zero is 'reserved'
+	pingPacket = iota + 1 // zero is 'reserved'
 	pongPacket
 	findnodePacket
 	neighborsPacket

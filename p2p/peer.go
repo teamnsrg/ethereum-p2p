@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -118,6 +119,14 @@ func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
+}
+
+func (phs *protoHandshake) GoString() string {
+	j, err := json.Marshal(phs)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
 }
 
 // ID returns the node's public key.
@@ -221,6 +230,7 @@ loop:
 		}
 	}
 
+	p.log.Proto(">> DEVP2P_DISC", "reason", discReasonToString[reason])
 	close(p.closed)
 	p.rw.close(reason)
 	p.wg.Wait()
@@ -234,6 +244,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
+			p.log.Proto(">> DEVP2P_PING")
 			if err := SendItems(p.rw, pingMsg); err != nil {
 				p.protoErr <- err
 				return
@@ -264,13 +275,16 @@ func (p *Peer) readLoop(errc chan<- error) {
 func (p *Peer) handle(msg Msg) error {
 	switch {
 	case msg.Code == pingMsg:
+		p.log.Proto("<< DEVP2P_PING", "obj", fmt.Sprintf("%#v", msg))
 		msg.Discard()
+		p.log.Proto(">> DEVP2P_PONG")
 		go SendItems(p.rw, pongMsg)
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
+		p.log.Proto("<< DEVP2P_DISC", "reason", discReasonToString[reason[0]], "obj", fmt.Sprintf("%#v", msg))
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -416,6 +430,14 @@ type PeerInfo struct {
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
+}
+
+func (pi *PeerInfo) GoString() string {
+	j, err := json.Marshal(pi)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
 }
 
 // Info gathers and returns a collection of metadata known about a peer.

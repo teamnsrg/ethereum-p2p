@@ -119,6 +119,7 @@ type Logger interface {
 	Warn(msg string, ctx ...interface{})
 	Error(msg string, ctx ...interface{})
 	Crit(msg string, ctx ...interface{})
+	Proto(msg string, ctx ...interface{})
 }
 
 type logger struct {
@@ -153,6 +154,10 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	n := copy(newCtx, prefix)
 	copy(newCtx[n:], normalizedSuffix)
 	return newCtx
+}
+
+func (l *logger) Proto(msg string, ctx ...interface{}) {
+	l.write(msg, LvlCrit, ctx)
 }
 
 func (l *logger) Trace(msg string, ctx ...interface{}) {
