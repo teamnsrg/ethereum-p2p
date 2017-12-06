@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rcrowley/go-metrics"
 	ethereum "github.com/teamnsrg/go-ethereum"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/core/types"
@@ -34,7 +35,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/params"
-	"github.com/rcrowley/go-metrics"
 )
 
 var (

@@ -32,10 +32,10 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/go-ethereum/rlp"
 )
 
 const (

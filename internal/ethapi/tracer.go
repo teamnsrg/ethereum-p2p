@@ -23,10 +23,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/robertkrimen/otto"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/core/vm"
-	"github.com/robertkrimen/otto"
 )
 
 // fakeBig is used to provide an interface to Javascript for 'big.NewInt'

@@ -22,13 +22,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/metrics"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/go-ethereum/metrics"
 
 	gometrics "github.com/rcrowley/go-metrics"
 )

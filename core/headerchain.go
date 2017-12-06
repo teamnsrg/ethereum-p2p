@@ -25,13 +25,13 @@ import (
 	mrand "math/rand"
 	"time"
 
+	"github.com/hashicorp/golang-lru"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/consensus"
 	"github.com/teamnsrg/go-ethereum/core/types"
 	"github.com/teamnsrg/go-ethereum/ethdb"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/params"
-	"github.com/hashicorp/golang-lru"
 )
 
 const (

@@ -35,11 +35,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/cors"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/swarm/api"
 	"github.com/teamnsrg/go-ethereum/swarm/storage"
-	"github.com/rs/cors"
 )
 
 // ServerConfig is the basic configuration needed for the HTTP server and also

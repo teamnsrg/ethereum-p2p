@@ -28,13 +28,13 @@ import (
 
 	cli "gopkg.in/urfave/cli.v1"
 
+	"github.com/naoina/toml"
 	"github.com/teamnsrg/go-ethereum/cmd/utils"
 	"github.com/teamnsrg/go-ethereum/contracts/release"
 	"github.com/teamnsrg/go-ethereum/dashboard"
 	"github.com/teamnsrg/go-ethereum/eth"
 	"github.com/teamnsrg/go-ethereum/node"
 	"github.com/teamnsrg/go-ethereum/params"
-	"github.com/naoina/toml"
 )
 
 var (

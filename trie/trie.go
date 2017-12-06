@@ -21,10 +21,10 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
 	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/rcrowley/go-metrics"
 )
 
 var (

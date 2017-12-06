@@ -27,12 +27,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/internal/jsre"
-	"github.com/teamnsrg/go-ethereum/internal/web3ext"
-	"github.com/teamnsrg/go-ethereum/rpc"
 	"github.com/mattn/go-colorable"
 	"github.com/peterh/liner"
 	"github.com/robertkrimen/otto"
+	"github.com/teamnsrg/go-ethereum/internal/jsre"
+	"github.com/teamnsrg/go-ethereum/internal/web3ext"
+	"github.com/teamnsrg/go-ethereum/rpc"
 )
 
 var (

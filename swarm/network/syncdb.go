@@ -20,10 +20,10 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/swarm/storage"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/go-ethereum/swarm/storage"
 )
 
 const counterKeyPrefix = 0x01

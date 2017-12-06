@@ -32,10 +32,10 @@ import (
 	"unsafe"
 
 	mmap "github.com/edsrzf/mmap-go"
+	metrics "github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/consensus"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/rpc"
-	metrics "github.com/rcrowley/go-metrics"
 )
 
 var ErrInvalidDumpMagic = errors.New("invalid dump magic")

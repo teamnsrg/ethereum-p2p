@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/common"
@@ -39,8 +41,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/params"
 	"github.com/teamnsrg/go-ethereum/rlp"
 	"github.com/teamnsrg/go-ethereum/rpc"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 const (

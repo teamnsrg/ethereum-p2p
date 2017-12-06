@@ -23,10 +23,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/robertkrimen/otto"
 	"github.com/teamnsrg/go-ethereum/accounts/usbwallet"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/rpc"
-	"github.com/robertkrimen/otto"
 )
 
 // bridge is a collection of JavaScript utility methods to bride the .js runtime

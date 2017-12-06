@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/prometheus/prometheus/util/flock"
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/ethdb"
 	"github.com/teamnsrg/go-ethereum/event"
@@ -33,7 +34,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/rpc"
-	"github.com/prometheus/prometheus/util/flock"
 )
 
 // Node is a container on which services can be registered.
