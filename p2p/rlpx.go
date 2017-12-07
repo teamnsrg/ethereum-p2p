@@ -40,6 +40,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto/ecies"
 	"github.com/teamnsrg/go-ethereum/crypto/secp256k1"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -154,6 +155,7 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
+		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", msg.Size)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
@@ -163,6 +165,9 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 	if err := msg.Decode(&hs); err != nil {
 		return nil, err
 	}
+
+	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", hs, "size", msg.Size)
+
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity
 	}

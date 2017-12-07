@@ -111,15 +111,27 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 }
 
 func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}) error {
+	size, r, err := rlp.EncodeToReader(data)
+
+	if err != nil {
+		return err
+	}
+
 	msgType := ethCodeToString[msgcode]
-	log.Proto(">>"+msgType, "obj", data)
-	return Send(w, msgcode, data)
+	log.Proto(">>"+msgType, "obj", data, "size", size)
+	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
 func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}) error {
+	size, r, err := rlp.EncodeToReader(data)
+
+	if err != nil {
+		return err
+	}
+
 	msgType := devp2pCodeToString[msgcode]
-	log.Proto(">>"+msgType, "obj", data)
-	return Send(w, msgcode, data)
+	log.Proto(">>"+msgType, "obj", data, "size", size)
+	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
 // SendItems writes an RLP with the given code and data elements.

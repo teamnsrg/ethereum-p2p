@@ -729,7 +729,6 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	}
 	// Run the protocol handshake
 	phs, err := c.doProtoHandshake(srv.ourHandshake)
-	clog.Proto("<< HELLO", "obj", fmt.Sprintf("%#v", phs))
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		c.close(err)
