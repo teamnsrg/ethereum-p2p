@@ -52,6 +52,33 @@ const (
 	peersMsg     = 0x05
 )
 
+var devp2pCodeToString = [...]string{
+	handshakeMsg: "DEVP2P_HELLO",
+	discMsg:      "DEVP2P_DISC",
+	pingMsg:      "DEVP2P_PING",
+	pongMsg:      "DEVP2P_PONG",
+	getPeersMsg:  "DEVP2P_GET_PEERS",
+	peersMsg:     "DEVP2P_PEERS",
+}
+
+var ethCodeToString = [...]string{
+	// Protocol messages belonging to eth/62
+	0x00: "ETH_STATUS",
+	0x01: "ETH_NEW_BLOCK_HASHES",
+	0x02: "ETH_TX",
+	0x03: "ETH_GET_BLOCK_HEADERS",
+	0x04: "ETH_BLOCK_HEADERS",
+	0x05: "ETH_GET_BLOCK_BODIES",
+	0x06: "ETH_BLOCK_BODIES",
+	0x07: "ETH_NEW_BLOCK",
+
+	// Protocol messages belonging to eth/63
+	0x0d: "ETH_GET_NODE_DATA",
+	0x0e: "ETH_NODE_DATA",
+	0x0f: "ETH_GET_RECEIPTS",
+	0x10: "ETH_RECEIPTS",
+}
+
 // protoHandshake is the RLP structure of the protocol handshake.
 type protoHandshake struct {
 	Version    uint64
@@ -230,7 +257,6 @@ loop:
 		}
 	}
 
-	p.log.Proto(">> DEVP2P_DISC", "reason", discReasonToString[reason])
 	close(p.closed)
 	p.rw.close(reason)
 	p.wg.Wait()
@@ -244,7 +270,6 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			p.log.Proto(">> DEVP2P_PING")
 			if err := SendItems(p.rw, pingMsg); err != nil {
 				p.protoErr <- err
 				return
@@ -277,7 +302,6 @@ func (p *Peer) handle(msg Msg) error {
 	case msg.Code == pingMsg:
 		p.log.Proto("<< DEVP2P_PING", "obj", msg.GoString())
 		msg.Discard()
-		p.log.Proto(">> DEVP2P_PONG")
 		go SendItems(p.rw, pongMsg)
 	case msg.Code == pongMsg:
 		p.log.Proto("<< DEVP2P_PONG", "obj", msg.GoString())

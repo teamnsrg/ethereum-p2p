@@ -103,10 +103,23 @@ type MsgReadWriter interface {
 // data should encode as an RLP list.
 func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 	size, r, err := rlp.EncodeToReader(data)
+
 	if err != nil {
 		return err
 	}
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+}
+
+func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}) error {
+	msgType := ethCodeToString[msgcode]
+	log.Proto(">>"+msgType, "obj", data)
+	return Send(w, msgcode, data)
+}
+
+func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}) error {
+	msgType := devp2pCodeToString[msgcode]
+	log.Proto(">>"+msgType, "obj", data)
+	return Send(w, msgcode, data)
 }
 
 // SendItems writes an RLP with the given code and data elements.
@@ -119,7 +132,7 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 //    [e1, e2, e3]
 //
 func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return Send(w, msgcode, elems)
+	return SendDEVp2p(w, msgcode, elems)
 }
 
 // netWrapper wraps a MsgReadWriter with locks around
@@ -312,6 +325,7 @@ func (self *msgEventer) ReadMsg() (Msg, error) {
 	if err != nil {
 		return msg, err
 	}
+
 	self.feed.Send(&PeerEvent{
 		Type:     PeerEventTypeMsgRecv,
 		Peer:     self.peerID,

@@ -705,61 +705,49 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	srv.lock.Unlock()
 	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
 	if !running {
-		closeConnAndLog(c, nil, errServerStopped)
+		c.close(errServerStopped)
 		return
 	}
 	// Run the encryption handshake.
 	var err error
 	if c.id, err = c.doEncHandshake(srv.PrivateKey, dialDest); err != nil {
 		log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
-		closeConnAndLog(c, nil, err)
+		c.close(err)
 		return
 	}
 	// For dialed connections, check that the remote public key matches.
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	if dialDest != nil && c.id != dialDest.ID {
-		closeConnAndLog(c, clog, DiscUnexpectedIdentity)
+		c.close(DiscUnexpectedIdentity)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
 		return
 	}
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
-		closeConnAndLog(c, clog, err)
+		c.close(err)
 		return
 	}
 	// Run the protocol handshake
-	clog.Proto(">> HELLO", "obj", fmt.Sprintf("%#v", srv.ourHandshake))
 	phs, err := c.doProtoHandshake(srv.ourHandshake)
 	clog.Proto("<< HELLO", "obj", fmt.Sprintf("%#v", phs))
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		closeConnAndLog(c, clog, err)
+		c.close(err)
 		return
 	}
 	if phs.ID != c.id {
 		clog.Trace("Wrong devp2p handshake identity", "err", phs.ID)
-		closeConnAndLog(c, clog, DiscUnexpectedIdentity)
+		c.close(DiscUnexpectedIdentity)
 		return
 	}
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
-		closeConnAndLog(c, clog, err)
+		c.close(err)
 		return
 	}
 	// If the checks completed successfully, runPeer has now been
 	// launched by run.
-}
-
-func closeConnAndLog(c *conn, logger log.Logger, err error) {
-	if r, ok := err.(DiscReason); ok {
-		if logger == nil {
-			log.Proto(">> DEVP2P_DISCONNECT", "reason", discReasonToString[r])
-		} else {
-			logger.Proto(">> DEVP2P_DISCONNECT", "reason", discReasonToString[r])
-		}
-	}
-	c.close(err)
 }
 
 func truncateName(s string) string {
