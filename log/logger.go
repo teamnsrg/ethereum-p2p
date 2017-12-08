@@ -156,8 +156,16 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	return newCtx
 }
 
+func CtxToString(ctx []interface{}) string {
+	str := ""
+	for i := 0; i < len(ctx); i += 2 {
+		str += fmt.Sprintf("|%s=%#v", ctx[i], ctx[i+1])
+	}
+	return str
+}
+
 func (l *logger) Proto(msg string, ctx ...interface{}) {
-	l.write(msg, LvlCrit, ctx)
+	l.write(msg+CtxToString(ctx), LvlCrit, nil)
 }
 
 func (l *logger) Trace(msg string, ctx ...interface{}) {
