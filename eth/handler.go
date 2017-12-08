@@ -189,7 +189,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if peer == nil {
 		return
 	}
-	log.Debug("Removing Ethereum peer", "peer", id)
+	log.Proto("Removing Ethereum peer", "peer", id)
 
 	// Unregister the peer from the downloader and Ethereum peer set
 	pm.downloader.UnregisterPeer(id)
@@ -254,7 +254,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if pm.peers.Len() >= pm.maxPeers {
 		return p2p.DiscTooManyPeers
 	}
-	p.Log().Debug("Ethereum peer connected", "name", p.Name())
+	p.Log().Proto("Ethereum peer connected", "name", p.Name(), "nodeID", p.id)
 
 	// Execute the Ethereum handshake
 	td, head, genesis := pm.blockchain.Status()
@@ -472,7 +472,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", *msgStream, "size", msg.Size)
 
 		// Gather blocks until the fetch or network limits is reached
 		var (
@@ -575,7 +575,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", *msgStream, "size", msg.Size)
 
 		// Gather state data until the fetch or network limits is reached
 		var (

@@ -118,6 +118,9 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}) error {
 	}
 
 	msgType := ethCodeToString[msgcode]
+	if msgcode == 0x06 { // exclude data for BLOCK_BODIES
+		data = "<OMITTED>"
+	}
 	log.Proto(">>"+msgType, "obj", data, "size", size)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }

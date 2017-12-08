@@ -615,7 +615,7 @@ type Stream struct {
 	stack   []listpos
 }
 
-func (s *Stream) GoString() string {
+func (s Stream) GoString() string {
 	return common.MarshalObj(s)
 }
 
