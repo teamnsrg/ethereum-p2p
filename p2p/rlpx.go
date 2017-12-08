@@ -166,7 +166,7 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 		return nil, err
 	}
 
-	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", hs, "size", msg.Size)
+	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", &hs, "size", msg.Size)
 
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity

@@ -303,7 +303,7 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
-	var emptyMsgObj [0]interface{}
+	var emptyMsgObj []interface{}
 	switch {
 	case msg.Code == pingMsg:
 		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", msg.Size)

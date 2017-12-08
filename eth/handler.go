@@ -335,7 +335,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", query, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", &query, "size", msg.Size)
 
 		hashMode := query.Origin.Hash != (common.Hash{})
 
@@ -502,7 +502,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", request, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size)
 
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
@@ -561,7 +561,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", data, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size)
 
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
@@ -614,7 +614,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", receipts, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size)
 
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
@@ -627,7 +627,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", announces, "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", &announces, "size", msg.Size)
 
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {

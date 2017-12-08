@@ -130,7 +130,10 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}) error {
 	}
 
 	msgType := devp2pCodeToString[msgcode]
-	log.Proto(">>"+msgType, "obj", data, "size", size)
+	if msgcode == discMsg {
+		data = discReasonToString[data.(DiscReason)]
+	}
+	log.Proto(">>"+msgType, "obj", data, "size", uint32(size))
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
