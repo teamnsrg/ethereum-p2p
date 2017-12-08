@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"encoding/json"
+	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -89,6 +90,10 @@ type protoHandshake struct {
 
 	// Ignore additional fields (for forward compatibility).
 	Rest []rlp.RawValue `rlp:"tail"`
+}
+
+func (ph *protoHandshake) String() string {
+	return common.MarshalObj(ph)
 }
 
 // PeerEventType is the type of peer events emitted by a p2p.Server

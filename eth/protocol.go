@@ -135,6 +135,10 @@ type statusData struct {
 	GenesisBlock    common.Hash
 }
 
+func (sd *statusData) GoString() string {
+	return common.MarshalObj(sd)
+}
+
 // newBlockHashesData is the network packet for the block announcements.
 type newBlockHashesData []struct {
 	Hash   common.Hash // Hash of one particular block being announced

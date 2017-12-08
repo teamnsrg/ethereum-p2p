@@ -472,7 +472,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size)
 
 		// Gather blocks until the fetch or network limits is reached
 		var (
@@ -531,7 +531,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size)
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -575,7 +575,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "size", msg.Size)
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size)
 
 		// Gather state data until the fetch or network limits is reached
 		var (
