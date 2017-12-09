@@ -110,33 +110,43 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
-func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}) error {
+func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
 	size, r, err := rlp.EncodeToReader(data)
 
 	if err != nil {
 		return err
+	}
+
+	var peer discover.NodeID
+	if len(peers) == 1 {
+		peer = peers[0]
 	}
 
 	msgType := ethCodeToString[msgcode]
 	if msgcode == 0x06 { // exclude data for BLOCK_BODIES
 		data = "<OMITTED>"
 	}
-	log.Proto(">>"+msgType, "obj", data, "size", size)
+	log.Proto(">>"+msgType, "obj", data, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
-func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}) error {
+func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
 	size, r, err := rlp.EncodeToReader(data)
 
 	if err != nil {
 		return err
 	}
 
+	var peer discover.NodeID
+	if len(peers) == 1 {
+		peer = peers[0]
+	}
+
 	msgType := devp2pCodeToString[msgcode]
 	if msgcode == discMsg {
 		data = discReasonToString[data.(DiscReason)]
 	}
-	log.Proto(">>"+msgType, "obj", data, "size", uint32(size))
+	log.Proto(">>"+msgType, "obj", data, "size", uint32(size), "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
