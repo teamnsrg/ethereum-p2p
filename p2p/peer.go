@@ -263,7 +263,7 @@ loop:
 	}
 
 	close(p.closed)
-	p.rw.close(reason)
+	p.rw.close(reason, p.ID())
 	p.wg.Wait()
 	return remoteRequested, err
 }
