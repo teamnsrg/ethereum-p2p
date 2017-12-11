@@ -64,6 +64,24 @@ const (
 	ReceiptsMsg    = 0x10
 )
 
+var ethCodeToString = [...]string{
+	// Protocol messages belonging to eth/62
+	StatusMsg:          "ETH_STATUS",
+	NewBlockHashesMsg:  "ETH_NEW_BLOCK_HASHES",
+	TxMsg:              "ETH_TX",
+	GetBlockHeadersMsg: "ETH_GET_BLOCK_HEADERS",
+	BlockHeadersMsg:    "ETH_BLOCK_HEADERS",
+	GetBlockBodiesMsg:  "ETH_GET_BLOCK_BODIES",
+	BlockBodiesMsg:     "ETH_BLOCK_BODIES",
+	NewBlockMsg:        "ETH_NEW_BLOCK",
+
+	// Protocol messages belonging to eth/63
+	GetNodeDataMsg: "ETH_GET_NODE_DATA",
+	NodeDataMsg:    "ETH_NODE_DATA",
+	GetReceiptsMsg: "ETH_GET_RECEIPTS",
+	ReceiptsMsg:    "ETH_RECEIPTS",
+}
+
 type errCode int
 
 const (
@@ -117,10 +135,22 @@ type statusData struct {
 	GenesisBlock    common.Hash
 }
 
+func (sd *statusData) GoString() string {
+	return common.MarshalObj(sd)
+}
+
 // newBlockHashesData is the network packet for the block announcements.
 type newBlockHashesData []struct {
 	Hash   common.Hash // Hash of one particular block being announced
 	Number uint64      // Number of one particular block being announced
+}
+
+func (msg newBlockHashesData) GoString() string {
+	var msgs []interface{}
+	for _, blockHash := range msg {
+		msgs = append(msgs, common.MarshalObj(blockHash))
+	}
+	return common.MarshalObj(msgs)
 }
 
 // getBlockHeadersData represents a block header query.
@@ -129,6 +159,10 @@ type getBlockHeadersData struct {
 	Amount  uint64       // Maximum number of headers to retrieve
 	Skip    uint64       // Blocks to skip between consecutive headers
 	Reverse bool         // Query direction (false = rising towards latest, true = falling towards genesis)
+}
+
+func (msg *getBlockHeadersData) GoString() string {
+	return common.MarshalObj(msg)
 }
 
 // hashOrNumber is a combined field for specifying an origin block.
@@ -173,10 +207,18 @@ type newBlockData struct {
 	TD    *big.Int
 }
 
+func (msg *newBlockData) GoString() string {
+	return common.MarshalObj(msg)
+}
+
 // blockBody represents the data content of a single block.
 type blockBody struct {
 	Transactions []*types.Transaction // Transactions contained within a block
 	Uncles       []*types.Header      // Uncles contained within a block
+}
+
+func (msg *blockBody) GoString() string {
+	return common.MarshalObj(msg)
 }
 
 // blockBodiesData is the network packet for block content distribution.

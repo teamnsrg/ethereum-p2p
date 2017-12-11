@@ -27,7 +27,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/event"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -44,6 +46,14 @@ type Msg struct {
 	Size       uint32 // size of the paylod
 	Payload    io.Reader
 	ReceivedAt time.Time
+}
+
+func (msg *Msg) GoString() string {
+	j, err := json.Marshal(msg)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
 }
 
 // Decode parses the RLP content of a message into
@@ -93,9 +103,50 @@ type MsgReadWriter interface {
 // data should encode as an RLP list.
 func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 	size, r, err := rlp.EncodeToReader(data)
+
 	if err != nil {
 		return err
 	}
+	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+}
+
+func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
+	size, r, err := rlp.EncodeToReader(data)
+
+	if err != nil {
+		return err
+	}
+
+	var peer discover.NodeID
+	if len(peers) == 1 {
+		peer = peers[0]
+	}
+
+	msgType := ethCodeToString[msgcode]
+	if msgcode == 0x06 { // exclude data for BLOCK_BODIES
+		data = "<OMITTED>"
+	}
+	log.Proto(">>"+msgType, "obj", data, "size", size, "peer", peer)
+	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+}
+
+func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
+	size, r, err := rlp.EncodeToReader(data)
+
+	if err != nil {
+		return err
+	}
+
+	var peer discover.NodeID
+	if len(peers) == 1 {
+		peer = peers[0]
+	}
+
+	msgType := devp2pCodeToString[msgcode]
+	if msgcode == discMsg {
+		data = discReasonToString[data.(DiscReason)]
+	}
+	log.Proto(">>"+msgType, "obj", data, "size", uint32(size), "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
@@ -109,7 +160,7 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 //    [e1, e2, e3]
 //
 func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return Send(w, msgcode, elems)
+	return SendDEVp2p(w, msgcode, elems)
 }
 
 // netWrapper wraps a MsgReadWriter with locks around
@@ -302,6 +353,7 @@ func (self *msgEventer) ReadMsg() (Msg, error) {
 	if err != nil {
 		return msg, err
 	}
+
 	self.feed.Send(&PeerEvent{
 		Type:     PeerEventTypeMsgRecv,
 		Peer:     self.peerID,

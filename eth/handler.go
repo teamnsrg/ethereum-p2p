@@ -189,7 +189,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if peer == nil {
 		return
 	}
-	log.Debug("Removing Ethereum peer", "peer", id)
+	log.Proto("Removing Ethereum peer", "peer", peer.ID())
 
 	// Unregister the peer from the downloader and Ethereum peer set
 	pm.downloader.UnregisterPeer(id)
@@ -254,7 +254,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if pm.peers.Len() >= pm.maxPeers {
 		return p2p.DiscTooManyPeers
 	}
-	p.Log().Debug("Ethereum peer connected", "name", p.Name())
+	p.Log().Proto("Ethereum peer connected", "name", p.Name(), "nodeID", p.ID())
 
 	// Execute the Ethereum handshake
 	td, head, genesis := pm.blockchain.Status()
@@ -334,6 +334,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&query); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", &query, "size", msg.Size, "peer", p.ID())
+
 		hashMode := query.Origin.Hash != (common.Hash{})
 
 		// Gather headers until the fetch or network limits is reached
@@ -412,6 +415,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&headers); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", headers, "size", msg.Size, "peer", p.ID())
+
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -465,6 +471,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if _, err := msgStream.List(); err != nil {
 			return err
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", *msgStream, "size", msg.Size, "peer", p.ID())
+
 		// Gather blocks until the fetch or network limits is reached
 		var (
 			hash   common.Hash
@@ -492,6 +501,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
+
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
@@ -518,6 +530,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if _, err := msgStream.List(); err != nil {
 			return err
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size, "peer", p.ID())
+
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash  common.Hash
@@ -545,6 +560,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&data); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
+
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
 			log.Debug("Failed to deliver node state data", "err", err)
@@ -556,6 +574,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if _, err := msgStream.List(); err != nil {
 			return err
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", *msgStream, "size", msg.Size, "peer", p.ID())
+
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash     common.Hash
@@ -592,6 +613,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&receipts); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
+
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
 			log.Debug("Failed to deliver receipts", "err", err)
@@ -602,6 +626,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&announces); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", &announces, "size", msg.Size, "peer", p.ID())
+
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
 			p.MarkBlock(block.Hash)
@@ -623,6 +650,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", request, "size", msg.Size, "peer", p.ID())
+
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
 
@@ -659,6 +689,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&txs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", txs, "size", msg.Size, "peer", p.ID())
+
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {

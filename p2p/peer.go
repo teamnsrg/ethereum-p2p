@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
+	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -51,6 +53,33 @@ const (
 	peersMsg     = 0x05
 )
 
+var devp2pCodeToString = [...]string{
+	handshakeMsg: "DEVP2P_HELLO",
+	discMsg:      "DEVP2P_DISC",
+	pingMsg:      "DEVP2P_PING",
+	pongMsg:      "DEVP2P_PONG",
+	getPeersMsg:  "DEVP2P_GET_PEERS",
+	peersMsg:     "DEVP2P_PEERS",
+}
+
+var ethCodeToString = [...]string{
+	// Protocol messages belonging to eth/62
+	0x00: "ETH_STATUS",
+	0x01: "ETH_NEW_BLOCK_HASHES",
+	0x02: "ETH_TX",
+	0x03: "ETH_GET_BLOCK_HEADERS",
+	0x04: "ETH_BLOCK_HEADERS",
+	0x05: "ETH_GET_BLOCK_BODIES",
+	0x06: "ETH_BLOCK_BODIES",
+	0x07: "ETH_NEW_BLOCK",
+
+	// Protocol messages belonging to eth/63
+	0x0d: "ETH_GET_NODE_DATA",
+	0x0e: "ETH_NODE_DATA",
+	0x0f: "ETH_GET_RECEIPTS",
+	0x10: "ETH_RECEIPTS",
+}
+
 // protoHandshake is the RLP structure of the protocol handshake.
 type protoHandshake struct {
 	Version    uint64
@@ -61,6 +90,10 @@ type protoHandshake struct {
 
 	// Ignore additional fields (for forward compatibility).
 	Rest []rlp.RawValue `rlp:"tail"`
+}
+
+func (ph *protoHandshake) String() string {
+	return common.MarshalObj(ph)
 }
 
 // PeerEventType is the type of peer events emitted by a p2p.Server
@@ -118,6 +151,14 @@ func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
+}
+
+func (phs *protoHandshake) GoString() string {
+	j, err := json.Marshal(phs)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
 }
 
 // ID returns the node's public key.
@@ -222,7 +263,7 @@ loop:
 	}
 
 	close(p.closed)
-	p.rw.close(reason)
+	p.rw.close(reason, p.ID())
 	p.wg.Wait()
 	return remoteRequested, err
 }
@@ -234,7 +275,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendItems(p.rw, pingMsg); err != nil {
+			if err := SendDEVp2p(p.rw, pingMsg, make([]interface{}, 0), p.ID()); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -262,15 +303,21 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
+	var emptyMsgObj []interface{}
 	switch {
 	case msg.Code == pingMsg:
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", msg.Size, "peer", p.ID())
 		msg.Discard()
-		go SendItems(p.rw, pongMsg)
+		go SendDEVp2p(p.rw, pongMsg, make([]interface{}, 0), p.ID())
+	case msg.Code == pongMsg:
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", msg.Size, "peer", p.ID())
+		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", msg.Size, "peer", p.ID())
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -416,6 +463,14 @@ type PeerInfo struct {
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
+}
+
+func (pi *PeerInfo) GoString() string {
+	j, err := json.Marshal(pi)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
 }
 
 // Info gathers and returns a collection of metadata known about a peer.

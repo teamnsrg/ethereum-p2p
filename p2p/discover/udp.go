@@ -25,6 +25,7 @@ import (
 	"net"
 	"time"
 
+	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
@@ -117,6 +118,30 @@ type (
 		TCP uint16 // for RLPx protocol
 	}
 )
+
+func marshalObj(obj interface{}) string {
+	j, err := json.Marshal(obj)
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return string(j)
+}
+
+func (pkt *ping) GoString() string {
+	return marshalObj(pkt)
+}
+
+func (pkt *pong) GoString() string {
+	return marshalObj(pkt)
+}
+
+func (pkt *findnode) GoString() string {
+	return marshalObj(pkt)
+}
+
+func (pkt *neighbors) GoString() string {
+	return marshalObj(pkt)
+}
 
 func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
 	ip := addr.IP.To4()
@@ -275,7 +300,7 @@ func (t *udp) ping(toid NodeID, toaddr *net.UDPAddr) error {
 		From:       t.ourEndpoint,
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, toid)
 	return <-errc
 }
 
@@ -294,7 +319,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 			nreceived++
 			n, err := t.nodeFromRPC(toaddr, rn)
 			if err != nil {
-				log.Trace("Invalid neighbor node received", "ip", rn.IP, "addr", toaddr, "err", err)
+				log.Trace("Invalid neighbor node received", "neighbor_ip", rn.IP, "sender_ip", toaddr, "err", err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -304,7 +329,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 	t.send(toaddr, findnodePacket, &findnode{
 		Target:     target,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, toid)
 	err := <-errc
 	return nodes, err
 }
@@ -459,13 +484,13 @@ func init() {
 	}
 }
 
-func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
+func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) error {
 	packet, err := encodePacket(t.priv, ptype, req)
 	if err != nil {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Trace(">> "+req.name(), "addr", toaddr, "err", err)
+	log.Proto(">>"+req.name(), "to", toaddr.String(), "size", len(packet), "err", err, "obj", req, "peer", peer)
 	return err
 }
 
@@ -520,7 +545,7 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		return err
 	}
 	err = packet.handle(t, from, fromID, hash)
-	log.Trace("<< "+packet.name(), "addr", from, "err", err)
+	log.Proto("<<"+packet.name(), "from", from.String(), "size", len(buf), "err", err, "obj", packet, "peer", fromID)
 	return err
 }
 
@@ -563,7 +588,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 		To:         makeEndpoint(from, req.From.TCP),
 		ReplyTok:   mac,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, fromID)
 	if !t.handleReply(fromID, pingPacket, req) {
 		// Note: we're ignoring the provided IP address right now
 		go t.bond(true, fromID, from, req.From.TCP)
@@ -613,7 +638,7 @@ func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte
 		}
 		p.Nodes = append(p.Nodes, nodeToRPC(n))
 		if len(p.Nodes) == maxNeighbors || i == len(closest)-1 {
-			t.send(from, neighborsPacket, &p)
+			t.send(from, neighborsPacket, &p, fromID)
 			p.Nodes = p.Nodes[:0]
 		}
 	}
