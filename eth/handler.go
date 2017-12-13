@@ -335,7 +335,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", &query, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		hashMode := query.Origin.Hash != (common.Hash{})
 
@@ -416,7 +416,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", headers, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
@@ -472,7 +472,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", *msgStream, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		// Gather blocks until the fetch or network limits is reached
 		var (
@@ -531,7 +531,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", msgStream, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -575,7 +575,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", *msgStream, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -651,7 +651,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", request, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
@@ -690,7 +690,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", txs, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
