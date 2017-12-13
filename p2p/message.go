@@ -111,6 +111,7 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 }
 
 var dataExcludedMsgs = map[uint64]struct{}{
+	0x02: nil, //TxMsg
 	0x03: nil, //GetBlockHeaders
 	0x04: nil, //BlockHeaders
 	0x05: nil, //GetBlockBodies

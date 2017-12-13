@@ -690,7 +690,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", txs, "size", msg.Size, "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", msg.Size, "peer", p.ID())
 
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
