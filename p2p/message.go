@@ -110,17 +110,18 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
+var empty struct{}
 var dataExcludedMsgs = map[uint64]struct{}{
-	0x02: nil, //TxMsg
-	0x03: nil, //GetBlockHeaders
-	0x04: nil, //BlockHeaders
-	0x05: nil, //GetBlockBodies
-	0x06: nil, //BlockBodies
-	0x07: nil, //NewBlockMsg
-	0x0d: nil, //GetNodeData
-	0x0e: nil, //NodeData
-	0x0f: nil, //GetReceipts
-	0x10: nil, //Receipts
+	0x02: empty, //TxMsg
+	0x03: empty, //GetBlockHeaders
+	0x04: empty, //BlockHeaders
+	0x05: empty, //GetBlockBodies
+	0x06: empty, //BlockBodies
+	0x07: empty, //NewBlockMsg
+	0x0d: empty, //GetNodeData
+	0x0e: empty, //NodeData
+	0x0f: empty, //GetReceipts
+	0x10: empty, //Receipts
 }
 
 func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
@@ -136,7 +137,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...dis
 	}
 
 	msgType := ethCodeToString[msgcode]
-	if _, ok := dataExcludedMsgs[msgType]; ok {
+	if _, ok := dataExcludedMsgs[msgcode]; ok {
 		data = "<OMITTED>"
 	}
 
