@@ -25,7 +25,7 @@ import (
 	"net"
 	"time"
 
-	"encoding/json"
+	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
@@ -119,28 +119,20 @@ type (
 	}
 )
 
-func marshalObj(obj interface{}) string {
-	j, err := json.Marshal(obj)
-	if err != nil {
-		log.Crit(err.Error())
-	}
-	return string(j)
-}
-
 func (pkt *ping) GoString() string {
-	return marshalObj(pkt)
+	return common.MarshalObj(pkt)
 }
 
 func (pkt *pong) GoString() string {
-	return marshalObj(pkt)
+	return common.MarshalObj(pkt)
 }
 
 func (pkt *findnode) GoString() string {
-	return marshalObj(pkt)
+	return common.MarshalObj(pkt)
 }
 
 func (pkt *neighbors) GoString() string {
-	return marshalObj(pkt)
+	return common.MarshalObj(pkt)
 }
 
 func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {

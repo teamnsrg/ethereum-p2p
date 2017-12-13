@@ -249,7 +249,7 @@ func (a UnprefixedAddress) MarshalText() ([]byte, error) {
 func MarshalObj(obj interface{}) string {
 	j, err := json.Marshal(obj)
 	if err != nil {
-		log.Crit(err.Error())
+		log.Proto(err.Error())
 	}
 	return string(j)
 }
