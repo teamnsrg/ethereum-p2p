@@ -116,6 +116,7 @@ var dataExcludedMsgs = map[uint64]struct{}{
 	0x04: nil, //BlockHeaders
 	0x05: nil, //GetBlockBodies
 	0x06: nil, //BlockBodies
+	0x07: nil, //NewBlockMsg
 	0x0d: nil, //GetNodeData
 	0x0e: nil, //NodeData
 	0x0f: nil, //GetReceipts
