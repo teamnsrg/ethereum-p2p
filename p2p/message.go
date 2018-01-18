@@ -141,7 +141,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...dis
 		data = "<OMITTED>"
 	}
 
-	log.Proto(">>"+msgType, "obj", data, "size", size, "peer", peer)
+	log.Proto(">>"+msgType, "obj", data, "size", int(size), "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
@@ -161,7 +161,7 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 	if msgcode == discMsg {
 		data = discReasonToString[data.(DiscReason)]
 	}
-	log.Proto(">>"+msgType, "obj", data, "size", uint32(size), "peer", peer)
+	log.Proto(">>"+msgType, "obj", data, "size", int(size), "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 

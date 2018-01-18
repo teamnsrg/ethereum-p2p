@@ -306,18 +306,18 @@ func (p *Peer) handle(msg Msg) error {
 	var emptyMsgObj []interface{}
 	switch {
 	case msg.Code == pingMsg:
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", msg.Size, "peer", p.ID())
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
 		go SendDEVp2p(p.rw, pongMsg, make([]interface{}, 0), p.ID())
 	case msg.Code == pongMsg:
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", msg.Size, "peer", p.ID())
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", msg.Size, "peer", p.ID())
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", p.ID())
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages

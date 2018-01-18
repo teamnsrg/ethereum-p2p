@@ -279,7 +279,7 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
 
-	p.Log().Proto("<<"+ethCodeToString[msg.Code], "obj", status, "size", msg.Size, "peer", p.ID())
+	p.Log().Proto("<<"+ethCodeToString[msg.Code], "obj", status, "size", int(msg.Size), "peer", p.ID())
 
 	if status.GenesisBlock != genesis {
 		return errResp(ErrGenesisBlockMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])

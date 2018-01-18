@@ -155,7 +155,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", msg.Size, "peer", peer)
+		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", peer)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
@@ -166,7 +166,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		return nil, err
 	}
 
-	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", &hs, "size", msg.Size, "peer", hs.ID)
+	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", &hs, "size", int(msg.Size), "peer", hs.ID)
 
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity
