@@ -159,10 +159,13 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
+		var emptyMsgObj []interface{}
+		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
+		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
 		return nil, err
 	}
 

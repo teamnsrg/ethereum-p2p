@@ -269,13 +269,16 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 		return err
 	}
 	if msg.Code != StatusMsg {
+		p.Log().Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
 	if msg.Size > ProtocolMaxMsgSize {
+		p.Log().Proto("<<TOOLARGE_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
+		p.Log().Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
 
