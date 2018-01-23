@@ -326,6 +326,7 @@ func (p *Peer) handle(msg Msg) error {
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
+			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code),"obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {
