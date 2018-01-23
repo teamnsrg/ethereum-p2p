@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	timeFormat     = "2006-01-02T15:04:05-0700"
+	timeFormat     = "2006-01-02T15:04:05.999999999-0700"
 	termTimeFormat = "01-02|15:04:05"
 	floatFormat    = 'f'
 	termMsgJust    = 40
@@ -105,7 +105,7 @@ func TerminalFormat(usecolor bool) Format {
 
 		b := &bytes.Buffer{}
 		lvl := r.Lvl.AlignedString()
-		unixTime := float64(r.Time.UnixNano())/1000000
+		unixTime := float64(r.Time.UnixNano())/1000000000
 
 		if atomic.LoadUint32(&locationEnabled) != 0 {
 			// Log origin printing was requested, format the location path and line number
@@ -119,7 +119,6 @@ func TerminalFormat(usecolor bool) Format {
 				align = len(location)
 				atomic.StoreUint32(&locationLength, uint32(align))
 			}
-			// padding := strings.Repeat(" ", align-len(location))
 
 			// Assemble and print the log heading
 			if color > 0 {
