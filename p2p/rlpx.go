@@ -160,8 +160,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 	}
 	if msg.Code != handshakeMsg {
 		var emptyMsgObj []interface{}
-		l := len(devp2pCodeToString)
-		if int(msg.Code) < l {
+		if int(msg.Code) < len(devp2pCodeToString) {
 			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
 		} else {
 			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
