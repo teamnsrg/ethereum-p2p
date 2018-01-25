@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-stack/stack"
+	"reflect"
 )
 
 const timeKey = "t"
@@ -159,6 +160,13 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 func CtxToString(ctx []interface{}) string {
 	str := ""
 	for i := 0; i < len(ctx); i += 2 {
+		// if float, print in decimal, not scientific notation
+		if ctx[i+1] != nil {
+			if k := reflect.TypeOf(ctx[i+1]).Kind(); k == reflect.Float64 {
+				str += fmt.Sprintf("|%s=%f", ctx[i], ctx[i+1])
+				continue
+			}
+		}
 		str += fmt.Sprintf("|%s=%#v", ctx[i], ctx[i+1])
 	}
 	return str

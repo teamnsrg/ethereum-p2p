@@ -303,30 +303,36 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
+	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
 	var emptyMsgObj []interface{}
 	switch {
 	case msg.Code == pingMsg:
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
 		go SendDEVp2p(p.rw, pongMsg, make([]interface{}, 0), p.ID())
 	case msg.Code == pongMsg:
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", p.ID())
+		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", p.ID())
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
+		if int(msg.Code) < len(devp2pCodeToString) {
+			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		} else {
+			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		}
 		return msg.Discard()
 	default:
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
-			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code),"obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code),"receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {

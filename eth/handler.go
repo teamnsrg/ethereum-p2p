@@ -321,11 +321,18 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
+	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
 		// Status messages should never arrive after the handshake
-		log.Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		var status statusData
+		// Decode the handshake and make sure everything matches
+		if err := msg.Decode(&status); err != nil {
+			log.Proto("<<FAIL_UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		log.Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", status, "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
 	// Block header query, collect the requested headers and reply
@@ -333,11 +340,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		hashMode := query.Origin.Hash != (common.Hash{})
 
@@ -415,11 +422,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
@@ -472,11 +479,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Gather blocks until the fetch or network limits is reached
 		var (
@@ -503,11 +510,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of block bodies arrived to one of our previous requests
 		var request blockBodiesData
 		if err := msg.Decode(&request); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
@@ -533,11 +540,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -564,11 +571,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of node state data arrived to one of our previous requests
 		var data [][]byte
 		if err := msg.Decode(&data); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
@@ -579,11 +586,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return err
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -619,11 +626,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of receipts arrived to one of our previous requests
 		var receipts [][]*types.Receipt
 		if err := msg.Decode(&receipts); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
@@ -633,11 +640,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case msg.Code == NewBlockHashesMsg:
 		var announces newBlockHashesData
 		if err := msg.Decode(&announces); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", &announces, "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
@@ -658,11 +665,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Retrieve and decode the propagated block
 		var request newBlockData
 		if err := msg.Decode(&request); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
@@ -691,7 +698,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
-		log.Proto("<<"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Transactions arrived, make sure we have a valid and fresh chain to handle them
 		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
@@ -700,7 +707,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Transactions can be processed, parse all of them and deliver to the pool
 		var txs []*types.Transaction
 		if err := msg.Decode(&txs); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 

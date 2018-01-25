@@ -148,6 +148,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, fmt.Errorf("message too big")
 	}
+	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
 		// spec and we send it ourself if the posthanshake checks fail.
@@ -155,25 +156,25 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", peer)
+		log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", peer)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
 		var emptyMsgObj []interface{}
 		if int(msg.Code) < len(devp2pCodeToString) {
-			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
+			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
 		} else {
-			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
+			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
 		}
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
+		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
 		return nil, err
 	}
 
-	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", &hs, "size", int(msg.Size), "peer", hs.ID)
+	log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", &hs, "size", int(msg.Size), "peer", hs.ID)
 
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity

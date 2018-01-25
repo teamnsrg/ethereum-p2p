@@ -268,21 +268,22 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	if err != nil {
 		return err
 	}
+	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
 	if msg.Code != StatusMsg {
-		p.Log().Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		p.Log().Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
 	if msg.Size > ProtocolMaxMsgSize {
-		p.Log().Proto("<<TOOLARGE_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		p.Log().Proto("<<TOOLARGE_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
-		p.Log().Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		p.Log().Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
 
-	p.Log().Proto("<<"+ethCodeToString[msg.Code], "obj", status, "size", int(msg.Size), "peer", p.ID())
+	p.Log().Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", status, "size", int(msg.Size), "peer", p.ID())
 
 	if status.GenesisBlock != genesis {
 		return errResp(ErrGenesisBlockMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])
