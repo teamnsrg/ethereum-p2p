@@ -321,12 +321,17 @@ func (p *Peer) handle(msg Msg) error {
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
+		if int(msg.Code) < len(devp2pCodeToString) {
+			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		} else {
+			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		}
 		return msg.Discard()
 	default:
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
-			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code),"obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {
