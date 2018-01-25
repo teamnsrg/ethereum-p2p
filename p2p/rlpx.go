@@ -148,7 +148,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, fmt.Errorf("message too big")
 	}
-	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
+	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
 		// spec and we send it ourself if the posthanshake checks fail.

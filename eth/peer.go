@@ -268,7 +268,7 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	if err != nil {
 		return err
 	}
-	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
+	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
 	if msg.Code != StatusMsg {
 		p.Log().Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)

@@ -321,7 +321,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
-	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
+	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:

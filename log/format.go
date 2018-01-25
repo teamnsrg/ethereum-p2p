@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	timeFormat     = "2006-01-02T15:04:05-0700"
-	termTimeFormat = "01-02|15:04:05"
-	newTermTimeFormat     = "2006-01-02T15:04:05.999999999-0700"
-	floatFormat    = 'f'
-	termMsgJust    = 40
+	timeFormat        = "2006-01-02T15:04:05-0700"
+	termTimeFormat    = "01-02|15:04:05"
+	newTermTimeFormat = "2006-01-02T15:04:05.999999999-0700"
+	floatFormat       = 'f'
+	termMsgJust       = 40
 )
 
 // locationTrims are trimmed for display to avoid unwieldy log lines.

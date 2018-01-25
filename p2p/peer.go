@@ -303,7 +303,7 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
-	unixTime := float64(msg.ReceivedAt.UnixNano())/1000000000
+	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
 	var emptyMsgObj []interface{}
 	switch {
 	case msg.Code == pingMsg:
@@ -332,7 +332,7 @@ func (p *Peer) handle(msg Msg) error {
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
-			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code),"receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {
