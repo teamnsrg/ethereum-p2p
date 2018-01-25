@@ -126,6 +126,10 @@ var (
 		Usage: "Maximum number of concurrently handshaking inbound connections",
 		Value: 50,
 	}
+	NoMaxPeersFlag = cli.BoolFlag{
+		Name:  "nomaxpeers",
+		Usage: "Allow unlimited number of peer connections",
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -804,6 +808,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(MaxAcceptFlag.Name) {
 		cfg.MaxAccept = ctx.GlobalInt(MaxAcceptFlag.Name)
+	}
+	if ctx.GlobalIsSet(NoMaxPeersFlag.Name) {
+		cfg.NoMaxPeers = true
 	}
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)

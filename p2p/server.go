@@ -58,6 +58,9 @@ type Config struct {
 	// MaxDial is the maximum number of concurrently handshaking inbound connections.
 	MaxAccept int
 
+	// NoMaxPeers can be used to ignore MaxPeers, allowing unlimited number of peer connections.
+	NoMaxPeers bool
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -404,6 +407,9 @@ func (srv *Server) Start() (err error) {
 	}
 
 	dynPeers := (srv.MaxPeers + 1) / 2
+	if srv.NoMaxPeers {
+		dynPeers = srv.MaxDial
+	}
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
@@ -620,7 +626,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	case !c.is(trustedConn|staticDialedConn) && !srv.NoMaxPeers && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case peers[c.id] != nil:
 		return DiscAlreadyConnected
