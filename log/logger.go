@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-stack/stack"
+	"reflect"
 )
 
 const timeKey = "t"
@@ -32,13 +33,13 @@ func (l Lvl) AlignedString() string {
 	case LvlDebug:
 		return "DEBUG"
 	case LvlInfo:
-		return "INFO "
+		return "INFO"
 	case LvlWarn:
-		return "WARN "
+		return "WARN"
 	case LvlError:
 		return "ERROR"
 	case LvlCrit:
-		return "CRIT "
+		return "CRIT"
 	default:
 		panic("bad level")
 	}
@@ -119,6 +120,7 @@ type Logger interface {
 	Warn(msg string, ctx ...interface{})
 	Error(msg string, ctx ...interface{})
 	Crit(msg string, ctx ...interface{})
+	Proto(msg string, ctx ...interface{})
 }
 
 type logger struct {
@@ -153,6 +155,25 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	n := copy(newCtx, prefix)
 	copy(newCtx[n:], normalizedSuffix)
 	return newCtx
+}
+
+func CtxToString(ctx []interface{}) string {
+	str := ""
+	for i := 0; i < len(ctx); i += 2 {
+		// if float, print in decimal, not scientific notation
+		if ctx[i+1] != nil {
+			if k := reflect.TypeOf(ctx[i+1]).Kind(); k == reflect.Float64 {
+				str += fmt.Sprintf("|%s=%f", ctx[i], ctx[i+1])
+				continue
+			}
+		}
+		str += fmt.Sprintf("|%s=%#v", ctx[i], ctx[i+1])
+	}
+	return str
+}
+
+func (l *logger) Proto(msg string, ctx ...interface{}) {
+	l.write(msg+CtxToString(ctx), LvlCrit, nil)
 }
 
 func (l *logger) Trace(msg string, ctx ...interface{}) {

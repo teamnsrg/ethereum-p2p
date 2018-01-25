@@ -85,6 +85,10 @@ type Header struct {
 	Nonce       BlockNonce     `json:"nonce"            gencodec:"required"`
 }
 
+func (h *Header) GoString() string {
+	return common.MarshalObj(h)
+}
+
 // field type overrides for gencodec
 type headerMarshaling struct {
 	Difficulty *hexutil.Big
