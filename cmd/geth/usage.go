@@ -68,6 +68,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.MaxNoFileFlag,
 			utils.MaxDialFlag,
+			utils.MaxAcceptFlag,
 		},
 	},
 	{

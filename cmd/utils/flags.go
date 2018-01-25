@@ -121,6 +121,11 @@ var (
 		Usage: "Maximum number of concurrently dialing outbound connections",
 		Value: 16,
 	}
+	MaxAcceptFlag = cli.IntFlag{
+		Name:  "maxaccept",
+		Usage: "Maximum number of concurrently handshaking inbound connections",
+		Value: 50,
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -796,6 +801,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 	if ctx.GlobalIsSet(MaxDialFlag.Name) {
 		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)
+	}
+	if ctx.GlobalIsSet(MaxAcceptFlag.Name) {
+		cfg.MaxAccept = ctx.GlobalInt(MaxAcceptFlag.Name)
 	}
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
