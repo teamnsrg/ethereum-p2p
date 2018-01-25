@@ -67,6 +67,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "NODE FINDER",
 		Flags: []cli.Flag{
 			utils.MaxNoFileFlag,
+			utils.MaxDialFlag,
 		},
 	},
 	{

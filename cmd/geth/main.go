@@ -53,6 +53,7 @@ var (
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
 		utils.MaxNoFileFlag,
+		utils.MaxDialFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,

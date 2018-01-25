@@ -43,9 +43,6 @@ const (
 	// Maximum number of concurrently handshaking inbound connections.
 	maxAcceptConns = 50
 
-	// Maximum number of concurrently dialing outbound connections.
-	maxActiveDialTasks = 16
-
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
 	frameReadTimeout = 30 * time.Second
@@ -58,6 +55,9 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MaxDial is the maximum number of concurrently dialing outbound connections
+	MaxDial int
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -464,7 +464,7 @@ func (srv *Server) run(dialstate dialer) {
 	var (
 		peers        = make(map[discover.NodeID]*Peer)
 		trusted      = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
-		taskdone     = make(chan task, maxActiveDialTasks)
+		taskdone     = make(chan task, srv.MaxDial)
 		runningTasks []task
 		queuedTasks  []task // tasks that can't run yet
 	)
@@ -487,7 +487,7 @@ func (srv *Server) run(dialstate dialer) {
 	// starts until max number of active tasks is satisfied
 	startTasks := func(ts []task) (rest []task) {
 		i := 0
-		for ; len(runningTasks) < maxActiveDialTasks && i < len(ts); i++ {
+		for ; len(runningTasks) < srv.MaxDial && i < len(ts); i++ {
 			t := ts[i]
 			log.Trace("New dial task", "task", t)
 			go func() { t.Do(srv); taskdone <- t }()
@@ -499,7 +499,7 @@ func (srv *Server) run(dialstate dialer) {
 		// Start from queue first.
 		queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
 		// Query dialer for new tasks and start as many as possible now.
-		if len(runningTasks) < maxActiveDialTasks {
+		if len(runningTasks) < srv.MaxDial {
 			nt := dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())
 			queuedTasks = append(queuedTasks, startTasks(nt)...)
 		}

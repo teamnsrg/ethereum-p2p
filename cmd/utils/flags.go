@@ -116,6 +116,11 @@ var (
 		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
 		Value: 2048,
 	}
+	MaxDialFlag = cli.IntFlag{
+		Name:  "maxdial",
+		Usage: "Maximum number of concurrently dialing outbound connections",
+		Value: 16,
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -789,6 +794,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	if ctx.GlobalIsSet(MaxDialFlag.Name) {
+		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)
+	}
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
 	}
