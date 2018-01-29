@@ -56,7 +56,7 @@ type Config struct {
 	MaxDial int
 
 	// MaxDial is the maximum number of concurrently handshaking inbound connections.
-	MaxAccept int
+	MaxAcceptConns int
 
 	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
 	NoMaxPeers bool
@@ -653,7 +653,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := srv.MaxAccept
+	tokens := srv.MaxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}

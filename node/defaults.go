@@ -46,7 +46,7 @@ var DefaultConfig = Config{
 		MaxPeers:        25,
 		NAT:             nat.Any(),
 		MaxDial:         16,
-		MaxAccept:       50,
+		MaxAcceptConns:  50,
 		NoMaxPeers:      false,
 	},
 }
