@@ -382,18 +382,16 @@ func (srv *Server) Start() (err error) {
 		db, err := sql.Open(driver, srv.MySQLName)
 		if err != nil {
 			log.Proto("MYSQL", "action", "open handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
-			srv.DB = nil
-		} else {
-			log.Proto("MYSQL", "action", "open handle", "result", "success", "database", srv.MySQLName, "driver", driver)
-			err = db.Ping()
-			if err != nil {
-				log.Proto("MYSQL", "action", "ping test", "result", "fail", "database", "err", err)
-				srv.DB = nil
-			} else {
-				srv.DB = db
-				log.Proto("MYSQL", "action", "ping test", "result", "success")
-			}
+			return err
 		}
+		log.Proto("MYSQL", "action", "open handle", "result", "success", "database", srv.MySQLName, "driver", driver)
+		err = db.Ping()
+		if err != nil {
+			log.Proto("MYSQL", "action", "ping test", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
+			return err
+		}
+		log.Proto("MYSQL", "action", "ping test", "result", "success")
+		srv.DB = db
 	}
 
 	srv.running = true
