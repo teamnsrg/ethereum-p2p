@@ -52,7 +52,7 @@ var (
 	app = utils.NewApp(gitCommit, "the go-ethereum command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
-		utils.MaxNoFileFlag,
+		utils.MaxNumFileFlag,
 		utils.MaxDialFlag,
 		utils.MaxAcceptFlag,
 		utils.NoMaxPeersFlag,

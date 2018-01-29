@@ -111,8 +111,8 @@ func NewApp(gitCommit, usage string) *cli.App {
 
 var (
 	// Node Finder settings
-	MaxNoFileFlag = cli.Uint64Flag{
-		Name:  "maxnofile",
+	MaxNumFileFlag = cli.Uint64Flag{
+		Name:  "maxnumfile",
 		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
 		Value: 2048,
 	}
@@ -1000,8 +1000,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name)
 	}
-	if ctx.GlobalIsSet(MaxNoFileFlag.Name) {
-		cfg.DatabaseHandles = makeDatabaseHandles(ctx.GlobalUint64(MaxNoFileFlag.Name))
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		cfg.DatabaseHandles = makeDatabaseHandles(ctx.GlobalUint64(MaxNumFileFlag.Name))
 	} else {
 		cfg.DatabaseHandles = makeDatabaseHandles(2048)
 
@@ -1129,13 +1129,13 @@ func SetupNetwork(ctx *cli.Context) {
 // MakeChainDatabase open an LevelDB using the flags passed to the client and will hard crash if it fails.
 func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	var (
-		cache     = ctx.GlobalInt(CacheFlag.Name)
-		maxNoFile = uint64(2048)
+		cache      = ctx.GlobalInt(CacheFlag.Name)
+		maxNumFile = uint64(2048)
 	)
-	if ctx.GlobalIsSet(MaxNoFileFlag.Name) {
-		maxNoFile = ctx.GlobalUint64(MaxNoFileFlag.Name)
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		maxNumFile = ctx.GlobalUint64(MaxNumFileFlag.Name)
 	}
-	handles := makeDatabaseHandles(maxNoFile)
+	handles := makeDatabaseHandles(maxNumFile)
 	name := "chaindata"
 	if ctx.GlobalBool(LightModeFlag.Name) {
 		name = "lightchaindata"
