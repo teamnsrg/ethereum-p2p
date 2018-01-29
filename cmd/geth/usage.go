@@ -70,6 +70,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MaxDialFlag,
 			utils.MaxAcceptFlag,
 			utils.NoMaxPeersFlag,
+			utils.BlacklistFlag,
 		},
 	},
 	{
