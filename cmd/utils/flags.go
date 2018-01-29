@@ -128,7 +128,7 @@ var (
 	}
 	NoMaxPeersFlag = cli.BoolFlag{
 		Name:  "nomaxpeers",
-		Usage: "Allow unlimited number of peer connections",
+		Usage: "Ignore/overwrite MaxPeers to allow unlimited number of peer connections",
 	}
 	BlacklistFlag = cli.StringFlag{
 		Name:  "blacklist",

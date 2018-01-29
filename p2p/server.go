@@ -58,7 +58,7 @@ type Config struct {
 	// MaxDial is the maximum number of concurrently handshaking inbound connections.
 	MaxAccept int
 
-	// NoMaxPeers can be used to ignore MaxPeers, allowing unlimited number of peer connections.
+	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
 	NoMaxPeers bool
 
 	// Blacklist is the list of IP networks that we should not connect to
