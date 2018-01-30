@@ -49,8 +49,8 @@ def create_neighbors(conn):
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
               "udp_port SMALLINT unsigned NOT NULL, " \
-              "first_received_at DECIMAL(12) NULL, " \
-              "last_received_at DECIMAL(12) NULL, " \
+              "first_received_at DECIMAL(18,6) NULL, " \
+              "last_received_at DECIMAL(18,6) NULL, " \
               "count BIGINT unsigned DEFAULT 1, " \
               "PRIMARY KEY (node_id, ip, tcp_port, udp_port)" \
               ")"
@@ -63,8 +63,9 @@ def create_node_meta_info(conn):
         sql = "CREATE TABLE IF NOT EXISTS node_meta_info (" \
               "node_id VARCHAR(128) NOT NULL, " \
               "hash VARCHAR(64) NOT NULL, " \
-              "dial_count BIGINT unsigned DEFAULT 1, " \
-              "accept_count BIGINT unsigned DEFAULT 1, " \
+              "dial_count BIGINT unsigned DEFAULT 0, " \
+              "accept_count BIGINT unsigned DEFAULT 0, " \
+              "too_many_peers_count BIGINT unsigned DEFAULT 0, " \
               "PRIMARY KEY (node_id)" \
               ")"
         cursor.execute(sql)
