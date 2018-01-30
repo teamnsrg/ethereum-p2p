@@ -11,16 +11,15 @@ DB = config.mysql['db']
 
 def clear_all(conn):
     with conn.cursor() as cursor:
-        sql = "DROP TABLE IF EXISTS eth_status, devp2p_hello, node_id_hash, neighbors"
+        sql = "DROP TABLE IF EXISTS node_info, node_meta_info, neighbors"
         cursor.execute(sql)
         conn.commit()
     print("tables dropped!")
 
 def create_all(conn):
     create_neighbors(conn)
-    create_node_id_hash(conn)
-    create_devp2p_hello(conn)
-    create_eth_status(conn)
+    create_node_meta_info(conn)
+    create_node_info(conn)
 
 def connect(host=HOST, port=PORT, user=USER, passwd=PASSWORD, db=DB):
     if "CHANGEME" in host:
@@ -50,8 +49,8 @@ def create_neighbors(conn):
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
               "udp_port SMALLINT unsigned NOT NULL, " \
-              "first_ts DECIMAL(12) NULL, " \
-              "last_ts DECIMAL(12) NULL, " \
+              "first_received_at DECIMAL(12) NULL, " \
+              "last_received_at DECIMAL(12) NULL, " \
               "count BIGINT unsigned DEFAULT 1, " \
               "PRIMARY KEY (node_id, ip, tcp_port, udp_port)" \
               ")"
@@ -59,20 +58,23 @@ def create_neighbors(conn):
         conn.commit()
     print("neighbors table created!")
 
-def create_node_id_hash(conn):
+def create_node_meta_info(conn):
     with conn.cursor() as cursor:
-        sql = "CREATE TABLE IF NOT EXISTS node_id_hash (" \
+        sql = "CREATE TABLE IF NOT EXISTS node_meta_info (" \
               "node_id VARCHAR(128) NOT NULL, " \
               "hash VARCHAR(64) NOT NULL, " \
+              "dial_count BIGINT unsigned DEFAULT 1, " \
+              "accept_count BIGINT unsigned DEFAULT 1, " \
               "PRIMARY KEY (node_id)" \
               ")"
         cursor.execute(sql)
         conn.commit()
-    print("node_id_hash table created!")
+    print("node_meta_info table created!")
 
-def create_devp2p_hello(conn):
+def create_node_info(conn):
     with conn.cursor() as cursor:
-        sql = "CREATE TABLE IF NOT EXISTS devp2p_hello (" \
+        sql = "CREATE TABLE IF NOT EXISTS node_info (" \
+              "id BIGINT unsigned NOT NULL AUTO_INCREMENT, " \
               "node_id VARCHAR(128) NOT NULL, " \
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
@@ -81,37 +83,21 @@ def create_devp2p_hello(conn):
               "client_id VARCHAR(255) NOT NULL, " \
               "caps VARCHAR(255) NOT NULL, " \
               "listen_port SMALLINT unsigned NOT NULL, " \
-              "first_ts DECIMAL(12) NULL, " \
-              "last_ts DECIMAL(12) NULL, " \
-              "dial_count BIGINT unsigned DEFAULT 1, " \
-              "accept_count BIGINT unsigned DEFAULT 1, " \
-              "PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port)" \
-              ")"
-        cursor.execute(sql)
-        conn.commit()
-    print("devp2p_hello table created!")
-
-def create_eth_status(conn):
-    with conn.cursor() as cursor:
-        sql = "CREATE TABLE IF NOT EXISTS eth_status (" \
-              "node_id VARCHAR(128) NOT NULL, " \
-              "ip VARCHAR(39) NOT NULL, " \
-              "tcp_port SMALLINT unsigned NOT NULL, " \
               "protocol_version BIGINT unsigned NOT NULL, " \
               "network_id BIGINT unsigned NOT NULL, " \
-              "td DECIMAL(65) NOT NULL, " \
+              "first_received_td DECIMAL(65) NOT NULL, " \
+              "last_received_td DECIMAL(65) NOT NULL, " \
               "best_hash VARCHAR(64) NOT NULL, " \
-              "block_number DECIMAL(24) NOT NULL, " \
               "genesis_hash VARCHAR(64) NOT NULL, " \
               "dao_fork TINYINT unsigned NULL, " \
-              "first_ts DECIMAL(12) NULL, " \
-              "last_ts DECIMAL(12) NULL, " \
-              "count BIGINT unsigned DEFAULT 1, " \
-              "PRIMARY KEY (node_id, ip, tcp_port, protocol_version, network_id, td, best_hash, block_number, genesis_hash)" \
+              "first_received_at DECIMAL(18,6) NULL, " \
+              "last_received_at DECIMAL(18,6) NULL, " \
+              "PRIMARY KEY (id), " \
+              "KEY (node_id)" \
               ")"
         cursor.execute(sql)
         conn.commit()
-    print("eth_status table created!")
+    print("node_info table created!")
 
 def main():
     conn = connect(HOST, PORT, USER, PASSWORD, DB)
