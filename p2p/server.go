@@ -409,10 +409,12 @@ func (srv *Server) Start() (err error) {
 		srv.DiscV5 = ntab
 	}
 
-	dynPeers := (srv.MaxPeers + 1) / 2
-	if srv.NoMaxPeers {
-		dynPeers = srv.MaxDial
-	}
+	// TODO: determine whether srv.MaxPeers/2 is necessary
+	// use srv.MaxDial for now
+	// dynPeers := (srv.MaxPeers + 1) / 2
+
+	dynPeers := srv.MaxDial
+
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
