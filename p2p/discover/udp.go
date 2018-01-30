@@ -20,9 +20,11 @@ import (
 	"bytes"
 	"container/list"
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/teamnsrg/go-ethereum/common"
@@ -180,9 +182,12 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
+	addNeighborStmt     *sql.Stmt
+	addNodeMetaInfoStmt *sql.Stmt
+	blacklist           *netutil.Netlist
+
 	conn        conn
 	netrestrict *netutil.Netlist
-	blacklist   *netutil.Netlist
 	priv        *ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
 
@@ -233,7 +238,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, err
@@ -242,7 +247,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	if err != nil {
 		return nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist)
+	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, db)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +255,52 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	return tab, nil
 }
 
-func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, *udp, error) {
+func prepareAddNeighborStmt(db *sql.DB) *sql.Stmt {
+	fields := []string{"node_id", "ip", "tcp_port", "udp_port", "first_received_at", "last_received_at"}
+	updateFields := "last_received_at=VALUES(last_received_at), count=count+1"
+
+	stmt := fmt.Sprintf(`INSERT INTO neighbors (%s) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE %s`,
+		strings.Join(fields, ", "), updateFields)
+	pStmt, err := db.Prepare(stmt)
+	if err != nil {
+		log.Proto("MYSQL", "action", "prepare AddNeighbor statement", "result", "fail", "err", err)
+		return nil
+	} else {
+		log.Proto("MYSQL", "action", "prepare AddNeighbor statement", "result", "success")
+		return pStmt
+	}
+}
+
+func prepareAddNodeMetaInfoStmt(db *sql.DB) *sql.Stmt {
+	pStmt, err := db.Prepare("INSERT INTO node_meta_info (node_id, hash) VALUES (?, ?)")
+	if err != nil {
+		log.Proto("MYSQL", "action", "prepare AddNodeMetaInfo statement", "result", "fail", "err", err)
+		return nil
+	} else {
+		log.Proto("MYSQL", "action", "prepare AddNodeMetaInfo statement", "result", "success")
+		return pStmt
+	}
+}
+
+func (t *udp) addNeighbor(nodeid string, ip string, tcpPort uint16, udpPort uint16, unixTime float64) {
+	_, err := t.addNeighborStmt.Exec(nodeid, ip, tcpPort, udpPort, unixTime, unixTime)
+	if err != nil {
+		log.Proto("MYSQL", "action", "execute AddNeighbor statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "execute AddNeighbor statement", "result", "success")
+	}
+}
+
+func (t *udp) addNodeMetaInfo(nodeid string, hash string) {
+	_, err := t.addNodeMetaInfoStmt.Exec(nodeid, hash)
+	if err != nil {
+		log.Proto("MYSQL", "action", "execute AddNodeMetaInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "execute AddNodeMetaInfo statement", "result", "success")
+	}
+}
+
+func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, *udp, error) {
 	udp := &udp{
 		conn:        c,
 		priv:        priv,
@@ -278,6 +328,12 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 	}
 	udp.Table = tab
 
+	// prepare sql statements
+	if db != nil {
+		udp.addNeighborStmt = prepareAddNeighborStmt(db)
+		udp.addNodeMetaInfoStmt = prepareAddNodeMetaInfoStmt(db)
+	}
+
 	go udp.loop()
 	go udp.readLoop()
 	return udp.Table, udp, nil
@@ -286,6 +342,22 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 func (t *udp) close() {
 	close(t.closing)
 	t.conn.Close()
+
+	// close prepared sql statements
+	if t.addNeighborStmt != nil {
+		if err := t.addNeighborStmt.Close(); err != nil {
+			log.Proto("MYSQL", "action", "close AddNeighbor statement", "result", "fail", "err", err)
+		} else {
+			log.Proto("MYSQL", "action", "close AddNeighbor statement", "result", "success")
+		}
+	}
+	if t.addNodeMetaInfoStmt != nil {
+		if err := t.addNodeMetaInfoStmt.Close(); err != nil {
+			log.Proto("MYSQL", "action", "close AddNodeMetaInfo statement", "result", "fail", "err", err)
+		} else {
+			log.Proto("MYSQL", "action", "close AddNodeMetaInfo statement", "result", "success")
+		}
+	}
 	// TODO: wait for the loops to end.
 }
 
@@ -546,6 +618,19 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	err = packet.handle(t, from, fromID, hash)
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
 	log.Proto("<<"+packet.name(), "receivedAt", unixTime, "from", from.String(), "size", len(buf), "err", err, "obj", packet, "peer", fromID)
+
+	// if NEIGHBORS packet, add the node address info to the sql database
+	if packet.name() == "RLPX_NEIGHBORS" {
+		for _, node := range packet.(*neighbors).Nodes {
+			nodeid := node.ID.String()
+			hash := crypto.Keccak256Hash(node.ID[:]).String()[2:]
+			ip := node.IP.String()
+			tcp_port := node.TCP
+			udp_port := node.UDP
+			t.addNeighbor(nodeid, ip, tcp_port, udp_port, unixTime)
+			t.addNodeMetaInfo(nodeid, hash)
+		}
+	}
 	return err
 }
 

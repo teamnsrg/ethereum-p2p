@@ -56,7 +56,7 @@ var errServerStopped = errors.New("server stopped")
 type Config struct {
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
-  
+
 	// MaxDial is the maximum number of concurrently dialing outbound connections.
 	MaxDial int
 
@@ -424,7 +424,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist)
+		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.DB)
 		if err != nil {
 			return err
 		}
