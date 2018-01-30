@@ -64,6 +64,16 @@ type flagGroup struct {
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
 	{
+		Name: "NODE FINDER",
+		Flags: []cli.Flag{
+			utils.MaxNumFileFlag,
+			utils.MaxDialFlag,
+			utils.MaxAcceptConnsFlag,
+			utils.NoMaxPeersFlag,
+			utils.BlacklistFlag,
+		},
+	},
+	{
 		Name: "ETHEREUM",
 		Flags: []cli.Flag{
 			configFileFlag,
@@ -81,7 +91,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightKDFFlag,
 		},
 	},
-	{Name: "DEVELOPER CHAIN",
+	{
+		Name: "DEVELOPER CHAIN",
 		Flags: []cli.Flag{
 			utils.DeveloperFlag,
 			utils.DeveloperPeriodFlag,

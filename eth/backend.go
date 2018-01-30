@@ -385,6 +385,10 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 			maxPeers = srvr.MaxPeers / 2
 		}
 	}
+
+	// Set flag to ignore maxPeers
+	s.protocolManager.noMaxPeers = srvr.NoMaxPeers
+
 	// Start the networking layer and the light server if requested
 	s.protocolManager.Start(maxPeers)
 	if s.lesServer != nil {

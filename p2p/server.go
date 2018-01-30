@@ -40,12 +40,6 @@ const (
 	refreshPeersInterval    = 30 * time.Second
 	staticPeerCheckInterval = 15 * time.Second
 
-	// Maximum number of concurrently handshaking inbound connections.
-	maxAcceptConns = 50
-
-	// Maximum number of concurrently dialing outbound connections.
-	maxActiveDialTasks = 16
-
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
 	frameReadTimeout = 30 * time.Second
@@ -58,6 +52,18 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MaxDial is the maximum number of concurrently dialing outbound connections.
+	MaxDial int
+
+	// MaxDial is the maximum number of concurrently handshaking inbound connections.
+	MaxAcceptConns int
+
+	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
+	NoMaxPeers bool
+
+	// Blacklist is the list of IP networks that we should not connect to
+	Blacklist *netutil.Netlist `toml:",omitempty"`
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -382,7 +388,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict)
+		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist)
 		if err != nil {
 			return err
 		}
@@ -403,11 +409,16 @@ func (srv *Server) Start() (err error) {
 		srv.DiscV5 = ntab
 	}
 
-	dynPeers := (srv.MaxPeers + 1) / 2
+	// TODO: determine whether srv.MaxPeers/2 is necessary
+	// use srv.MaxDial for now
+	// dynPeers := (srv.MaxPeers + 1) / 2
+
+	dynPeers := srv.MaxDial
+
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
-	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict, srv.Blacklist)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -464,7 +475,7 @@ func (srv *Server) run(dialstate dialer) {
 	var (
 		peers        = make(map[discover.NodeID]*Peer)
 		trusted      = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
-		taskdone     = make(chan task, maxActiveDialTasks)
+		taskdone     = make(chan task, srv.MaxDial)
 		runningTasks []task
 		queuedTasks  []task // tasks that can't run yet
 	)
@@ -487,7 +498,7 @@ func (srv *Server) run(dialstate dialer) {
 	// starts until max number of active tasks is satisfied
 	startTasks := func(ts []task) (rest []task) {
 		i := 0
-		for ; len(runningTasks) < maxActiveDialTasks && i < len(ts); i++ {
+		for ; len(runningTasks) < srv.MaxDial && i < len(ts); i++ {
 			t := ts[i]
 			log.Trace("New dial task", "task", t)
 			go func() { t.Do(srv); taskdone <- t }()
@@ -499,7 +510,7 @@ func (srv *Server) run(dialstate dialer) {
 		// Start from queue first.
 		queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
 		// Query dialer for new tasks and start as many as possible now.
-		if len(runningTasks) < maxActiveDialTasks {
+		if len(runningTasks) < srv.MaxDial {
 			nt := dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())
 			queuedTasks = append(queuedTasks, startTasks(nt)...)
 		}
@@ -620,7 +631,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	case !c.is(trustedConn|staticDialedConn) && !srv.NoMaxPeers && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case peers[c.id] != nil:
 		return DiscAlreadyConnected
@@ -644,7 +655,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := maxAcceptConns
+	tokens := srv.MaxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}
@@ -677,6 +688,16 @@ func (srv *Server) listenLoop() {
 		if srv.NetRestrict != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && !srv.NetRestrict.Contains(tcp.IP) {
 				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr())
+				fd.Close()
+				slots <- struct{}{}
+				continue
+			}
+		}
+
+		// Reject connections that match Blacklist.
+		if srv.Blacklist != nil {
+			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
+				log.Proto("BLACKLIST", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue

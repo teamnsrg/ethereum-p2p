@@ -254,7 +254,7 @@ func TestServerManyTasks(t *testing.T) {
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
 		newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
-			start, end = end, end+maxActiveDialTasks+10
+			start, end = end, end+srv.MaxDial+10
 			if end > len(alltasks) {
 				end = len(alltasks)
 			}
