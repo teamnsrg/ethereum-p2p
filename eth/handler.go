@@ -66,6 +66,7 @@ func errResp(code errCode, format string, v ...interface{}) error {
 
 type ProtocolManager struct {
 	db *sql.DB // mysql db handle
+	noMaxPeers bool // Flag whether to ignore maxPeers
 
 	networkId uint64
 
@@ -254,7 +255,7 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	if pm.peers.Len() >= pm.maxPeers {
+	if !pm.noMaxPeers && pm.peers.Len() >= pm.maxPeers {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Proto("Ethereum peer connected", "name", p.Name(), "nodeID", p.ID())

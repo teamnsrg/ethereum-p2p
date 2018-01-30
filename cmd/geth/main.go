@@ -53,6 +53,11 @@ var (
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
 		utils.MySQLFlag,
+		utils.MaxNumFileFlag,
+		utils.MaxDialFlag,
+		utils.MaxAcceptConnsFlag,
+		utils.NoMaxPeersFlag,
+		utils.BlacklistFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,

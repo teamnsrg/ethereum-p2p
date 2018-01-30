@@ -67,6 +67,11 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "NODE FINDER",
 		Flags: []cli.Flag{
 			utils.MySQLFlag,
+			utils.MaxNumFileFlag,
+			utils.MaxDialFlag,
+			utils.MaxAcceptConnsFlag,
+			utils.NoMaxPeersFlag,
+			utils.BlacklistFlag,
 		},
 	},
 	{
@@ -87,7 +92,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightKDFFlag,
 		},
 	},
-	{Name: "DEVELOPER CHAIN",
+	{
+		Name: "DEVELOPER CHAIN",
 		Flags: []cli.Flag{
 			utils.DeveloperFlag,
 			utils.DeveloperPeriodFlag,

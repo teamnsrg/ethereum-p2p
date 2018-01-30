@@ -46,6 +46,9 @@ var DefaultConfig = Config{
 		MaxPeers:        25,
 		NAT:             nat.Any(),
 		MySQLName:       "",
+		MaxDial:         16,
+		MaxAcceptConns:  50,
+		NoMaxPeers:      false,
 	},
 }
 

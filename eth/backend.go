@@ -388,6 +388,9 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 
 	// Set mysql db handle
 	s.protocolManager.db = srvr.DB
+  
+	// Set flag to ignore maxPeers
+	s.protocolManager.noMaxPeers = srvr.NoMaxPeers
 
 	// Start the networking layer and the light server if requested
 	s.protocolManager.Start(maxPeers)
