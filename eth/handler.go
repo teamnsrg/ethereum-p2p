@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,6 +65,7 @@ func errResp(code errCode, format string, v ...interface{}) error {
 }
 
 type ProtocolManager struct {
+	db *sql.DB // mysql db handle
 	noMaxPeers bool // Flag whether to ignore maxPeers
 
 	networkId uint64

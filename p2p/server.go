@@ -19,12 +19,14 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
@@ -52,6 +54,9 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MySQLName is the MySQL node database connection information
+	MySQLName string
+  
 	// MaxDial is the maximum number of concurrently dialing outbound connections.
 	MaxDial int
 
@@ -149,6 +154,8 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
+	DB *sql.DB
+
 	// Config fields may not be modified while the server is running.
 	Config
 
@@ -354,6 +361,16 @@ func (srv *Server) Stop() {
 	}
 	close(srv.quit)
 	srv.loopWG.Wait()
+
+	// close mysql db handle
+	if srv.DB != nil {
+		driver := "mysql"
+		if err := srv.DB.Close(); err != nil {
+			log.Proto("MYSQL", "action", "close handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
+		} else {
+			log.Proto("MYSQL", "action", "close handle", "result", "success", "database", srv.MySQLName, "driver", driver)
+		}
+	}
 }
 
 // Start starts running the server.
@@ -364,6 +381,25 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
+
+	// open mysql db handle
+	if srv.MySQLName != "" {
+		driver := "mysql"
+		db, err := sql.Open(driver, srv.MySQLName)
+		if err != nil {
+			log.Proto("MYSQL", "action", "open handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
+			return err
+		}
+		log.Proto("MYSQL", "action", "open handle", "result", "success", "database", srv.MySQLName, "driver", driver)
+		err = db.Ping()
+		if err != nil {
+			log.Proto("MYSQL", "action", "ping test", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
+			return err
+		}
+		log.Proto("MYSQL", "action", "ping test", "result", "success")
+		srv.DB = db
+	}
+
 	srv.running = true
 	log.Info("Starting P2P networking")
 

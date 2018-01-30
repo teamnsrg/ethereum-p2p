@@ -111,6 +111,10 @@ func NewApp(gitCommit, usage string) *cli.App {
 
 var (
 	// Node Finder settings
+	MySQLFlag = cli.StringFlag{
+		Name:  "mysql",
+		Usage: "Connects to the specified database and update node information (username:password@tcp(ip:port)/db)",
+  }
 	MaxNumFileFlag = cli.Uint64Flag{
 		Name:  "maxnumfile",
 		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
@@ -807,6 +811,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	if ctx.GlobalIsSet(MySQLFlag.Name) {
+		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)
+  }
 	if ctx.GlobalIsSet(MaxDialFlag.Name) {
 		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)
 	}
