@@ -627,8 +627,12 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 			ip := node.IP.String()
 			tcp_port := node.TCP
 			udp_port := node.UDP
-			t.addNeighbor(nodeid, ip, tcp_port, udp_port, unixTime)
-			t.addNodeMetaInfo(nodeid, hash)
+			if t.addNeighborStmt != nil {
+				t.addNeighbor(nodeid, ip, tcp_port, udp_port, unixTime)
+			}
+			if t.addNodeMetaInfoStmt != nil {
+				t.addNodeMetaInfo(nodeid, hash)
+			}
 		}
 	}
 	return err
