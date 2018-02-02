@@ -22,7 +22,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
+	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -154,7 +157,8 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
-	DB *sql.DB
+	KnownNodeInfos map[discover.NodeID]*KnownNodeInfo // information on known nodes
+	DB             *sql.DB                            // MySQL database handle
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -219,7 +223,7 @@ type conn struct {
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -399,6 +403,10 @@ func (srv *Server) Start() (err error) {
 		log.Proto("MYSQL", "action", "ping test", "result", "success")
 		srv.DB = db
 	}
+
+	// fill KnownNodesInfos with info from the mysql database
+	srv.KnownNodeInfos = make(map[discover.NodeID]*KnownNodeInfo)
+	// TODO: load info from mysql db
 
 	srv.running = true
 	log.Info("Starting P2P networking")
@@ -785,9 +793,12 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake, c.id)
+	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
+		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+			// TODO: update node_meta_info table
+		}
 		c.close(err, c.id)
 		return
 	}
@@ -796,6 +807,9 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(DiscUnexpectedIdentity, c.id)
 		return
 	}
+
+	srv.updateNodeInfo(c, receivedAt, phs)
+
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
@@ -901,6 +915,86 @@ func (srv *Server) NodeInfo() *NodeInfo {
 	return info
 }
 
+func (srv *Server) updateNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandshake) {
+	// node address info
+	var (
+		remoteIP string
+		remotePort uint16
+		tcpPort uint16
+	)
+	addrArr := strings.Split(c.fd.RemoteAddr().String(), ":")
+	addrLen := len(addrArr)
+	remoteIP = strings.Join(addrArr[:addrLen-1], ":")
+	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err != nil {
+		remotePort = uint16(p)
+	}
+	// if inbound connection, resolve the node's listening port
+	// otherwise, remotePort is the listening port
+	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+		newNode := srv.ntab.Resolve(hs.ID)
+		// if the node address is resolved, set the tcpPort
+		// otherwise, leave it as 0
+		if newNode != nil {
+			tcpPort = newNode.TCP
+		}
+		// TODO: update node_meta_info table
+	} else {
+		tcpPort = remotePort
+		// TODO: update node_meta_info table
+	}
+
+	// DEVp2p Hello
+	nodeId, p2pVersion, clientId, capsArray, listenPort := hs.ID, hs.Version, hs.Name, hs.Caps, uint16(hs.ListenPort)
+	caps := ""
+	capsLen := len(capsArray)
+	for i, c := range capsArray {
+		caps += fmt.Sprintf("%s", c.String())
+		if i < capsLen-1 {
+			caps += ","
+		}
+	}
+	clientId = strings.Replace(clientId, "'", "", -1)
+	clientId = strings.Replace(clientId, "\"", "", -1)
+	caps = strings.Replace(caps, "'", "", -1)
+	caps = strings.Replace(caps, "\"", "", -1)
+
+	newInfo := &KnownNodeInfo{
+		LastConnectedAt: receivedAt,
+		IP: remoteIP,
+		TCPPort: tcpPort,
+		RemotePort: remotePort,
+		P2PVersion: p2pVersion,
+		ClientId: clientId,
+		Caps: caps,
+		ListenPort: listenPort,
+	}
+
+	if info, ok := srv.KnownNodeInfos[nodeId]; !ok {
+		srv.KnownNodeInfos[nodeId] = newInfo
+		// TODO: insert into node_info table
+	} else {
+		info.LastConnectedAt = receivedAt
+		info.RemotePort = remotePort
+		if infoChanged(info, newInfo) {
+			info.IP = remoteIP
+			info.TCPPort = tcpPort
+			info.P2PVersion = p2pVersion
+			info.ClientId = clientId
+			info.Caps = caps
+			info.ListenPort = listenPort
+			// TODO: insert into node_info table
+		} else {
+			// TODO: update node_info table
+			// remotePort, last_hello_at
+		}
+	}
+}
+
+func infoChanged(oldInfo *KnownNodeInfo, newInfo *KnownNodeInfo) bool {
+	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
+		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
+}
+
 // PeersInfo returns an array of metadata objects describing connected peers.
 func (srv *Server) PeersInfo() []*PeerInfo {
 	// Gather all the generic and sub-protocol specific infos
@@ -914,6 +1008,55 @@ func (srv *Server) PeersInfo() []*PeerInfo {
 	for i := 0; i < len(infos); i++ {
 		for j := i + 1; j < len(infos); j++ {
 			if infos[i].ID > infos[j].ID {
+				infos[i], infos[j] = infos[j], infos[i]
+			}
+		}
+	}
+	return infos
+}
+
+// KnownNodeInfo represents a short summary of the information known about a known DEVp2p node.
+type KnownNodeInfo struct {
+	LastConnectedAt *time.Time `json:"lastConnectedAt,omitempty"` // Last time the node was connected
+	IP         string `json:"ip"`      // IP address of the node
+	TCPPort    uint16 `json:"tcpPort"` // TCP listening port for RLPx
+	RemotePort uint16 `json:"tcpPort"` // Remote TCP port of the most recent connection
+
+	// DEVp2p Hello info
+	P2PVersion uint64 `json:"p2pVersion,omitempty"` // DEVp2p protocol version
+	ClientId   string `json:"clientId,omitempty"`   // Name of the node, including client type, version, OS, custom data
+	Caps       string `json:"caps,omitempty"`       // Node's capabilities
+	ListenPort uint16 `json:"listenPort,omitempty"` // Listening port reported in the node's DEVp2p Hello
+
+	// Ethereum Status info
+	ProtocolVersion uint64   `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
+	NetworkId       uint64   `json:"networkId,omitempty"`       // Ethereum network ID
+	FirstReceivedTd *big.Int `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
+	LastReceivedTd  *big.Int `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
+	BestHash        string   `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
+	GenesisHash     string   `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
+	DAOForkSupport  bool     `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+}
+
+type KnownNodeInfoWrapper struct {
+	NodeId string         `json:"nodeId"` // Unique node identifier (also the encryption key)
+	Info   *KnownNodeInfo `json:"info"`
+}
+
+// NodeInfo gathers and returns a collection of metadata known about the host.
+func (srv *Server) KnownNodes() []*KnownNodeInfoWrapper {
+	infos := make([]*KnownNodeInfoWrapper, 0, len(srv.KnownNodeInfos))
+	for id, info := range srv.KnownNodeInfos {
+		nodeInfo := &KnownNodeInfoWrapper{
+			id.String(),
+			info,
+		}
+		infos = append(infos, nodeInfo)
+	}
+	// Sort the result array alphabetically by node identifier
+	for i := 0; i < len(infos); i++ {
+		for j := i + 1; j < len(infos); j++ {
+			if infos[i].NodeId > infos[j].NodeId {
 				infos[i], infos[j] = infos[j], infos[i]
 			}
 		}
