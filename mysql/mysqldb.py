@@ -46,6 +46,7 @@ def create_neighbors(conn):
     with conn.cursor() as cursor:
         sql = "CREATE TABLE IF NOT EXISTS neighbors (" \
               "node_id VARCHAR(128) NOT NULL, " \
+              "hash VARCHAR(64) NOT NULL, " \
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
               "udp_port SMALLINT unsigned NOT NULL, " \
