@@ -430,16 +430,17 @@ func (srv *Server) Start() (err error) {
 		srv.DB = db
 	}
 
-	// prepare sql statements
+	srv.KnownNodeInfos = make(map[discover.NodeID]*KnownNodeInfo)
+
 	if srv.DB != nil {
+		// fill KnownNodesInfos with info from the mysql database
+		srv.loadKnownNodeInfos()
+
+		// prepare sql statements
 		srv.prepareAddNodeInfoStmt()
 		srv.prepareUpdateNodeInfoStmt()
 		srv.prepareAddNodeMetaInfoStmt()
 	}
-
-	// fill KnownNodesInfos with info from the mysql database
-	srv.KnownNodeInfos = make(map[discover.NodeID]*KnownNodeInfo)
-	srv.loadKnownNodeInfos()
 
 	// TODO: load info from mysql db
 
@@ -831,10 +832,12 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
-			nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
-			nodeid := c.id.String()
-			srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+		if srv.addNodeMetaInfoStmt != nil {
+			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
+				nodeid := c.id.String()
+				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+			}
 		}
 		c.close(err, c.id)
 		return
