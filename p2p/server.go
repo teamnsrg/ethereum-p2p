@@ -32,6 +32,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
+	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
@@ -157,6 +158,9 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
+	addNodeInfoStmt     *sql.Stmt
+	updateNodeInfoStmt  *sql.Stmt
+	addNodeMetaInfoStmt *sql.Stmt
 	KnownNodeInfos map[discover.NodeID]*KnownNodeInfo // information on known nodes
 	DB             *sql.DB                            // MySQL database handle
 
@@ -368,6 +372,27 @@ func (srv *Server) Stop() {
 
 	// close mysql db handle
 	if srv.DB != nil {
+		if srv.addNodeInfoStmt != nil {
+			if err := srv.addNodeInfoStmt.Close(); err != nil {
+				log.Proto("MYSQL", "action", "close AddNodeInfo statement", "result", "fail", "err", err)
+			} else {
+				log.Proto("MYSQL", "action", "close AddNodeInfo statement", "result", "success")
+			}
+		}
+		if srv.updateNodeInfoStmt != nil {
+			if err := srv.updateNodeInfoStmt.Close(); err != nil {
+				log.Proto("MYSQL", "action", "close UpdateNodeInfo statement", "result", "fail", "err", err)
+			} else {
+				log.Proto("MYSQL", "action", "close UpdateNodeInfo statement", "result", "success")
+			}
+		}
+		if srv.addNodeMetaInfoStmt != nil {
+			if err := srv.addNodeMetaInfoStmt.Close(); err != nil {
+				log.Proto("MYSQL", "action", "close AddNodeMetaInfo statement", "result", "fail", "err", err)
+			} else {
+				log.Proto("MYSQL", "action", "close AddNodeMetaInfo statement", "result", "success")
+			}
+		}
 		driver := "mysql"
 		if err := srv.DB.Close(); err != nil {
 			log.Proto("MYSQL", "action", "close handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
@@ -402,6 +427,13 @@ func (srv *Server) Start() (err error) {
 		}
 		log.Proto("MYSQL", "action", "ping test", "result", "success")
 		srv.DB = db
+	}
+
+	// prepare sql statements
+	if srv.DB != nil {
+		srv.prepareAddNodeInfoStmt()
+		srv.prepareUpdateNodeInfoStmt()
+		srv.prepareAddNodeMetaInfoStmt()
 	}
 
 	// fill KnownNodesInfos with info from the mysql database
@@ -797,7 +829,9 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
-			// TODO: update node_meta_info table
+			nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
+			nodeid := c.id.String()
+			srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 		}
 		c.close(err, c.id)
 		return
@@ -808,7 +842,10 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 
-	srv.updateNodeInfo(c, receivedAt, phs)
+	// if sql database handle is available, update node information
+	if srv.DB != nil {
+		srv.storeNodeInfo(c, receivedAt, phs)
+	}
 
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
@@ -915,36 +952,62 @@ func (srv *Server) NodeInfo() *NodeInfo {
 	return info
 }
 
-func (srv *Server) updateNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandshake) {
-	// node address info
+func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInfo, bool, bool) {
 	var (
 		remoteIP string
 		remotePort uint16
 		tcpPort uint16
+		dial bool
+		accept bool
 	)
 	addrArr := strings.Split(c.fd.RemoteAddr().String(), ":")
 	addrLen := len(addrArr)
 	remoteIP = strings.Join(addrArr[:addrLen-1], ":")
-	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err != nil {
+	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err == nil {
 		remotePort = uint16(p)
 	}
 	// if inbound connection, resolve the node's listening port
 	// otherwise, remotePort is the listening port
 	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
-		newNode := srv.ntab.Resolve(hs.ID)
+		newNode := srv.ntab.Resolve(c.id)
 		// if the node address is resolved, set the tcpPort
 		// otherwise, leave it as 0
 		if newNode != nil {
 			tcpPort = newNode.TCP
 		}
-		// TODO: update node_meta_info table
+		accept = true
 	} else {
 		tcpPort = remotePort
-		// TODO: update node_meta_info table
+		dial = true
+	}
+	oldNodeInfo := srv.KnownNodeInfos[c.id]
+	var hash string
+	if oldNodeInfo != nil {
+		hash = oldNodeInfo.Keccak256Hash
+	} else {
+		hash = crypto.Keccak256Hash(c.id[:]).String()[2:]
+	}
+	newNodeInfo := &KnownNodeInfo{
+		Keccak256Hash:		hash,
+		LastConnectedAt:	receivedAt,
+		IP:					remoteIP,
+		TCPPort:			tcpPort,
+		RemotePort:			remotePort,
+	}
+	return newNodeInfo, dial, accept
+}
+
+func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandshake) {
+	// node address currentInfo
+	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
+	id := hs.ID
+	nodeid := id.String()
+	if srv.addNodeMetaInfoStmt != nil {
+		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 	}
 
 	// DEVp2p Hello
-	nodeId, p2pVersion, clientId, capsArray, listenPort := hs.ID, hs.Version, hs.Name, hs.Caps, uint16(hs.ListenPort)
+	p2pVersion, clientId, capsArray, listenPort := hs.Version, hs.Name, hs.Caps, uint16(hs.ListenPort)
 	caps := ""
 	capsLen := len(capsArray)
 	for i, c := range capsArray {
@@ -958,34 +1021,38 @@ func (srv *Server) updateNodeInfo(c *conn, receivedAt *time.Time, hs *protoHands
 	caps = strings.Replace(caps, "'", "", -1)
 	caps = strings.Replace(caps, "\"", "", -1)
 
-	newInfo := &KnownNodeInfo{
-		LastConnectedAt: receivedAt,
-		IP: remoteIP,
-		TCPPort: tcpPort,
-		RemotePort: remotePort,
-		P2PVersion: p2pVersion,
-		ClientId: clientId,
-		Caps: caps,
-		ListenPort: listenPort,
-	}
+	newInfo.P2PVersion = p2pVersion
+	newInfo.ClientId = clientId
+	newInfo.Caps = caps
+	newInfo.ListenPort = listenPort
 
-	if info, ok := srv.KnownNodeInfos[nodeId]; !ok {
-		srv.KnownNodeInfos[nodeId] = newInfo
-		// TODO: insert into node_info table
+	if currentInfo, ok := srv.KnownNodeInfos[id]; !ok {
+		srv.KnownNodeInfos[id] = newInfo
+		if srv.addNodeInfoStmt != nil {
+			srv.addNodeInfo(nodeid, newInfo)
+		}
 	} else {
-		info.LastConnectedAt = receivedAt
-		info.RemotePort = remotePort
-		if infoChanged(info, newInfo) {
-			info.IP = remoteIP
-			info.TCPPort = tcpPort
-			info.P2PVersion = p2pVersion
-			info.ClientId = clientId
-			info.Caps = caps
-			info.ListenPort = listenPort
-			// TODO: insert into node_info table
+		currentInfo.LastConnectedAt = receivedAt
+		currentInfo.RemotePort = newInfo.RemotePort
+		if infoChanged(currentInfo, newInfo) {
+			currentInfo.IP = newInfo.IP
+			currentInfo.TCPPort = newInfo.TCPPort
+			currentInfo.P2PVersion = p2pVersion
+			currentInfo.ClientId = clientId
+			currentInfo.Caps = caps
+			currentInfo.ListenPort = listenPort
+			if srv.addNodeInfoStmt != nil {
+				// TODO: check logic
+				// in-memory entry should keep the Ethereum Status info
+				// new entry to the mysql db should contain only the new address, DEVp2p info
+				// let Ethereum protocol update the Status info, if available.
+				srv.addNodeInfo(nodeid, newInfo)
+			}
 		} else {
-			// TODO: update node_info table
-			// remotePort, last_hello_at
+			if srv.addNodeInfoStmt != nil {
+				// TODO: update node_info table
+				// remotePort, last_hello_at
+			}
 		}
 	}
 }
@@ -994,6 +1061,80 @@ func infoChanged(oldInfo *KnownNodeInfo, newInfo *KnownNodeInfo) bool {
 	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
 		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
 }
+
+func (srv *Server) prepareAddNodeInfoStmt() {
+	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
+	"first_hello_at", "last_hello_at"}
+
+	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		strings.Join(fields, ", "))
+	pStmt, err := srv.DB.Prepare(stmt)
+	if err != nil {
+		log.Proto("MYSQL", "action", "prepare AddNodeInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "prepare AddNodeInfo statement", "result", "success")
+		srv.addNodeInfoStmt = pStmt
+	}
+}
+
+func (srv *Server) prepareUpdateNodeInfoStmt() {
+	srv.updateNodeInfoStmt = nil
+}
+
+func (srv *Server) prepareAddNodeMetaInfoStmt() {
+	var updateFields []string
+	fields := []string{"node_id", "hash", "dial_count", "accept_count", "too_many_peers_count"}
+	for _, f := range fields[2:] {
+		updateFields = append(updateFields, fmt.Sprintf("%s=%s+VALUES(%s)", f, f, f))
+	}
+	stmt := fmt.Sprintf(`INSERT INTO node_meta_info (%s) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE %s`,
+		strings.Join(fields, ", "), strings.Join(updateFields, ", "))
+	pStmt, err := srv.DB.Prepare(stmt)
+	if err != nil {
+		log.Proto("MYSQL", "action", "prepare AddNodeMetaInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "prepare AddNodeMetaInfo statement", "result", "success")
+		srv.addNodeMetaInfoStmt = pStmt
+	}
+}
+
+func (srv *Server) addNodeInfo(nodeid string, newInfo *KnownNodeInfo) {
+	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
+	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
+		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, unixTime, unixTime)
+	if err != nil {
+		log.Proto("MYSQL", "action", "execute AddNodeInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "execute AddNodeInfo statement", "result", "success")
+	}
+}
+
+func (srv *Server) updateNodeInfo(nodeid string, newInfo *KnownNodeInfo) {
+	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
+	_, err := srv.updateNodeInfoStmt.Exec(nodeid, newInfo.RemotePort, unixTime)
+	if err != nil {
+		log.Proto("MYSQL", "action", "execute UpdateNodeInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "execute UpdateNodeInfo statement", "result", "success")
+	}
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept bool, tooManyPeers bool) {
+	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept), boolToInt(tooManyPeers))
+	if err != nil {
+		log.Proto("MYSQL", "action", "execute AddNodeMetaInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "execute AddNodeMetaInfo statement", "result", "success")
+	}
+}
+
 
 // PeersInfo returns an array of metadata objects describing connected peers.
 func (srv *Server) PeersInfo() []*PeerInfo {
@@ -1017,6 +1158,7 @@ func (srv *Server) PeersInfo() []*PeerInfo {
 
 // KnownNodeInfo represents a short summary of the information known about a known DEVp2p node.
 type KnownNodeInfo struct {
+	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
 	LastConnectedAt *time.Time `json:"lastConnectedAt,omitempty"` // Last time the node was connected
 	IP         string `json:"ip"`      // IP address of the node
 	TCPPort    uint16 `json:"tcpPort"` // TCP listening port for RLPx
@@ -1039,7 +1181,7 @@ type KnownNodeInfo struct {
 }
 
 type KnownNodeInfoWrapper struct {
-	NodeId string         `json:"nodeId"` // Unique node identifier (also the encryption key)
+	NodeId string         `json:"nodeid"` // Unique node identifier (also the encryption key)
 	Info   *KnownNodeInfo `json:"info"`
 }
 
