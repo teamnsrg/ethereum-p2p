@@ -81,7 +81,7 @@ def create_node_info(conn):
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
               "remote_port SMALLINT unsigned NOT NULL, " \
-              "p2p_version TINYINT unsigned NULL, " \
+              "p2p_version BIGINT unsigned NULL, " \
               "client_id VARCHAR(255) NULL, " \
               "caps VARCHAR(255) NULL, " \
               "listen_port SMALLINT unsigned NULL, " \
