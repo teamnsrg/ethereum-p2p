@@ -492,8 +492,12 @@ func (srv *Server) Start() (err error) {
 	// TODO: determine whether srv.MaxPeers/2 is necessary
 	// use srv.MaxDial for now
 	// dynPeers := (srv.MaxPeers + 1) / 2
+	// dynPeers needs to be something much smaller than srv.MaxDial
+	// my current understanding is that srv.MaxDial will cap how many peers we will re-dial at any given time
+	// we still want some dynPeers discovered through the discovery protocol,
+	// but we don't want them to take up too many of the dialTasks
 
-	dynPeers := srv.MaxDial
+	dynPeers := srv.MaxDial / 3
 
 	if srv.NoDiscovery {
 		dynPeers = 0
@@ -1067,6 +1071,9 @@ func (srv *Server) loadKnownNodeInfos() {
 			nodeInfo.DAOForkSupport = daoForkSupport
 		}
 		srv.KnownNodeInfos[id] = nodeInfo
+
+		// add the node to the initial static node list
+		srv.addInitialStatic(id, nodeInfo)
 	}
 }
 
@@ -1149,6 +1156,8 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		if srv.addNodeInfoStmt != nil {
 			srv.addNodeInfo(nodeid, newInfo)
 		}
+		// add the new node as a static node
+		srv.addNewStatic(id, newInfo)
 	} else {
 		currentInfo.LastConnectedAt = receivedAt
 		currentInfo.RemotePort = newInfo.RemotePort
@@ -1166,6 +1175,11 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				// let Ethereum protocol update the Status info, if available.
 				srv.addNodeInfo(nodeid, newInfo)
 			}
+			// if the node's listening port changed
+			// add it as a static node
+			if currentInfo.TCPPort != newInfo.TCPPort {
+				srv.addNewStatic(id, newInfo)
+			}
 		} else {
 			if srv.updateNodeInfoStmt != nil {
 				srv.updateNodeInfo(nodeid, newInfo)
@@ -1177,6 +1191,43 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 func infoChanged(oldInfo *KnownNodeInfo, newInfo *KnownNodeInfo) bool {
 	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
 		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
+}
+
+// During the initial node info loading process
+// if a node seems to be listening (ie TCPPort != 0)
+// add it as a static node
+func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *KnownNodeInfo) {
+	if nodeInfo.TCPPort != 0 {
+		var ip net.IP
+		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
+			log.Proto("ADD_STATIC", "action", "parse ip", "result", "fail", "ip", nodeInfo.IP)
+		} else {
+			log.Proto("ADD_STATIC", "action", "parse ip", "result", "success", "ip", nodeInfo.IP)
+			// Ensure the IP is 4 bytes long for IPv4 addresses.
+			if ipv4 := ip.To4(); ipv4 != nil {
+				ip = ipv4
+			}
+			srv.StaticNodes = append(srv.StaticNodes, discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
+		}
+	}
+}
+
+// if a node seems to be listening (ie TCPPort != 0)
+// add it as a static node
+func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *KnownNodeInfo) {
+	if nodeInfo.TCPPort != 0 {
+		var ip net.IP
+		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
+			log.Proto("ADD_STATIC", "action", "parse ip", "result", "fail", "ip", nodeInfo.IP)
+		} else {
+			log.Proto("ADD_STATIC", "action", "parse ip", "result", "success", "ip", nodeInfo.IP)
+			// Ensure the IP is 4 bytes long for IPv4 addresses.
+			if ipv4 := ip.To4(); ipv4 != nil {
+				ip = ipv4
+			}
+			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
+		}
+	}
 }
 
 func (srv *Server) prepareAddNodeInfoStmt() {
