@@ -78,15 +78,15 @@ def create_node_info(conn):
         sql = "CREATE TABLE IF NOT EXISTS node_info (" \
               "id BIGINT unsigned NOT NULL AUTO_INCREMENT, " \
               "node_id VARCHAR(128) NOT NULL, " \
-              "ip VARCHAR(39) NULL, " \
-              "tcp_port SMALLINT unsigned NULL, " \
-              "remote_port SMALLINT unsigned NULL, " \
+              "ip VARCHAR(39) NOT NULL, " \
+              "tcp_port SMALLINT unsigned NOT NULL, " \
+              "remote_port SMALLINT unsigned NOT NULL, " \
               "p2p_version TINYINT unsigned NULL, " \
               "client_id VARCHAR(255) NULL, " \
               "caps VARCHAR(255) NULL, " \
               "listen_port SMALLINT unsigned NULL, " \
-              "first_hello_at DECIMAL(18,6) NOT NULL, " \
-              "last_hello_at DECIMAL(18,6) NOT NULL, " \
+              "first_hello_at DECIMAL(18,6) NULL, " \
+              "last_hello_at DECIMAL(18,6) NULL, " \
               "protocol_version BIGINT unsigned NULL, " \
               "network_id BIGINT unsigned NULL, " \
               "first_received_td DECIMAL(65) NULL, " \
@@ -94,8 +94,8 @@ def create_node_info(conn):
               "best_hash VARCHAR(64) NULL, " \
               "genesis_hash VARCHAR(64) NULL, " \
               "dao_fork TINYINT unsigned NULL, " \
-              "first_status_at DECIMAL(18,6) NOT NULL, " \
-              "last_status_at DECIMAL(18,6) NOT NULL, " \
+              "first_status_at DECIMAL(18,6) NULL, " \
+              "last_status_at DECIMAL(18,6) NULL, " \
               "PRIMARY KEY (id), " \
               "KEY (node_id)" \
               ")"
