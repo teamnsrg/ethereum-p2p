@@ -145,6 +145,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 	if err != nil {
 		return nil, nil, err
 	}
+	msg.ReceivedAt = time.Now()
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, nil, fmt.Errorf("message too big")
 	}
