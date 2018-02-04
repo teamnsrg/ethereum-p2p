@@ -1049,9 +1049,8 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				srv.addNodeInfo(nodeid, newInfo)
 			}
 		} else {
-			if srv.addNodeInfoStmt != nil {
-				// TODO: update node_info table
-				// remotePort, last_hello_at
+			if srv.updateNodeInfoStmt != nil {
+				srv.updateNodeInfo(nodeid, newInfo)
 			}
 		}
 	}
@@ -1078,7 +1077,16 @@ func (srv *Server) prepareAddNodeInfoStmt() {
 }
 
 func (srv *Server) prepareUpdateNodeInfoStmt() {
-	srv.updateNodeInfoStmt = nil
+	maxIdQuery := "SELECT max_id FROM (SELECT MAX(id) as max_id FROM node_info n WHERE n.node_id=?) tmp"
+	stmt := fmt.Sprintf("UPDATE node_info SET remote_port=?, last_hello_at=? WHERE id=(%s)", maxIdQuery)
+	pStmt, err := srv.DB.Prepare(stmt)
+
+	if err != nil {
+		log.Proto("MYSQL", "action", "prepare UpdateNodeInfo statement", "result", "fail", "err", err)
+	} else {
+		log.Proto("MYSQL", "action", "prepare UpdateNodeInfo statement", "result", "success")
+		srv.updateNodeInfoStmt = pStmt
+	}
 }
 
 func (srv *Server) prepareAddNodeMetaInfoStmt() {
@@ -1111,7 +1119,7 @@ func (srv *Server) addNodeInfo(nodeid string, newInfo *KnownNodeInfo) {
 
 func (srv *Server) updateNodeInfo(nodeid string, newInfo *KnownNodeInfo) {
 	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
-	_, err := srv.updateNodeInfoStmt.Exec(nodeid, newInfo.RemotePort, unixTime)
+	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, nodeid)
 	if err != nil {
 		log.Proto("MYSQL", "action", "execute UpdateNodeInfo statement", "result", "fail", "err", err)
 	} else {
