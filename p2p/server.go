@@ -22,10 +22,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net"
-	"strings"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -161,8 +162,8 @@ type Server struct {
 	addNodeInfoStmt     *sql.Stmt
 	updateNodeInfoStmt  *sql.Stmt
 	addNodeMetaInfoStmt *sql.Stmt
-	KnownNodeInfos map[discover.NodeID]*KnownNodeInfo // information on known nodes
-	DB             *sql.DB                            // MySQL database handle
+	KnownNodeInfos      map[discover.NodeID]*KnownNodeInfo // information on known nodes
+	DB                  *sql.DB                            // MySQL database handle
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -438,6 +439,8 @@ func (srv *Server) Start() (err error) {
 
 	// fill KnownNodesInfos with info from the mysql database
 	srv.KnownNodeInfos = make(map[discover.NodeID]*KnownNodeInfo)
+	srv.loadKnownNodeInfos()
+
 	// TODO: load info from mysql db
 
 	srv.running = true
@@ -952,13 +955,125 @@ func (srv *Server) NodeInfo() *NodeInfo {
 	return info
 }
 
+func (srv *Server) loadKnownNodeInfos() {
+	fields := "ni.node_id, nmi.hash, ip, tcp_port, remote_port, " +
+		"p2p_version, client_id, caps, listen_port, last_hello_at, " +
+		"protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, dao_fork"
+	maxIds := "SELECT node_id as nid, MAX(id) as max_id FROM node_info GROUP BY node_id"
+	nodeInfos := fmt.Sprintf("SELECT * FROM node_info x INNER JOIN (%s) max_ids ON x.id = max_ids.max_id", maxIds)
+	stmt := fmt.Sprintf("SELECT %s FROM (%s) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id", fields, nodeInfos)
+	rows, _ := srv.DB.Query(stmt)
+
+	type sqlObjects struct {
+		p2pVersion      sql.NullInt64
+		clientId        sql.NullString
+		caps            sql.NullString
+		listenPort      sql.NullInt64
+		lastHelloAt     sql.NullFloat64
+		protocolVersion sql.NullInt64
+		networkId       sql.NullInt64
+		firstReceivedTd sql.NullString
+		lastReceivedTd  sql.NullString
+		bestHash        sql.NullString
+		genesisHash     sql.NullString
+		daoForkSupport  sql.NullInt64
+	}
+
+	for rows.Next() {
+		var (
+			nodeid     string
+			hash       string
+			ip         string
+			tcpPort    uint16
+			remotePort uint16
+			sqlObj     sqlObjects
+		)
+		err := rows.Scan(&nodeid, &hash, &ip, &tcpPort, &remotePort,
+			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort, &sqlObj.lastHelloAt,
+			&sqlObj.protocolVersion, &sqlObj.networkId, &sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash, &sqlObj.daoForkSupport)
+		if err != nil {
+			log.Proto("MYSQL", "action", "query node info", "result", "fail", "err", err)
+			continue
+		}
+		// convert hex to NodeID
+		id, err := discover.HexID(nodeid)
+		if err != nil {
+			log.Proto("LOAD_FROM_MYSQL", "action", "parse node_id", "result", "fail", "err", err)
+			continue
+		}
+		nodeInfo := &KnownNodeInfo{
+			Keccak256Hash: hash,
+			IP:            ip,
+			TCPPort:       tcpPort,
+			RemotePort:    remotePort,
+		}
+		if sqlObj.p2pVersion.Valid {
+			nodeInfo.P2PVersion = uint64(sqlObj.p2pVersion.Int64)
+		}
+		if sqlObj.clientId.Valid {
+			nodeInfo.ClientId = sqlObj.clientId.String
+		}
+		if sqlObj.caps.Valid {
+			nodeInfo.Caps = sqlObj.caps.String
+		}
+		if sqlObj.listenPort.Valid {
+			nodeInfo.ListenPort = uint16(sqlObj.listenPort.Int64)
+		}
+		if sqlObj.lastHelloAt.Valid {
+			i, f := math.Modf(sqlObj.lastHelloAt.Float64)
+			t := time.Unix(int64(i), int64(f*1000000000))
+			nodeInfo.LastConnectedAt = &t
+		}
+		if sqlObj.protocolVersion.Valid {
+			nodeInfo.ProtocolVersion = uint64(sqlObj.protocolVersion.Int64)
+		}
+		if sqlObj.networkId.Valid {
+			nodeInfo.NetworkId = uint64(sqlObj.networkId.Int64)
+		}
+		if sqlObj.firstReceivedTd.Valid {
+			firstReceivedTd := &big.Int{}
+			s := sqlObj.firstReceivedTd.String
+			_, ok := firstReceivedTd.SetString(s, 10)
+			if !ok {
+				log.Proto("LOAD_FROM_MYSQL", "action", "parse *big.Int first_received_td", "result", "fail", "value", s)
+			} else {
+				nodeInfo.FirstReceivedTd = firstReceivedTd
+			}
+		}
+		if sqlObj.lastReceivedTd.Valid {
+			lastReceivedTd := &big.Int{}
+			s := sqlObj.lastReceivedTd.String
+			_, ok := lastReceivedTd.SetString(s, 10)
+			if !ok {
+				log.Proto("LOAD_FROM_MYSQL", "action", "parse *big.Int last_received_td", "result", "fail", "value", s)
+			} else {
+				nodeInfo.LastReceivedTd = lastReceivedTd
+			}
+		}
+		if sqlObj.bestHash.Valid {
+			nodeInfo.BestHash = sqlObj.bestHash.String
+		}
+		if sqlObj.genesisHash.Valid {
+			nodeInfo.GenesisHash = sqlObj.genesisHash.String
+		}
+		if sqlObj.daoForkSupport.Valid {
+			var daoForkSupport bool
+			if uint16(sqlObj.daoForkSupport.Int64) != 0 {
+				daoForkSupport = true
+			}
+			nodeInfo.DAOForkSupport = daoForkSupport
+		}
+		srv.KnownNodeInfos[id] = nodeInfo
+	}
+}
+
 func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInfo, bool, bool) {
 	var (
-		remoteIP string
+		remoteIP   string
 		remotePort uint16
-		tcpPort uint16
-		dial bool
-		accept bool
+		tcpPort    uint16
+		dial       bool
+		accept     bool
 	)
 	addrArr := strings.Split(c.fd.RemoteAddr().String(), ":")
 	addrLen := len(addrArr)
@@ -988,11 +1103,11 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInf
 		hash = crypto.Keccak256Hash(c.id[:]).String()[2:]
 	}
 	newNodeInfo := &KnownNodeInfo{
-		Keccak256Hash:		hash,
-		LastConnectedAt:	receivedAt,
-		IP:					remoteIP,
-		TCPPort:			tcpPort,
-		RemotePort:			remotePort,
+		Keccak256Hash:   hash,
+		LastConnectedAt: receivedAt,
+		IP:              remoteIP,
+		TCPPort:         tcpPort,
+		RemotePort:      remotePort,
 	}
 	return newNodeInfo, dial, accept
 }
@@ -1063,7 +1178,7 @@ func infoChanged(oldInfo *KnownNodeInfo, newInfo *KnownNodeInfo) bool {
 
 func (srv *Server) prepareAddNodeInfoStmt() {
 	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
-	"first_hello_at", "last_hello_at"}
+		"first_hello_at", "last_hello_at"}
 
 	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		strings.Join(fields, ", "))
@@ -1143,7 +1258,6 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 	}
 }
 
-
 // PeersInfo returns an array of metadata objects describing connected peers.
 func (srv *Server) PeersInfo() []*PeerInfo {
 	// Gather all the generic and sub-protocol specific infos
@@ -1166,11 +1280,11 @@ func (srv *Server) PeersInfo() []*PeerInfo {
 
 // KnownNodeInfo represents a short summary of the information known about a known DEVp2p node.
 type KnownNodeInfo struct {
-	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
+	Keccak256Hash   string     `json:"keccak256Hash"`             // Keccak256 hash of node ID
 	LastConnectedAt *time.Time `json:"lastConnectedAt,omitempty"` // Last time the node was connected
-	IP         string `json:"ip"`      // IP address of the node
-	TCPPort    uint16 `json:"tcpPort"` // TCP listening port for RLPx
-	RemotePort uint16 `json:"tcpPort"` // Remote TCP port of the most recent connection
+	IP              string     `json:"ip"`                        // IP address of the node
+	TCPPort         uint16     `json:"tcpPort"`                   // TCP listening port for RLPx
+	RemotePort      uint16     `json:"tcpPort"`                   // Remote TCP port of the most recent connection
 
 	// DEVp2p Hello info
 	P2PVersion uint64 `json:"p2pVersion,omitempty"` // DEVp2p protocol version
