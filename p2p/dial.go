@@ -168,7 +168,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 		if err := s.checkDial(n, peers); err != nil {
 			log.Trace("Skipping dial candidate", "id", n.ID, "addr", &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, "err", err)
 			if err == errBlacklisted {
-				log.Proto("BLACKLIST", "addr", n.IP.String(), "transport", "tcp")
+				log.Debug("BLACKLIST", "addr", n.IP.String(), "transport", "tcp")
 			}
 			return false
 		}
@@ -199,7 +199,6 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 		switch err {
 		case errNotWhitelisted, errBlacklisted, errSelf:
 			log.Warn("Removing static dial candidate", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}, "err", err)
-			log.Proto("REMOVE_STATIC", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}, "err", err)
 			delete(s.static, t.dest.ID)
 		case nil:
 			s.dialing[id] = t.flags

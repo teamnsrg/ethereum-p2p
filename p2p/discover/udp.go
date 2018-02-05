@@ -262,20 +262,25 @@ func prepareAddNeighborStmt(db *sql.DB) *sql.Stmt {
 		strings.Join(fields, ", "), updateFields)
 	pStmt, err := db.Prepare(stmt)
 	if err != nil {
-		log.Proto("MYSQL", "action", "prepare AddNeighbor statement", "result", "fail", "err", err)
+		log.Debug("Failed to prepare AddNeighbor sql statement", "err", err)
 		return nil
 	} else {
-		log.Proto("MYSQL", "action", "prepare AddNeighbor statement", "result", "success")
+		log.Trace("Prepared AddNeighbor sql statement")
 		return pStmt
 	}
 }
 
-func (t *udp) addNeighbor(nodeid string, hash string, ip string, tcpPort uint16, udpPort uint16, unixTime float64) {
+func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
+	nodeid := node.ID.String()
+	hash := crypto.Keccak256Hash(node.ID[:]).String()[2:]
+	ip := node.IP.String()
+	tcpPort := node.TCP
+	udpPort := node.UDP
 	_, err := t.addNeighborStmt.Exec(nodeid, hash, ip, tcpPort, udpPort, unixTime, unixTime)
 	if err != nil {
-		log.Proto("MYSQL", "action", "execute AddNeighbor statement", "result", "fail", "err", err)
+		log.Debug("Failed to execute AddNeighbor sql statement", "node", node, "receivedAt", fmt.Sprintf("%f", unixTime), "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "execute AddNeighbor statement", "result", "success")
+		log.Trace("Executed AddNeighbor sql statement", "node", node, "receivedAt", fmt.Sprintf("%f", unixTime))
 	}
 }
 
@@ -324,9 +329,9 @@ func (t *udp) close() {
 	// close prepared sql statements
 	if t.addNeighborStmt != nil {
 		if err := t.addNeighborStmt.Close(); err != nil {
-			log.Proto("MYSQL", "action", "close AddNeighbor statement", "result", "fail", "err", err)
+			log.Debug("Failed to close AddNeighbor sql statement", "err", err)
 		} else {
-			log.Proto("MYSQL", "action", "close AddNeighbor statement", "result", "success")
+			log.Trace("Closed AddNeighbor sql statement")
 		}
 	}
 	// TODO: wait for the loops to end.
@@ -593,13 +598,8 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	// if NEIGHBORS packet, add the node address info to the sql database
 	if packet.name() == "RLPX_NEIGHBORS" {
 		for _, node := range packet.(*neighbors).Nodes {
-			nodeid := node.ID.String()
-			hash := crypto.Keccak256Hash(node.ID[:]).String()[2:]
-			ip := node.IP.String()
-			tcp_port := node.TCP
-			udp_port := node.UDP
 			if t.addNeighborStmt != nil {
-				t.addNeighbor(nodeid, hash, ip, tcp_port, udp_port, unixTime)
+				t.addNeighbor(node, unixTime)
 			}
 		}
 	}

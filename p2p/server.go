@@ -355,6 +355,38 @@ func (srv *Server) makeSelf(listener net.Listener, ntab discoverTable) *discover
 	return ntab.Self()
 }
 
+func (srv *Server) CloseSQL() {
+	if srv.DB != nil {
+		if srv.addNodeInfoStmt != nil {
+			if err := srv.addNodeInfoStmt.Close(); err != nil {
+				log.Debug("Failed to close AddNodeInfo sql statement", "err", err)
+			} else {
+				log.Trace("Closed AddNodeInfo sql statement")
+			}
+		}
+		if srv.updateNodeInfoStmt != nil {
+			if err := srv.updateNodeInfoStmt.Close(); err != nil {
+				log.Debug("Failed to close UpdateNodeInfo sql statement", "err", err)
+			} else {
+				log.Trace("Closed UpdateNodeInfo sql statement")
+			}
+		}
+		if srv.addNodeMetaInfoStmt != nil {
+			if err := srv.addNodeMetaInfoStmt.Close(); err != nil {
+				log.Debug("Failed to close AddNodeMetaInfo sql statement", "err", err)
+			} else {
+				log.Trace("Closed AddNodeMetaInfo sql statement")
+			}
+		}
+		driver := "mysql"
+		if err := srv.DB.Close(); err != nil {
+			log.Debug("Failed to close sql db handle", "database", srv.MySQLName, "driver", driver, "err", err)
+		} else {
+			log.Trace("Closed sql db handle", "database", srv.MySQLName, "driver", driver)
+		}
+	}
+}
+
 // Stop terminates the server and all active peer connections.
 // It blocks until all active connections have been closed.
 func (srv *Server) Stop() {
@@ -372,35 +404,7 @@ func (srv *Server) Stop() {
 	srv.loopWG.Wait()
 
 	// close mysql db handle
-	if srv.DB != nil {
-		if srv.addNodeInfoStmt != nil {
-			if err := srv.addNodeInfoStmt.Close(); err != nil {
-				log.Proto("MYSQL", "action", "close AddNodeInfo statement", "result", "fail", "err", err)
-			} else {
-				log.Proto("MYSQL", "action", "close AddNodeInfo statement", "result", "success")
-			}
-		}
-		if srv.updateNodeInfoStmt != nil {
-			if err := srv.updateNodeInfoStmt.Close(); err != nil {
-				log.Proto("MYSQL", "action", "close UpdateNodeInfo statement", "result", "fail", "err", err)
-			} else {
-				log.Proto("MYSQL", "action", "close UpdateNodeInfo statement", "result", "success")
-			}
-		}
-		if srv.addNodeMetaInfoStmt != nil {
-			if err := srv.addNodeMetaInfoStmt.Close(); err != nil {
-				log.Proto("MYSQL", "action", "close AddNodeMetaInfo statement", "result", "fail", "err", err)
-			} else {
-				log.Proto("MYSQL", "action", "close AddNodeMetaInfo statement", "result", "success")
-			}
-		}
-		driver := "mysql"
-		if err := srv.DB.Close(); err != nil {
-			log.Proto("MYSQL", "action", "close handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
-		} else {
-			log.Proto("MYSQL", "action", "close handle", "result", "success", "database", srv.MySQLName, "driver", driver)
-		}
-	}
+	srv.CloseSQL()
 }
 
 // Start starts running the server.
@@ -417,16 +421,21 @@ func (srv *Server) Start() (err error) {
 		driver := "mysql"
 		db, err := sql.Open(driver, srv.MySQLName)
 		if err != nil {
-			log.Proto("MYSQL", "action", "open handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
+			log.Debug("Failed to open sql db handle", "database", srv.MySQLName, "driver", driver, "err", err)
 			return err
 		}
-		log.Proto("MYSQL", "action", "open handle", "result", "success", "database", srv.MySQLName, "driver", driver)
+		log.Trace("Opened sql db handle", "database", srv.MySQLName, "driver", driver)
 		err = db.Ping()
 		if err != nil {
-			log.Proto("MYSQL", "action", "ping test", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
+			log.Debug("Sql db connection failed ping test", "database", srv.MySQLName, "driver", driver, "err", err)
+			if err := srv.DB.Close(); err != nil {
+				log.Debug("Failed to close sql db handle", "database", srv.MySQLName, "driver", driver, "err", err)
+			} else {
+				log.Trace("Closed sql db handle", "database", srv.MySQLName, "driver", driver)
+			}
 			return err
 		}
-		log.Proto("MYSQL", "action", "ping test", "result", "success")
+		log.Trace("Sql db connection passed ping test", "database", srv.MySQLName, "driver", driver)
 		srv.DB = db
 	}
 
@@ -781,7 +790,7 @@ func (srv *Server) listenLoop() {
 		// Reject connections that match Blacklist.
 		if srv.Blacklist != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
-				log.Proto("BLACKLIST", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
+				log.Debug("BLACKLIST", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue
@@ -999,13 +1008,13 @@ func (srv *Server) loadKnownNodeInfos() {
 			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort, &sqlObj.lastHelloAt,
 			&sqlObj.protocolVersion, &sqlObj.networkId, &sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash, &sqlObj.daoForkSupport)
 		if err != nil {
-			log.Proto("MYSQL", "action", "query node info", "result", "fail", "err", err)
+			log.Debug("MYSQL", "action", "query node info", "result", "fail", "err", err)
 			continue
 		}
 		// convert hex to NodeID
 		id, err := discover.HexID(nodeid)
 		if err != nil {
-			log.Proto("LOAD_FROM_MYSQL", "action", "parse node_id", "result", "fail", "err", err)
+			log.Debug("LOAD_FROM_MYSQL", "action", "parse node_id", "result", "fail", "err", err)
 			continue
 		}
 		nodeInfo := &KnownNodeInfo{
@@ -1042,7 +1051,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.firstReceivedTd.String
 			_, ok := firstReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Proto("LOAD_FROM_MYSQL", "action", "parse *big.Int first_received_td", "result", "fail", "value", s)
+				log.Debug("LOAD_FROM_MYSQL", "action", "parse *big.Int first_received_td", "result", "fail", "value", s)
 			} else {
 				nodeInfo.FirstReceivedTd = firstReceivedTd
 			}
@@ -1052,7 +1061,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.lastReceivedTd.String
 			_, ok := lastReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Proto("LOAD_FROM_MYSQL", "action", "parse *big.Int last_received_td", "result", "fail", "value", s)
+				log.Debug("LOAD_FROM_MYSQL", "action", "parse *big.Int last_received_td", "result", "fail", "value", s)
 			} else {
 				nodeInfo.LastReceivedTd = lastReceivedTd
 			}
@@ -1154,10 +1163,11 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
+	newInfoWrapper := &KnownNodeInfoWrapper{nodeid, newInfo}
 	if currentInfo, ok := srv.KnownNodeInfos[id]; !ok {
 		srv.KnownNodeInfos[id] = newInfo
 		if srv.addNodeInfoStmt != nil {
-			srv.addNodeInfo(nodeid, newInfo)
+			srv.addNodeInfo(newInfoWrapper)
 		}
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
@@ -1176,7 +1186,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				// in-memory entry should keep the Ethereum Status info
 				// new entry to the mysql db should contain only the new address, DEVp2p info
 				// let Ethereum protocol update the Status info, if available.
-				srv.addNodeInfo(nodeid, newInfo)
+				srv.addNodeInfo(newInfoWrapper)
 			}
 			// if the node's listening port changed
 			// add it as a static node
@@ -1185,7 +1195,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			}
 		} else {
 			if srv.updateNodeInfoStmt != nil {
-				srv.updateNodeInfo(nodeid, newInfo)
+				srv.updateNodeInfo(newInfoWrapper)
 			}
 		}
 	}
@@ -1203,9 +1213,9 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *KnownNodeInfo)
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Proto("ADD_STATIC", "action", "parse ip", "result", "fail", "ip", nodeInfo.IP)
+			log.Debug("Failed to add node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 		} else {
-			log.Proto("ADD_STATIC", "action", "parse ip", "result", "success", "ip", nodeInfo.IP)
+			log.Debug("Adding node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
@@ -1221,9 +1231,8 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *KnownNodeInfo) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Proto("ADD_STATIC", "action", "parse ip", "result", "fail", "ip", nodeInfo.IP)
+			log.Debug("Failed to add static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 		} else {
-			log.Proto("ADD_STATIC", "action", "parse ip", "result", "success", "ip", nodeInfo.IP)
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
@@ -1241,9 +1250,9 @@ func (srv *Server) prepareAddNodeInfoStmt() {
 		strings.Join(fields, ", "))
 	pStmt, err := srv.DB.Prepare(stmt)
 	if err != nil {
-		log.Proto("MYSQL", "action", "prepare AddNodeInfo statement", "result", "fail", "err", err)
+		log.Debug("Failed to prepare AddNodeInfo sql statement", "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "prepare AddNodeInfo statement", "result", "success")
+		log.Trace("Prepared AddNodeInfo sql statement")
 		srv.addNodeInfoStmt = pStmt
 	}
 }
@@ -1254,9 +1263,9 @@ func (srv *Server) prepareUpdateNodeInfoStmt() {
 	pStmt, err := srv.DB.Prepare(stmt)
 
 	if err != nil {
-		log.Proto("MYSQL", "action", "prepare UpdateNodeInfo statement", "result", "fail", "err", err)
+		log.Debug("Failed to prepare UpdateNodeInfo sql statement", "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "prepare UpdateNodeInfo statement", "result", "success")
+		log.Trace("Prepared UpdateNodeInfo sql statement")
 		srv.updateNodeInfoStmt = pStmt
 	}
 }
@@ -1271,31 +1280,35 @@ func (srv *Server) prepareAddNodeMetaInfoStmt() {
 		strings.Join(fields, ", "), strings.Join(updateFields, ", "))
 	pStmt, err := srv.DB.Prepare(stmt)
 	if err != nil {
-		log.Proto("MYSQL", "action", "prepare AddNodeMetaInfo statement", "result", "fail", "err", err)
+		log.Debug("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "prepare AddNodeMetaInfo statement", "result", "success")
+		log.Trace("Prepared AddNodeMetaInfo sql statement")
 		srv.addNodeMetaInfoStmt = pStmt
 	}
 }
 
-func (srv *Server) addNodeInfo(nodeid string, newInfo *KnownNodeInfo) {
+func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfoWrapper) {
+	nodeid := newInfoWrapper.NodeId
+	newInfo := newInfoWrapper.Info
 	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, unixTime, unixTime)
 	if err != nil {
-		log.Proto("MYSQL", "action", "execute AddNodeInfo statement", "result", "fail", "err", err)
+		log.Debug("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "execute AddNodeInfo statement", "result", "success")
+		log.Trace("Executed AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
-func (srv *Server) updateNodeInfo(nodeid string, newInfo *KnownNodeInfo) {
+func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfoWrapper) {
+	nodeid := newInfoWrapper.NodeId
+	newInfo := newInfoWrapper.Info
 	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
 	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, nodeid)
 	if err != nil {
-		log.Proto("MYSQL", "action", "execute UpdateNodeInfo statement", "result", "fail", "err", err)
+		log.Debug("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "execute UpdateNodeInfo statement", "result", "success")
+		log.Trace("Executed UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
@@ -1309,9 +1322,9 @@ func boolToInt(b bool) int {
 func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept bool, tooManyPeers bool) {
 	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept), boolToInt(tooManyPeers))
 	if err != nil {
-		log.Proto("MYSQL", "action", "execute AddNodeMetaInfo statement", "result", "fail", "err", err)
+		log.Debug("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
 	} else {
-		log.Proto("MYSQL", "action", "execute AddNodeMetaInfo statement", "result", "success")
+		log.Trace("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
 	}
 }
 
