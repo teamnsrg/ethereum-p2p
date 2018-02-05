@@ -1091,26 +1091,29 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInf
 	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err == nil {
 		remotePort = uint16(p)
 	}
+	oldNodeInfo := srv.KnownNodeInfos[c.id]
+	var hash string
+	if oldNodeInfo != nil {
+		hash = oldNodeInfo.Keccak256Hash
+		tcpPort = oldNodeInfo.TCPPort
+	} else {
+		hash = crypto.Keccak256Hash(c.id[:]).String()[2:]
+	}
 	// if inbound connection, resolve the node's listening port
 	// otherwise, remotePort is the listening port
 	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
-		newNode := srv.ntab.Resolve(c.id)
-		// if the node address is resolved, set the tcpPort
-		// otherwise, leave it as 0
-		if newNode != nil {
-			tcpPort = newNode.TCP
+		if tcpPort == 0 {
+			newNode := srv.ntab.Resolve(c.id)
+			// if the node address is resolved, set the tcpPort
+			// otherwise, leave it as 0
+			if newNode != nil {
+				tcpPort = newNode.TCP
+			}
 		}
 		accept = true
 	} else {
 		tcpPort = remotePort
 		dial = true
-	}
-	oldNodeInfo := srv.KnownNodeInfos[c.id]
-	var hash string
-	if oldNodeInfo != nil {
-		hash = oldNodeInfo.Keccak256Hash
-	} else {
-		hash = crypto.Keccak256Hash(c.id[:]).String()[2:]
 	}
 	newNodeInfo := &KnownNodeInfo{
 		Keccak256Hash:   hash,
