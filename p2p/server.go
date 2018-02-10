@@ -162,8 +162,9 @@ type Server struct {
 	addNodeInfoStmt     *sql.Stmt
 	updateNodeInfoStmt  *sql.Stmt
 	addNodeMetaInfoStmt *sql.Stmt
-	KnownNodeInfos      map[discover.NodeID]*KnownNodeInfo // information on known nodes
-	DB                  *sql.DB                            // MySQL database handle
+	GetRowIDStmt        *sql.Stmt
+	KnownNodeInfos      *knownNodeInfos // information on known nodes
+	DB                  *sql.DB         // MySQL database handle
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -378,6 +379,13 @@ func (srv *Server) CloseSQL() {
 				log.Trace("Closed AddNodeMetaInfo sql statement")
 			}
 		}
+		if srv.GetRowIDStmt != nil {
+			if err := srv.GetRowIDStmt.Close(); err != nil {
+				log.Debug("Failed to close GetRowID sql statement", "err", err)
+			} else {
+				log.Trace("Closed GetRowID sql statement")
+			}
+		}
 		driver := "mysql"
 		if err := srv.DB.Close(); err != nil {
 			log.Debug("Failed to close sql db handle", "database", srv.MySQLName, "driver", driver, "err", err)
@@ -439,7 +447,7 @@ func (srv *Server) Start() (err error) {
 		srv.DB = db
 	}
 
-	srv.KnownNodeInfos = make(map[discover.NodeID]*KnownNodeInfo)
+	srv.KnownNodeInfos = &knownNodeInfos{infos: make(map[discover.NodeID]*Info)}
 
 	if srv.DB != nil {
 		// fill KnownNodesInfos with info from the mysql database
@@ -449,6 +457,7 @@ func (srv *Server) Start() (err error) {
 		srv.prepareAddNodeInfoStmt()
 		srv.prepareUpdateNodeInfoStmt()
 		srv.prepareAddNodeMetaInfoStmt()
+		srv.prepareGetRowID()
 	}
 
 	// TODO: load info from mysql db
@@ -972,9 +981,10 @@ func (srv *Server) NodeInfo() *NodeInfo {
 }
 
 func (srv *Server) loadKnownNodeInfos() {
-	fields := "ni.node_id, nmi.hash, ip, tcp_port, remote_port, " +
-		"p2p_version, client_id, caps, listen_port, last_hello_at, " +
-		"protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, dao_fork"
+	fields := "ni.id, ni.node_id, nmi.hash, ip, tcp_port, remote_port, " +
+		"p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, " +
+		"protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, " +
+		"first_status_at, last_status_at, dao_fork"
 	maxIds := "SELECT node_id as nid, MAX(id) as max_id FROM node_info GROUP BY node_id"
 	nodeInfos := fmt.Sprintf("SELECT * FROM node_info x INNER JOIN (%s) max_ids ON x.id = max_ids.max_id", maxIds)
 	stmt := fmt.Sprintf("SELECT %s FROM (%s) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id", fields, nodeInfos)
@@ -985,6 +995,7 @@ func (srv *Server) loadKnownNodeInfos() {
 		clientId        sql.NullString
 		caps            sql.NullString
 		listenPort      sql.NullInt64
+		firstHelloAt    sql.NullFloat64
 		lastHelloAt     sql.NullFloat64
 		protocolVersion sql.NullInt64
 		networkId       sql.NullInt64
@@ -993,10 +1004,16 @@ func (srv *Server) loadKnownNodeInfos() {
 		bestHash        sql.NullString
 		genesisHash     sql.NullString
 		daoForkSupport  sql.NullInt64
+		firstStatusAt   sql.NullFloat64
+		lastStatusAt    sql.NullFloat64
 	}
+
+	srv.KnownNodeInfos.Lock()
+	defer srv.KnownNodeInfos.Unlock()
 
 	for rows.Next() {
 		var (
+			rowid      uint64
 			nodeid     string
 			hash       string
 			ip         string
@@ -1004,9 +1021,11 @@ func (srv *Server) loadKnownNodeInfos() {
 			remotePort uint16
 			sqlObj     sqlObjects
 		)
-		err := rows.Scan(&nodeid, &hash, &ip, &tcpPort, &remotePort,
-			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort, &sqlObj.lastHelloAt,
-			&sqlObj.protocolVersion, &sqlObj.networkId, &sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash, &sqlObj.daoForkSupport)
+		err := rows.Scan(&rowid, &nodeid, &hash, &ip, &tcpPort, &remotePort,
+			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort,
+			&sqlObj.firstHelloAt, &sqlObj.lastHelloAt, &sqlObj.protocolVersion, &sqlObj.networkId,
+			&sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash,
+			&sqlObj.daoForkSupport, &sqlObj.firstStatusAt, &sqlObj.lastStatusAt)
 		if err != nil {
 			log.Debug("MYSQL", "action", "query node info", "result", "fail", "err", err)
 			continue
@@ -1017,7 +1036,8 @@ func (srv *Server) loadKnownNodeInfos() {
 			log.Debug("LOAD_FROM_MYSQL", "action", "parse node_id", "result", "fail", "err", err)
 			continue
 		}
-		nodeInfo := &KnownNodeInfo{
+		nodeInfo := &Info{
+			RowID:         rowid,
 			Keccak256Hash: hash,
 			IP:            ip,
 			TCPPort:       tcpPort,
@@ -1035,10 +1055,15 @@ func (srv *Server) loadKnownNodeInfos() {
 		if sqlObj.listenPort.Valid {
 			nodeInfo.ListenPort = uint16(sqlObj.listenPort.Int64)
 		}
+		if sqlObj.firstHelloAt.Valid {
+			i, f := math.Modf(sqlObj.firstHelloAt.Float64)
+			t := time.Unix(int64(i), int64(f*1000000000))
+			nodeInfo.FirstHelloAt = &t
+		}
 		if sqlObj.lastHelloAt.Valid {
 			i, f := math.Modf(sqlObj.lastHelloAt.Float64)
 			t := time.Unix(int64(i), int64(f*1000000000))
-			nodeInfo.LastConnectedAt = &t
+			nodeInfo.LastHelloAt = &t
 		}
 		if sqlObj.protocolVersion.Valid {
 			nodeInfo.ProtocolVersion = uint64(sqlObj.protocolVersion.Int64)
@@ -1072,6 +1097,16 @@ func (srv *Server) loadKnownNodeInfos() {
 		if sqlObj.genesisHash.Valid {
 			nodeInfo.GenesisHash = sqlObj.genesisHash.String
 		}
+		if sqlObj.firstStatusAt.Valid {
+			i, f := math.Modf(sqlObj.firstStatusAt.Float64)
+			t := time.Unix(int64(i), int64(f*1000000000))
+			nodeInfo.FirstStatusAt = &t
+		}
+		if sqlObj.lastStatusAt.Valid {
+			i, f := math.Modf(sqlObj.lastStatusAt.Float64)
+			t := time.Unix(int64(i), int64(f*1000000000))
+			nodeInfo.LastStatusAt = &t
+		}
 		if sqlObj.daoForkSupport.Valid {
 			var daoForkSupport bool
 			if uint16(sqlObj.daoForkSupport.Int64) != 0 {
@@ -1079,14 +1114,14 @@ func (srv *Server) loadKnownNodeInfos() {
 			}
 			nodeInfo.DAOForkSupport = daoForkSupport
 		}
-		srv.KnownNodeInfos[id] = nodeInfo
+		srv.KnownNodeInfos.Infos()[id] = nodeInfo
 
 		// add the node to the initial static node list
 		srv.addInitialStatic(id, nodeInfo)
 	}
 }
 
-func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInfo, bool, bool) {
+func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, bool) {
 	var (
 		remoteIP   string
 		remotePort uint16
@@ -1100,7 +1135,8 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInf
 	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err == nil {
 		remotePort = uint16(p)
 	}
-	oldNodeInfo := srv.KnownNodeInfos[c.id]
+	oldNodeInfo := srv.KnownNodeInfos.Infos()[c.id]
+
 	var hash string
 	if oldNodeInfo != nil {
 		hash = oldNodeInfo.Keccak256Hash
@@ -1124,12 +1160,12 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*KnownNodeInf
 		tcpPort = remotePort
 		dial = true
 	}
-	newNodeInfo := &KnownNodeInfo{
-		Keccak256Hash:   hash,
-		LastConnectedAt: receivedAt,
-		IP:              remoteIP,
-		TCPPort:         tcpPort,
-		RemotePort:      remotePort,
+	newNodeInfo := &Info{
+		Keccak256Hash: hash,
+		LastHelloAt:   receivedAt,
+		IP:            remoteIP,
+		TCPPort:       tcpPort,
+		RemotePort:    remotePort,
 	}
 	return newNodeInfo, dial, accept
 }
@@ -1163,16 +1199,25 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
-	newInfoWrapper := &KnownNodeInfoWrapper{nodeid, newInfo}
-	if currentInfo, ok := srv.KnownNodeInfos[id]; !ok {
-		srv.KnownNodeInfos[id] = newInfo
+	srv.KnownNodeInfos.Lock()
+	defer srv.KnownNodeInfos.Unlock()
+	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
+		newInfo.FirstHelloAt = newInfo.LastHelloAt
 		if srv.addNodeInfoStmt != nil {
-			srv.addNodeInfo(newInfoWrapper)
+			srv.addNodeInfo(&KnownNodeInfoWrapper{nodeid, newInfo})
 		}
+		if srv.GetRowIDStmt != nil {
+			if rowID := srv.getRowID(nodeid); rowID > 0 {
+				newInfo.RowID = rowID
+			}
+		}
+		srv.KnownNodeInfos.Infos()[id] = newInfo
+
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
 	} else {
-		currentInfo.LastConnectedAt = receivedAt
+		currentInfo.Lock()
+		currentInfo.LastHelloAt = newInfo.LastHelloAt
 		currentInfo.RemotePort = newInfo.RemotePort
 		if infoChanged(currentInfo, newInfo) {
 			currentInfo.IP = newInfo.IP
@@ -1186,7 +1231,12 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				// in-memory entry should keep the Ethereum Status info
 				// new entry to the mysql db should contain only the new address, DEVp2p info
 				// let Ethereum protocol update the Status info, if available.
-				srv.addNodeInfo(newInfoWrapper)
+				srv.addNodeInfo(&KnownNodeInfoWrapper{nodeid, currentInfo})
+			}
+			if srv.GetRowIDStmt != nil {
+				if rowID := srv.getRowID(nodeid); rowID > 0 {
+					currentInfo.RowID = rowID
+				}
 			}
 			// if the node's listening port changed
 			// add it as a static node
@@ -1195,13 +1245,14 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			}
 		} else {
 			if srv.updateNodeInfoStmt != nil {
-				srv.updateNodeInfo(newInfoWrapper)
+				srv.updateNodeInfo(&KnownNodeInfoWrapper{nodeid, currentInfo})
 			}
 		}
+		currentInfo.Unlock()
 	}
 }
 
-func infoChanged(oldInfo *KnownNodeInfo, newInfo *KnownNodeInfo) bool {
+func infoChanged(oldInfo *Info, newInfo *Info) bool {
 	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
 		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
 }
@@ -1209,7 +1260,7 @@ func infoChanged(oldInfo *KnownNodeInfo, newInfo *KnownNodeInfo) bool {
 // During the initial node info loading process
 // if a node seems to be listening (ie TCPPort != 0)
 // add it as a static node
-func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *KnownNodeInfo) {
+func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
@@ -1227,7 +1278,7 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *KnownNodeInfo)
 
 // if a node seems to be listening (ie TCPPort != 0)
 // add it as a static node
-func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *KnownNodeInfo) {
+func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
@@ -1258,9 +1309,7 @@ func (srv *Server) prepareAddNodeInfoStmt() {
 }
 
 func (srv *Server) prepareUpdateNodeInfoStmt() {
-	maxIdQuery := "SELECT max_id FROM (SELECT MAX(id) as max_id FROM node_info n WHERE n.node_id=?) tmp"
-	stmt := fmt.Sprintf("UPDATE node_info SET remote_port=?, last_hello_at=? WHERE id=(%s)", maxIdQuery)
-	pStmt, err := srv.DB.Prepare(stmt)
+	pStmt, err := srv.DB.Prepare("UPDATE node_info SET remote_port=?, last_hello_at=? WHERE id=?")
 
 	if err != nil {
 		log.Debug("Failed to prepare UpdateNodeInfo sql statement", "err", err)
@@ -1287,12 +1336,23 @@ func (srv *Server) prepareAddNodeMetaInfoStmt() {
 	}
 }
 
+func (srv *Server) prepareGetRowID() {
+	pStmt, err := srv.DB.Prepare("SELECT MAX(id) FROM node_info WHERE node_id=?")
+	if err != nil {
+		log.Debug("Failed to prepare GetRowID sql statement", "err", err)
+	} else {
+		log.Trace("Prepared GetRowID sql statement")
+		srv.GetRowIDStmt = pStmt
+	}
+}
+
 func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfoWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
+	firstUnixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
+	lastUnixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
-		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, unixTime, unixTime)
+		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstUnixTime, lastUnixTime)
 	if err != nil {
 		log.Debug("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
@@ -1303,8 +1363,8 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfoWrapper) {
 func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfoWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastConnectedAt.UnixNano()) / 1000000000
-	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, nodeid)
+	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
+	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, newInfo.RowID)
 	if err != nil {
 		log.Debug("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
@@ -1328,6 +1388,18 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 	}
 }
 
+func (srv *Server) getRowID(nodeid string) uint64 {
+	var rowID uint64
+	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowID)
+	if err != nil {
+		log.Debug("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
+		return 0
+	} else {
+		log.Trace("Execute GetRowID sql statement", "id", nodeid, "rowid", rowID)
+		return rowID
+	}
+}
+
 // PeersInfo returns an array of metadata objects describing connected peers.
 func (srv *Server) PeersInfo() []*PeerInfo {
 	// Gather all the generic and sub-protocol specific infos
@@ -1348,8 +1420,36 @@ func (srv *Server) PeersInfo() []*PeerInfo {
 	return infos
 }
 
-// KnownNodeInfo represents a short summary of the information known about a known DEVp2p node.
-type KnownNodeInfo struct {
+type knownNodeInfos struct {
+	mux   sync.RWMutex
+	infos map[discover.NodeID]*Info
+}
+
+func (k *knownNodeInfos) Lock() {
+	k.mux.Lock()
+}
+
+func (k *knownNodeInfos) Unlock() {
+	k.mux.Unlock()
+}
+
+func (k *knownNodeInfos) RLock() {
+	k.mux.RLock()
+}
+
+func (k *knownNodeInfos) RUnlock() {
+	k.mux.RUnlock()
+}
+
+func (k *knownNodeInfos) Infos() map[discover.NodeID]*Info {
+	return k.infos
+}
+
+// KnownNodeInfo represents a short summary of the information known about a known node.
+type Info struct {
+	mux sync.RWMutex
+
+	RowID           uint64     `json:"RowID"`                     // Most recent row ID
 	Keccak256Hash   string     `json:"keccak256Hash"`             // Keccak256 hash of node ID
 	LastConnectedAt *time.Time `json:"lastConnectedAt,omitempty"` // Last time the node was connected
 	IP              string     `json:"ip"`                        // IP address of the node
@@ -1357,30 +1457,52 @@ type KnownNodeInfo struct {
 	RemotePort      uint16     `json:"tcpPort"`                   // Remote TCP port of the most recent connection
 
 	// DEVp2p Hello info
-	P2PVersion uint64 `json:"p2pVersion,omitempty"` // DEVp2p protocol version
-	ClientId   string `json:"clientId,omitempty"`   // Name of the node, including client type, version, OS, custom data
-	Caps       string `json:"caps,omitempty"`       // Node's capabilities
-	ListenPort uint16 `json:"listenPort,omitempty"` // Listening port reported in the node's DEVp2p Hello
+	P2PVersion   uint64     `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
+	ClientId     string     `json:"clientId,omitempty"`     // Name of the node, including client type, version, OS, custom data
+	Caps         string     `json:"caps,omitempty"`         // Node's capabilities
+	ListenPort   uint16     `json:"listenPort,omitempty"`   // Listening port reported in the node's DEVp2p Hello
+	FirstHelloAt *time.Time `json:"firstHelloAt,omitempty"` // First time the node sent Hello
+	LastHelloAt  *time.Time `json:"lastHelloAt,omitempty"`  // Last time the node sent Hello
 
 	// Ethereum Status info
-	ProtocolVersion uint64   `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
-	NetworkId       uint64   `json:"networkId,omitempty"`       // Ethereum network ID
-	FirstReceivedTd *big.Int `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
-	LastReceivedTd  *big.Int `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
-	BestHash        string   `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
-	GenesisHash     string   `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
-	DAOForkSupport  bool     `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+	ProtocolVersion uint64     `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
+	NetworkId       uint64     `json:"networkId,omitempty"`       // Ethereum network ID
+	FirstReceivedTd *big.Int   `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
+	LastReceivedTd  *big.Int   `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
+	BestHash        string     `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
+	GenesisHash     string     `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
+	FirstStatusAt   *time.Time `json:"firstStatusAt,omitempty"`   // First time the node sent Status
+	LastStatusAt    *time.Time `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
+	DAOForkSupport  bool       `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+}
+
+func (k *Info) Lock() {
+	k.mux.Lock()
+}
+
+func (k *Info) Unlock() {
+	k.mux.Unlock()
+}
+
+func (k *Info) RLock() {
+	k.mux.RLock()
+}
+
+func (k *Info) RUnlock() {
+	k.mux.RUnlock()
 }
 
 type KnownNodeInfoWrapper struct {
-	NodeId string         `json:"nodeid"` // Unique node identifier (also the encryption key)
-	Info   *KnownNodeInfo `json:"info"`
+	NodeId string `json:"nodeid"` // Unique node identifier (also the encryption key)
+	Info   *Info  `json:"info"`
 }
 
 // NodeInfo gathers and returns a collection of metadata known about the host.
 func (srv *Server) KnownNodes() []*KnownNodeInfoWrapper {
-	infos := make([]*KnownNodeInfoWrapper, 0, len(srv.KnownNodeInfos))
-	for id, info := range srv.KnownNodeInfos {
+	srv.KnownNodeInfos.Lock()
+	defer srv.KnownNodeInfos.Unlock()
+	infos := make([]*KnownNodeInfoWrapper, 0, len(srv.KnownNodeInfos.Infos()))
+	for id, info := range srv.KnownNodeInfos.Infos() {
 		nodeInfo := &KnownNodeInfoWrapper{
 			id.String(),
 			info,
