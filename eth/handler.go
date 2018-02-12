@@ -191,8 +191,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	p.Log().Proto("Ethereum peer connected", "name", p.Name(), "nodeID", p.ID())
 
 	// Execute the Ethereum handshake
-	genesis := params.MainnetGenesisHash
-	td, head := pm.chainconfig.DAOForkBlockInfo()
+	td, head, genesis := pm.blockchain.Status()
 	if err := p.Handshake(pm.networkId, td, head, genesis); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		return err
