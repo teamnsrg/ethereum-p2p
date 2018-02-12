@@ -38,15 +38,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/params"
 )
 
-const (
-	softResponseLimit = 2 * 1024 * 1024 // Target maximum size of returned blocks, headers or node data.
-	estHeaderRlpSize  = 500             // Approximate size of an RLP encoded block header
-
-	// txChanSize is the size of channel listening to TxPreEvent.
-	// The number is referenced from the size of tx pool.
-	txChanSize = 4096
-)
-
 var (
 	daoChallengeTimeout = 15 * time.Second // Time allowance for a node to reply to the DAO handshake challenge
 )
@@ -100,7 +91,6 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	manager := &ProtocolManager{
 		networkId:   networkId,
 		blockchain:  blockchain,
-		chaindb:     chaindb,
 		chainconfig: config,
 		peers:       newPeerSet(),
 		newPeerCh:   make(chan *peer),
