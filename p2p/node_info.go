@@ -254,7 +254,6 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}
