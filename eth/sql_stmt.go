@@ -1,0 +1,137 @@
+package eth
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/go-ethereum/p2p"
+)
+
+func (pm *ProtocolManager) prepareSqlStmts() {
+	if pm.db != nil {
+		pm.prepareAddEthInfoStmt()
+		pm.prepareUpdateEthInfoStmt()
+		pm.prepareAddEthNodeInfoStmt()
+	}
+}
+
+func (pm *ProtocolManager) closeSqlStmts() {
+	if pm.addEthInfoStmt != nil {
+		if err := pm.addEthInfoStmt.Close(); err != nil {
+			log.Debug("Failed to close AddEthInfo sql statement", "err", err)
+		} else {
+			log.Trace("Closed AddEthInfo sql statement")
+		}
+	}
+	if pm.updateEthInfoStmt != nil {
+		if err := pm.updateEthInfoStmt.Close(); err != nil {
+			log.Debug("Failed to close UpdateEthInfo sql statement", "err", err)
+		} else {
+			log.Trace("Closed UpdateEthInfo sql statement")
+		}
+	}
+	if pm.addEthNodeInfoStmt != nil {
+		if err := pm.addEthNodeInfoStmt.Close(); err != nil {
+			log.Debug("Failed to close AddEthNodeInfo sql statement", "err", err)
+		} else {
+			log.Trace("Closed AddEthNodeInfo sql statement")
+		}
+	}
+}
+
+func (pm *ProtocolManager) prepareAddEthInfoStmt() {
+	pStmt, err := pm.db.Prepare("UPDATE node_info " +
+		"SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, " +
+		"best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? WHERE id=?")
+	if err != nil {
+		log.Debug("Failed to prepare AddEthInfo sql statement", "err", err)
+	} else {
+		log.Trace("Prepared AddEthInfo sql statement")
+		pm.addEthInfoStmt = pStmt
+	}
+}
+
+func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	nodeid := newInfoWrapper.NodeId
+	newInfo := newInfoWrapper.Info
+	firstUnixTime := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
+	lastUnixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
+	_, err := pm.addEthInfoStmt.Exec(newInfo.ProtocolVersion, newInfo.NetworkId,
+		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
+		firstUnixTime, lastUnixTime, newInfo.RowID)
+	if err != nil {
+		log.Debug("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+	} else {
+		log.Trace("Executed AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+	}
+}
+
+func (pm *ProtocolManager) prepareUpdateEthInfoStmt() {
+	pStmt, err := pm.db.Prepare("UPDATE node_info SET last_received_td=?, best_hash=?, last_status_at=? WHERE id=?")
+
+	if err != nil {
+		log.Debug("Failed to prepare UpdateEthInfo sql statement", "err", err)
+	} else {
+		log.Trace("Prepared UpdateEthInfo sql statement")
+		pm.updateEthInfoStmt = pStmt
+	}
+}
+
+func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	nodeid := newInfoWrapper.NodeId
+	newInfo := newInfoWrapper.Info
+	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
+	_, err := pm.updateEthInfoStmt.Exec(newInfo.LastReceivedTd, newInfo.BestHash, unixTime, newInfo.RowID)
+	if err != nil {
+		log.Debug("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+	} else {
+		log.Trace("Executed UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+	}
+}
+
+func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() {
+	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
+		"first_hello_at", "last_hello_at", "protocol_version", "network_id", "first_received_td", "last_received_td",
+		"best_hash", "genesis_hash", "first_status_at", "last_status_at"}
+
+	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		strings.Join(fields, ", "))
+	pStmt, err := pm.db.Prepare(stmt)
+	if err != nil {
+		log.Debug("Failed to prepare AddEthNodeInfo sql statement", "err", err)
+	} else {
+		log.Trace("Prepared AddEthNodeInfo sql statement")
+		pm.addEthNodeInfoStmt = pStmt
+	}
+}
+
+func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	nodeid := newInfoWrapper.NodeId
+	newInfo := newInfoWrapper.Info
+	firstHelloAt := float64(newInfo.FirstHelloAt.UnixNano()) / 1000000000
+	lastHelloAt := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
+	firstStatusAt := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
+	lastStatusAt := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
+	_, err := pm.addEthNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort, newInfo.P2PVersion,
+		newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstHelloAt, lastHelloAt, newInfo.ProtocolVersion, newInfo.NetworkId,
+		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
+		firstStatusAt, lastStatusAt)
+	if err != nil {
+		log.Debug("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+	} else {
+		log.Trace("Executed AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+	}
+}
+
+func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
+	var rowID uint64
+	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowID)
+	if err != nil {
+		log.Debug("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
+		return 0
+	} else {
+		log.Trace("Executed GetRowID sql statement", "id", nodeid, "rowid", rowID)
+		return rowID
+	}
+}

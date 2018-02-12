@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
@@ -63,7 +62,7 @@ func errResp(code errCode, format string, v ...interface{}) error {
 type ProtocolManager struct {
 	addEthInfoStmt     *sql.Stmt
 	updateEthInfoStmt  *sql.Stmt
-	addNodeEthInfoStmt *sql.Stmt
+	addEthNodeInfoStmt *sql.Stmt
 	getRowIDStmt       *sql.Stmt
 	knownNodeInfos     map[discover.NodeID]*p2p.Info // information on known nodes
 	db                 *sql.DB                       // mysql db handle
@@ -171,196 +170,11 @@ func (pm *ProtocolManager) removePeer(id string) {
 func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
-	// check if db handle is available
-	if pm.db != nil {
-		// prepare sql statements
-		pm.prepareAddEthInfoStmt()
-		pm.prepareUpdateEthInfoStmt()
-		pm.prepareAddNodeEthInfoStmt()
-	}
+	// prepare sql statements
+	pm.prepareSqlStmts()
 
 	// start sync handlers
 	go pm.syncer()
-}
-
-func (pm *ProtocolManager) storeNodeInfo(id discover.NodeID, statusWrapper *statusDataWrapper) {
-	nodeid := id.String()
-	status := statusWrapper.Status
-	receivedAt := statusWrapper.ReceivedAt
-
-	newInfo := &p2p.Info{
-		ProtocolVersion: uint64(status.ProtocolVersion),
-		NetworkId:       status.NetworkId,
-		FirstReceivedTd: status.TD,
-		LastReceivedTd:  status.TD,
-		BestHash:        status.CurrentBlock.String()[2:],
-		GenesisHash:     status.GenesisBlock.String()[2:],
-	}
-
-	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
-		currentInfo.Lock()
-		defer currentInfo.Unlock()
-		currentInfo.LastStatusAt = receivedAt
-		currentInfo.LastReceivedTd = newInfo.LastReceivedTd
-		currentInfo.BestHash = newInfo.BestHash
-		if currentInfo.FirstStatusAt == nil {
-			currentInfo.FirstStatusAt = receivedAt
-			currentInfo.FirstReceivedTd = newInfo.FirstReceivedTd
-			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
-			currentInfo.NetworkId = newInfo.NetworkId
-			currentInfo.GenesisHash = newInfo.GenesisHash
-			if pm.addNodeEthInfoStmt != nil {
-				// TODO: check logic
-				// a new entry, including address and DEVp2p info, is added to mysql db
-				pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			}
-			if pm.getRowIDStmt != nil {
-				if rowID := pm.getRowID(nodeid); rowID > 0 {
-					currentInfo.RowID = rowID
-				}
-			}
-			return
-		}
-		if infoChanged(currentInfo, newInfo) {
-			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
-			currentInfo.NetworkId = newInfo.NetworkId
-			currentInfo.GenesisHash = newInfo.GenesisHash
-			if pm.addEthInfoStmt != nil {
-				// TODO: check logic
-				// a new entry, including address and DEVp2p info, is added to mysql db
-				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			}
-		} else {
-			if pm.updateEthInfoStmt != nil {
-				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			}
-		}
-	}
-}
-
-func infoChanged(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
-	return oldInfo.ProtocolVersion != newInfo.ProtocolVersion || oldInfo.NetworkId != newInfo.NetworkId ||
-		oldInfo.GenesisHash != newInfo.GenesisHash
-}
-
-func (pm *ProtocolManager) prepareAddEthInfoStmt() {
-	pStmt, err := pm.db.Prepare("UPDATE node_info " +
-		"SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, " +
-		"best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? WHERE id=?")
-	if err != nil {
-		log.Debug("Failed to prepare AddEthInfo sql statement", "err", err)
-	} else {
-		log.Trace("Prepared AddEthInfo sql statement")
-		pm.addEthInfoStmt = pStmt
-	}
-}
-
-func (pm *ProtocolManager) prepareUpdateEthInfoStmt() {
-	pStmt, err := pm.db.Prepare("UPDATE node_info SET last_received_td=?, best_hash=?, last_status_at=? WHERE id=?")
-
-	if err != nil {
-		log.Debug("Failed to prepare UpdateEthInfo sql statement", "err", err)
-	} else {
-		log.Trace("Prepared UpdateEthInfo sql statement")
-		pm.updateEthInfoStmt = pStmt
-	}
-}
-
-func (pm *ProtocolManager) prepareAddNodeEthInfoStmt() {
-	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
-		"first_hello_at", "last_hello_at", "protocol_version", "network_id", "first_received_td", "last_received_td",
-		"best_hash", "genesis_hash", "first_status_at", "last_status_at"}
-
-	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		strings.Join(fields, ", "))
-	pStmt, err := pm.db.Prepare(stmt)
-	if err != nil {
-		log.Debug("Failed to prepare AddNodeEthInfo sql statement", "err", err)
-	} else {
-		log.Trace("Prepared AddNodeEthInfo sql statement")
-		pm.addNodeEthInfoStmt = pStmt
-	}
-}
-
-func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
-	nodeid := newInfoWrapper.NodeId
-	newInfo := newInfoWrapper.Info
-	firstUnixTime := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
-	lastUnixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	_, err := pm.addEthInfoStmt.Exec(newInfo.ProtocolVersion, newInfo.NetworkId,
-		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
-		firstUnixTime, lastUnixTime, newInfo.RowID)
-	if err != nil {
-		log.Debug("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
-	} else {
-		log.Trace("Executed AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
-	}
-}
-
-func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
-	nodeid := newInfoWrapper.NodeId
-	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	_, err := pm.updateEthInfoStmt.Exec(newInfo.LastReceivedTd, newInfo.BestHash, unixTime, newInfo.RowID)
-	if err != nil {
-		log.Debug("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
-	} else {
-		log.Trace("Executed UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
-	}
-}
-
-func (pm *ProtocolManager) addNodeEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
-	nodeid := newInfoWrapper.NodeId
-	newInfo := newInfoWrapper.Info
-	firstHelloAt := float64(newInfo.FirstHelloAt.UnixNano()) / 1000000000
-	lastHelloAt := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
-	firstStatusAt := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
-	lastStatusAt := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	_, err := pm.addNodeEthInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort, newInfo.P2PVersion,
-		newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstHelloAt, lastHelloAt, newInfo.ProtocolVersion, newInfo.NetworkId,
-		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
-		firstStatusAt, lastStatusAt)
-	if err != nil {
-		log.Debug("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
-	} else {
-		log.Trace("Executed AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
-	}
-}
-
-func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
-	var rowID uint64
-	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowID)
-	if err != nil {
-		log.Debug("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
-		return 0
-	} else {
-		log.Trace("Execute GetRowID sql statement", "id", nodeid, "rowid", rowID)
-		return rowID
-	}
-}
-
-func (pm *ProtocolManager) closeSQL() {
-	if pm.addEthInfoStmt != nil {
-		if err := pm.addEthInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close AddEthInfo sql statement", "err", err)
-		} else {
-			log.Trace("Closed AddEthInfo sql statement")
-		}
-	}
-	if pm.updateEthInfoStmt != nil {
-		if err := pm.updateEthInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close UpdateEthInfo sql statement", "err", err)
-		} else {
-			log.Trace("Closed UpdateEthInfo sql statement")
-		}
-	}
-	if pm.addNodeEthInfoStmt != nil {
-		if err := pm.addNodeEthInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close AddNodeEthInfo sql statement", "err", err)
-		} else {
-			log.Trace("Closed AddNodeEthInfo sql statement")
-		}
-	}
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -380,8 +194,8 @@ func (pm *ProtocolManager) Stop() {
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
 
-	// close mysql statements
-	pm.closeSQL()
+	// close prepared sql statements
+	pm.closeSqlStmts()
 
 	log.Info("Ethereum protocol stopped")
 }
@@ -407,14 +221,14 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
 		if statusWrapper.validStatus() && pm.db != nil {
-			pm.storeNodeInfo(p.ID(), &statusWrapper)
+			pm.storeEthNodeInfo(p.ID(), &statusWrapper)
 		}
 		return err
 	}
 
 	// if sql database handle is available, update node information
 	if pm.db != nil {
-		pm.storeNodeInfo(p.ID(), &statusWrapper)
+		pm.storeEthNodeInfo(p.ID(), &statusWrapper)
 	}
 
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
@@ -482,7 +296,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		log.Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", status, "size", int(msg.Size), "peer", p.ID())
 		// if sql database handle is available, update node information
 		if pm.db != nil {
-			pm.storeNodeInfo(p.ID(), &statusDataWrapper{
+			pm.storeEthNodeInfo(p.ID(), &statusDataWrapper{
 				ReceivedAt: &msg.ReceivedAt,
 				Status:     &status,
 			})

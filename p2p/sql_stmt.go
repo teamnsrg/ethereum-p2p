@@ -138,7 +138,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort,
 			&sqlObj.firstHelloAt, &sqlObj.lastHelloAt, &sqlObj.protocolVersion, &sqlObj.networkId,
 			&sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash,
-			&sqlObj.daoForkSupport, &sqlObj.firstStatusAt, &sqlObj.lastStatusAt)
+			&sqlObj.firstStatusAt, &sqlObj.lastStatusAt, &sqlObj.daoForkSupport)
 		if err != nil {
 			log.Debug("Failed to copy values from query result", "err", err)
 			continue

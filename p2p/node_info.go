@@ -185,7 +185,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		currentInfo.Lock()
 		currentInfo.LastHelloAt = newInfo.LastHelloAt
 		currentInfo.RemotePort = newInfo.RemotePort
-		if infoChanged(currentInfo, newInfo) {
+		if nodeInfoChanged(currentInfo, newInfo) {
 			currentInfo.IP = newInfo.IP
 			currentInfo.TCPPort = newInfo.TCPPort
 			currentInfo.P2PVersion = p2pVersion
@@ -218,7 +218,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	}
 }
 
-func infoChanged(oldInfo *Info, newInfo *Info) bool {
+func nodeInfoChanged(oldInfo *Info, newInfo *Info) bool {
 	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
 		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
 }
