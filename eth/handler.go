@@ -212,7 +212,7 @@ func (pm *ProtocolManager) storeNodeInfo(id discover.NodeID, statusWrapper *stat
 			if pm.addNodeEthInfoStmt != nil {
 				// TODO: check logic
 				// a new entry, including address and DEVp2p info, is added to mysql db
-				pm.addNodeEthInfo(&p2p.KnownNodeInfoWrapper{nodeid, currentInfo})
+				pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
 			if pm.getRowIDStmt != nil {
 				if rowID := pm.getRowID(nodeid); rowID > 0 {
@@ -228,11 +228,11 @@ func (pm *ProtocolManager) storeNodeInfo(id discover.NodeID, statusWrapper *stat
 			if pm.addEthInfoStmt != nil {
 				// TODO: check logic
 				// a new entry, including address and DEVp2p info, is added to mysql db
-				pm.addEthInfo(&p2p.KnownNodeInfoWrapper{nodeid, currentInfo})
+				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
 		} else {
 			if pm.updateEthInfoStmt != nil {
-				pm.updateEthInfo(&p2p.KnownNodeInfoWrapper{nodeid, currentInfo})
+				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
 		}
 	}
@@ -282,7 +282,7 @@ func (pm *ProtocolManager) prepareAddNodeEthInfoStmt() {
 	}
 }
 
-func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfoWrapper) {
+func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	firstUnixTime := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
@@ -297,7 +297,7 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfoWrapper) 
 	}
 }
 
-func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfoWrapper) {
+func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
@@ -309,7 +309,7 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfoWrappe
 	}
 }
 
-func (pm *ProtocolManager) addNodeEthInfo(newInfoWrapper *p2p.KnownNodeInfoWrapper) {
+func (pm *ProtocolManager) addNodeEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	firstHelloAt := float64(newInfo.FirstHelloAt.UnixNano()) / 1000000000

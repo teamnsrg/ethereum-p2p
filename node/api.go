@@ -245,7 +245,7 @@ func (api *PublicAdminAPI) Peers() ([]*p2p.PeerInfo, error) {
 
 // KnownNodes retrieves all the information we know about each individual peer at the
 // protocol granularity.
-func (api *PublicAdminAPI) KnownNodes() ([]*p2p.KnownNodeInfoWrapper, error) {
+func (api *PublicAdminAPI) KnownNodes() ([]*p2p.KnownNodeInfosWrapper, error) {
 	server := api.node.Server()
 	if server == nil {
 		return nil, ErrNodeStopped

@@ -187,7 +187,7 @@ func (n *Node) Start() error {
 		running.Protocols = append(running.Protocols, service.Protocols()...)
 	}
 	if err := running.Start(); err != nil {
-		running.CloseSQL()
+		running.CloseSql()
 		return convertFileLockError(err)
 	}
 	// Start each of the services
