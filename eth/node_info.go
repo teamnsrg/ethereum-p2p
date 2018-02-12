@@ -31,6 +31,17 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
+			if pm.addEthInfoStmt != nil {
+				// TODO: check logic
+				// add new eth info to existing entry
+				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			}
+			return
+		}
+		if ethInfoChanged(currentInfo, newInfo) {
+			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
+			currentInfo.NetworkId = newInfo.NetworkId
+			currentInfo.GenesisHash = newInfo.GenesisHash
 			if pm.addEthNodeInfoStmt != nil {
 				// TODO: check logic
 				// a new entry, including address and DEVp2p info, is added to mysql db
@@ -42,18 +53,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 				}
 			}
 			return
-		}
-		if ethInfoChanged(currentInfo, newInfo) {
-			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
-			currentInfo.NetworkId = newInfo.NetworkId
-			currentInfo.GenesisHash = newInfo.GenesisHash
-			if pm.addEthInfoStmt != nil {
-				// TODO: check logic
-				// a new entry, including address and DEVp2p info, is added to mysql db
-				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			}
 		} else {
 			if pm.updateEthInfoStmt != nil {
+				// update eth info
 				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
 		}
