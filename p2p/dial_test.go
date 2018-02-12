@@ -87,7 +87,7 @@ func (t fakeTable) ReadRandomNodes(buf []*discover.Node) int { return copy(buf, 
 // This test checks that dynamic dials are launched from discovery results.
 func TestDialStateDynDial(t *testing.T) {
 	runDialTest(t, dialtest{
-		init: newDialState(nil, nil, fakeTable{}, 5, nil),
+		init: newDialState(nil, nil, fakeTable{}, 5, nil, nil),
 		rounds: []round{
 			// A discovery query is launched.
 			{
@@ -586,7 +586,7 @@ func TestDialStateCache(t *testing.T) {
 func TestDialResolve(t *testing.T) {
 	resolved := discover.NewNode(uintID(1), net.IP{127, 0, 55, 234}, 3333, 4444)
 	table := &resolveMock{answer: resolved}
-	state := newDialState(nil, nil, table, 0, nil)
+	state := newDialState(nil, nil, table, 0, nil, nil)
 
 	// Check that the task is generated with an incomplete ID.
 	dest := discover.NewNode(uintID(1), nil, 0, 0)
