@@ -34,7 +34,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			if pm.addEthInfoStmt != nil {
 				// TODO: check logic
 				// add new eth info to existing entry
-				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			}
 			return
 		}
@@ -45,7 +45,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			if pm.addEthNodeInfoStmt != nil {
 				// TODO: check logic
 				// a new entry, including address and DEVp2p info, is added to mysql db
-				pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+				pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			}
 			if pm.getRowIDStmt != nil {
 				if rowID := pm.getRowID(nodeid); rowID > 0 {
@@ -56,7 +56,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 		} else {
 			if pm.updateEthInfoStmt != nil {
 				// update eth info
-				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			}
 		}
 	}

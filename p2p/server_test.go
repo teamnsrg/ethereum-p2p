@@ -60,7 +60,7 @@ func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, 
 	return &protoHandshake{ID: c.id, Name: "test"}, nil
 }
 
-func (c *testTransport) close(err error) {
+func (c *testTransport) close(err error, peer discover.NodeID) {
 	c.rlpx.fd.Close()
 	c.closeErr = err
 }
@@ -446,7 +446,8 @@ func TestServerSetupConn(t *testing.T) {
 }
 
 type setupTransport struct {
-	id              discover.NodeID
+	id discover.NodeID
+	*rlpx
 	encHandshakeErr error
 
 	phs               *protoHandshake
@@ -467,7 +468,7 @@ func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake,
 	}
 	return c.phs, nil
 }
-func (c *setupTransport) close(err error) {
+func (c *setupTransport) close(err error, peer discover.NodeID) {
 	c.calls += "close,"
 	c.closeErr = err
 }
