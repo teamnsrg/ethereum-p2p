@@ -142,7 +142,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...dis
 	}
 
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
-	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", int(size), "peer", peer)
+	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
@@ -166,7 +166,7 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 		data = discReasonToString[i]
 	}
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
-	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", int(size), "peer", peer)
+	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
