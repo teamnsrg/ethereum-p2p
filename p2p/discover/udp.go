@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/teamnsrg/go-ethereum/common"
@@ -182,8 +181,8 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
-	addNeighborStmt     *sql.Stmt
-	blacklist           *netutil.Netlist
+	addNeighborStmt *sql.Stmt
+	blacklist       *netutil.Netlist
 
 	conn        conn
 	netrestrict *netutil.Netlist
@@ -254,36 +253,6 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	return tab, nil
 }
 
-func prepareAddNeighborStmt(db *sql.DB) *sql.Stmt {
-	fields := []string{"node_id", "hash", "ip", "tcp_port", "udp_port", "first_received_at", "last_received_at"}
-	updateFields := "last_received_at=VALUES(last_received_at), count=count+1"
-
-	stmt := fmt.Sprintf(`INSERT INTO neighbors (%s) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE %s`,
-		strings.Join(fields, ", "), updateFields)
-	pStmt, err := db.Prepare(stmt)
-	if err != nil {
-		log.Debug("Failed to prepare AddNeighbor sql statement", "err", err)
-		return nil
-	} else {
-		log.Trace("Prepared AddNeighbor sql statement")
-		return pStmt
-	}
-}
-
-func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
-	nodeid := node.ID.String()
-	hash := crypto.Keccak256Hash(node.ID[:]).String()[2:]
-	ip := node.IP.String()
-	tcpPort := node.TCP
-	udpPort := node.UDP
-	_, err := t.addNeighborStmt.Exec(nodeid, hash, ip, tcpPort, udpPort, unixTime, unixTime)
-	if err != nil {
-		log.Debug("Failed to execute AddNeighbor sql statement", "node", node, "receivedAt", fmt.Sprintf("%f", unixTime), "err", err)
-	} else {
-		log.Trace("Executed AddNeighbor sql statement", "node", node, "receivedAt", fmt.Sprintf("%f", unixTime))
-	}
-}
-
 func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, *udp, error) {
 	udp := &udp{
 		conn:        c,
@@ -314,7 +283,7 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 
 	// prepare sql statement
 	if db != nil {
-		udp.addNeighborStmt = prepareAddNeighborStmt(db)
+		udp.prepareAddNeighborStmt(db)
 	}
 
 	go udp.loop()
@@ -327,13 +296,7 @@ func (t *udp) close() {
 	t.conn.Close()
 
 	// close prepared sql statements
-	if t.addNeighborStmt != nil {
-		if err := t.addNeighborStmt.Close(); err != nil {
-			log.Debug("Failed to close AddNeighbor sql statement", "err", err)
-		} else {
-			log.Trace("Closed AddNeighbor sql statement")
-		}
-	}
+	t.closeSqlStmts()
 	// TODO: wait for the loops to end.
 }
 
