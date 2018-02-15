@@ -36,9 +36,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 				// add new eth info to existing entry
 				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
-			return
-		}
-		if isNewEthNode(currentInfo, newInfo) {
+		} else if isNewEthNode(currentInfo, newInfo) {
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
@@ -52,7 +50,6 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 					currentInfo.RowID = rowID
 				}
 			}
-			return
 		} else {
 			if pm.updateEthInfoStmt != nil {
 				// update eth info
