@@ -19,21 +19,21 @@ func (pm *ProtocolManager) prepareSqlStmts() {
 func (pm *ProtocolManager) closeSqlStmts() {
 	if pm.addEthInfoStmt != nil {
 		if err := pm.addEthInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close AddEthInfo sql statement", "err", err)
+			log.Error("Failed to close AddEthInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed AddEthInfo sql statement")
 		}
 	}
 	if pm.updateEthInfoStmt != nil {
 		if err := pm.updateEthInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close UpdateEthInfo sql statement", "err", err)
+			log.Error("Failed to close UpdateEthInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed UpdateEthInfo sql statement")
 		}
 	}
 	if pm.addEthNodeInfoStmt != nil {
 		if err := pm.addEthNodeInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close AddEthNodeInfo sql statement", "err", err)
+			log.Error("Failed to close AddEthNodeInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed AddEthNodeInfo sql statement")
 		}
@@ -45,7 +45,7 @@ func (pm *ProtocolManager) prepareAddEthInfoStmt() {
 		"SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, " +
 		"best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? WHERE id=?")
 	if err != nil {
-		log.Debug("Failed to prepare AddEthInfo sql statement", "err", err)
+		log.Error("Failed to prepare AddEthInfo sql statement", "err", err)
 	} else {
 		log.Trace("Prepared AddEthInfo sql statement")
 		pm.addEthInfoStmt = pStmt
@@ -61,9 +61,9 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
 		firstUnixTime, lastUnixTime, newInfo.RowID)
 	if err != nil {
-		log.Debug("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
-		log.Trace("Executed AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
@@ -71,7 +71,7 @@ func (pm *ProtocolManager) prepareUpdateEthInfoStmt() {
 	pStmt, err := pm.db.Prepare("UPDATE node_info SET last_received_td=?, best_hash=?, last_status_at=? WHERE id=?")
 
 	if err != nil {
-		log.Debug("Failed to prepare UpdateEthInfo sql statement", "err", err)
+		log.Error("Failed to prepare UpdateEthInfo sql statement", "err", err)
 	} else {
 		log.Trace("Prepared UpdateEthInfo sql statement")
 		pm.updateEthInfoStmt = pStmt
@@ -84,9 +84,9 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
 	_, err := pm.updateEthInfoStmt.Exec(newInfo.LastReceivedTd, newInfo.BestHash, unixTime, newInfo.RowID)
 	if err != nil {
-		log.Debug("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
-		log.Trace("Executed UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
@@ -99,7 +99,7 @@ func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() {
 		strings.Join(fields, ", "))
 	pStmt, err := pm.db.Prepare(stmt)
 	if err != nil {
-		log.Debug("Failed to prepare AddEthNodeInfo sql statement", "err", err)
+		log.Error("Failed to prepare AddEthNodeInfo sql statement", "err", err)
 	} else {
 		log.Trace("Prepared AddEthNodeInfo sql statement")
 		pm.addEthNodeInfoStmt = pStmt
@@ -118,9 +118,9 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
 		firstStatusAt, lastStatusAt)
 	if err != nil {
-		log.Debug("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
-		log.Trace("Executed AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
@@ -128,10 +128,10 @@ func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
 	var rowID uint64
 	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowID)
 	if err != nil {
-		log.Debug("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
+		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
 		return 0
 	} else {
-		log.Trace("Executed GetRowID sql statement", "id", nodeid, "rowid", rowID)
+		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowid", rowID)
 		return rowID
 	}
 }
