@@ -155,7 +155,7 @@ func (t *udp) nodeFromRPC(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
 		return nil, errors.New("not contained in netrestrict whitelist")
 	}
 	if t.blacklist != nil && t.blacklist.Contains(rn.IP) {
-		log.Proto("BLACKLIST", "addr", rn.IP.String(), "transport", "udp")
+		log.Debug("Node ignored (blacklisted)", "addr", rn.IP.String(), "transport", "tcp")
 		return nil, errors.New("contained in blacklist")
 	}
 	n := NewNode(rn.ID, rn.IP, rn.UDP, rn.TCP)
