@@ -283,7 +283,9 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 
 	// prepare sql statement
 	if db != nil {
-		udp.prepareAddNeighborStmt(db)
+		if err := udp.prepareAddNeighborStmt(db); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	go udp.loop()
@@ -561,9 +563,10 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	// if NEIGHBORS packet, add the node address info to the sql database
 	if packet.name() == "RLPX_NEIGHBORS" {
 		for _, node := range packet.(*neighbors).Nodes {
-			if t.addNeighborStmt != nil {
-				t.addNeighbor(node, unixTime)
+			if t.db != nil && t.addNeighborStmt == nil {
+				log.Crit("No prepared statement for AddNeighbor")
 			}
+			t.addNeighbor(node, unixTime)
 		}
 	}
 	return err
