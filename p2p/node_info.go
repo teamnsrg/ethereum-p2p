@@ -140,9 +140,10 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	if srv.addNodeMetaInfoStmt != nil {
-		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+	if srv.addNodeMetaInfoStmt == nil {
+		log.Crit("No prepared statement for AddNodeMetaInfo")
 	}
+	srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 
 	// DEVp2p Hello
 	p2pVersion, clientId, capsArray, listenPort := hs.Version, hs.Name, hs.Caps, uint16(hs.ListenPort)
@@ -168,14 +169,18 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
 		newInfo.FirstHelloAt = newInfo.LastHelloAt
-		if srv.addNodeInfoStmt != nil {
-			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+		if srv.addNodeInfoStmt == nil {
+			log.Crit("No prepared statement for AddNodeInfo")
 		}
-		if srv.GetRowIDStmt != nil {
-			if rowID := srv.getRowID(nodeid); rowID > 0 {
-				newInfo.RowID = rowID
-			}
+		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+		if srv.GetRowIDStmt == nil {
+			log.Crit("No prepared statement for GetRowID")
 		}
+		if rowID := srv.getRowID(nodeid); rowID > 0 {
+			newInfo.RowID = rowID
+		}
+
+		// add new node info to in-memory
 		srv.KnownNodeInfos.Infos()[id] = newInfo
 
 		// add the new node as a static node
@@ -185,33 +190,35 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		currentInfo.LastHelloAt = newInfo.LastHelloAt
 		currentInfo.RemotePort = newInfo.RemotePort
 		if nodeInfoChanged(currentInfo, newInfo) {
+			// new entry to the mysql db should contain only the new address, DEVp2p info
+			// let Ethereum protocol update the Status info, if available.
 			currentInfo.IP = newInfo.IP
 			currentInfo.TCPPort = newInfo.TCPPort
 			currentInfo.P2PVersion = p2pVersion
 			currentInfo.ClientId = clientId
 			currentInfo.Caps = caps
 			currentInfo.ListenPort = listenPort
-			if srv.addNodeInfoStmt != nil {
-				// TODO: check logic
-				// in-memory entry should keep the Ethereum Status info
-				// new entry to the mysql db should contain only the new address, DEVp2p info
-				// let Ethereum protocol update the Status info, if available.
-				srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			if srv.addNodeInfoStmt == nil {
+				log.Crit("No prepared statement for AddNodeInfo")
 			}
-			if srv.GetRowIDStmt != nil {
-				if rowID := srv.getRowID(nodeid); rowID > 0 {
-					currentInfo.RowID = rowID
-				}
+			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			if srv.GetRowIDStmt == nil {
+				log.Crit("No prepared statement for GetRowID")
 			}
+			if rowID := srv.getRowID(nodeid); rowID > 0 {
+				currentInfo.RowID = rowID
+			}
+
 			// if the node's listening port changed
 			// add it as a static node
 			if currentInfo.TCPPort != newInfo.TCPPort {
 				srv.addNewStatic(id, newInfo)
 			}
 		} else {
-			if srv.updateNodeInfoStmt != nil {
-				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			if srv.updateNodeInfoStmt == nil {
+				log.Crit("No prepared statement for UpdateNodeInfo")
 			}
+			srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 		}
 		currentInfo.Unlock()
 	}
@@ -229,7 +236,7 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Debug("Failed to add node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
+			log.Error("Failed to add node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 		} else {
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
@@ -247,7 +254,7 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Debug("Failed to add static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
+			log.Error("Failed to add static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 		} else {
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
