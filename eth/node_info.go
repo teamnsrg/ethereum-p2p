@@ -38,7 +38,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			}
 			return
 		}
-		if ethInfoChanged(currentInfo, newInfo) {
+		if isNewEthNode(currentInfo, newInfo) {
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
@@ -62,7 +62,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 	}
 }
 
-func ethInfoChanged(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
+func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 	return oldInfo.ProtocolVersion != newInfo.ProtocolVersion || oldInfo.NetworkId != newInfo.NetworkId ||
 		oldInfo.GenesisHash != newInfo.GenesisHash
 }
