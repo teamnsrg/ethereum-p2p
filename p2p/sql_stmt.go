@@ -24,7 +24,7 @@ func (srv *Server) initSql() error {
 		err = db.Ping()
 		if err != nil {
 			log.Error("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
-			if err := srv.DB.Close(); err != nil {
+			if err := db.Close(); err != nil {
 				log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
 			} else {
 				log.Trace("Closed sql db handle", "database", srv.MySQLName)
