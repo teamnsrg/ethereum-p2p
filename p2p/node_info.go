@@ -21,7 +21,6 @@ type Info struct {
 
 	RowID           uint64     `json:"RowID"`                     // Most recent row ID
 	Keccak256Hash   string     `json:"keccak256Hash"`             // Keccak256 hash of node ID
-	LastConnectedAt *time.Time `json:"lastConnectedAt,omitempty"` // Last time the node was connected
 	IP              string     `json:"ip"`                        // IP address of the node
 	TCPPort         uint16     `json:"tcpPort"`                   // TCP listening port for RLPx
 	RemotePort      uint16     `json:"tcpPort"`                   // Remote TCP port of the most recent connection
