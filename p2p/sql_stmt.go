@@ -17,15 +17,15 @@ func (srv *Server) initSql() error {
 	if srv.MySQLName != "" {
 		db, err := sql.Open("mysql", srv.MySQLName)
 		if err != nil {
-			log.Debug("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
+			log.Error("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
 			return err
 		}
 		log.Trace("Opened sql db handle", "database", srv.MySQLName)
 		err = db.Ping()
 		if err != nil {
-			log.Debug("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
+			log.Error("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
 			if err := srv.DB.Close(); err != nil {
-				log.Debug("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+				log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
 			} else {
 				log.Trace("Closed sql db handle", "database", srv.MySQLName)
 			}
@@ -38,10 +38,18 @@ func (srv *Server) initSql() error {
 		srv.loadKnownNodeInfos()
 
 		// prepare sql statements
-		srv.prepareAddNodeInfoStmt()
-		srv.prepareUpdateNodeInfoStmt()
-		srv.prepareAddNodeMetaInfoStmt()
-		srv.prepareGetRowID()
+		if err:= srv.prepareAddNodeInfoStmt(); err != nil {
+			return err
+		}
+		if err := srv.prepareUpdateNodeInfoStmt(); err != nil {
+			return err
+		}
+		if err := srv.prepareAddNodeMetaInfoStmt(); err != nil {
+			return err
+		}
+		if err := srv.prepareGetRowID(); err != nil {
+			return err
+		}
 	} else {
 		log.Trace("No sql db connection info provided")
 	}
@@ -55,7 +63,7 @@ func (srv *Server) CloseSql() {
 
 		// close db handle
 		if err := srv.DB.Close(); err != nil {
-			log.Debug("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+			log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
 		} else {
 			log.Trace("Closed sql db handle", "database", srv.MySQLName)
 		}
@@ -65,28 +73,28 @@ func (srv *Server) CloseSql() {
 func (srv *Server) closeSqlStmts() {
 	if srv.addNodeInfoStmt != nil {
 		if err := srv.addNodeInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close AddNodeInfo sql statement", "err", err)
+			log.Error("Failed to close AddNodeInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed AddNodeInfo sql statement")
 		}
 	}
 	if srv.updateNodeInfoStmt != nil {
 		if err := srv.updateNodeInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close UpdateNodeInfo sql statement", "err", err)
+			log.Error("Failed to close UpdateNodeInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed UpdateNodeInfo sql statement")
 		}
 	}
 	if srv.addNodeMetaInfoStmt != nil {
 		if err := srv.addNodeMetaInfoStmt.Close(); err != nil {
-			log.Debug("Failed to close AddNodeMetaInfo sql statement", "err", err)
+			log.Error("Failed to close AddNodeMetaInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed AddNodeMetaInfo sql statement")
 		}
 	}
 	if srv.GetRowIDStmt != nil {
 		if err := srv.GetRowIDStmt.Close(); err != nil {
-			log.Debug("Failed to close GetRowID sql statement", "err", err)
+			log.Error("Failed to close GetRowID sql statement", "err", err)
 		} else {
 			log.Trace("Closed GetRowID sql statement")
 		}
@@ -140,13 +148,13 @@ func (srv *Server) loadKnownNodeInfos() {
 			&sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash,
 			&sqlObj.firstStatusAt, &sqlObj.lastStatusAt, &sqlObj.daoForkSupport)
 		if err != nil {
-			log.Debug("Failed to copy values from query result", "err", err)
+			log.Error("Failed to copy values from sql query result", "err", err)
 			continue
 		}
 		// convert hex to NodeID
 		id, err := discover.HexID(nodeid)
 		if err != nil {
-			log.Debug("Failed to parse node_id value from db", "rowid", rowid, "nodeid", nodeid, "err", err)
+			log.Error("Failed to parse node_id value from db", "rowid", rowid, "nodeid", nodeid, "err", err)
 			continue
 		}
 		nodeInfo := &Info{
@@ -189,7 +197,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.firstReceivedTd.String
 			_, ok := firstReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Debug("Failed to parse first_received_td value from db", "rowid", rowid, "value", s)
+				log.Error("Failed to parse first_received_td value from db", "rowid", rowid, "value", s)
 			} else {
 				nodeInfo.FirstReceivedTd = firstReceivedTd
 			}
@@ -199,7 +207,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.lastReceivedTd.String
 			_, ok := lastReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Debug("Failed to parse last_received_td value from db", "rowid", rowid, "value", s)
+				log.Error("Failed to parse last_received_td value from db", "rowid", rowid, "value", s)
 			} else {
 				nodeInfo.LastReceivedTd = lastReceivedTd
 			}
@@ -234,7 +242,7 @@ func (srv *Server) loadKnownNodeInfos() {
 	}
 }
 
-func (srv *Server) prepareAddNodeInfoStmt() {
+func (srv *Server) prepareAddNodeInfoStmt() error {
 	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
 		"first_hello_at", "last_hello_at"}
 
@@ -242,11 +250,13 @@ func (srv *Server) prepareAddNodeInfoStmt() {
 		strings.Join(fields, ", "))
 	pStmt, err := srv.DB.Prepare(stmt)
 	if err != nil {
-		log.Debug("Failed to prepare AddNodeInfo sql statement", "err", err)
+		log.Error("Failed to prepare AddNodeInfo sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared AddNodeInfo sql statement")
 		srv.addNodeInfoStmt = pStmt
 	}
+	return nil
 }
 
 func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
@@ -257,21 +267,23 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstUnixTime, lastUnixTime)
 	if err != nil {
-		log.Debug("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
 		log.Trace("Executed AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
-func (srv *Server) prepareUpdateNodeInfoStmt() {
+func (srv *Server) prepareUpdateNodeInfoStmt() error {
 	pStmt, err := srv.DB.Prepare("UPDATE node_info SET remote_port=?, last_hello_at=? WHERE id=?")
 
 	if err != nil {
-		log.Debug("Failed to prepare UpdateNodeInfo sql statement", "err", err)
+		log.Error("Failed to prepare UpdateNodeInfo sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared UpdateNodeInfo sql statement")
 		srv.updateNodeInfoStmt = pStmt
 	}
+	return nil
 }
 
 func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
@@ -280,13 +292,13 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
 	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, newInfo.RowID)
 	if err != nil {
-		log.Debug("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
 		log.Trace("Executed UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
 	}
 }
 
-func (srv *Server) prepareAddNodeMetaInfoStmt() {
+func (srv *Server) prepareAddNodeMetaInfoStmt() error {
 	var updateFields []string
 	fields := []string{"node_id", "hash", "dial_count", "accept_count", "too_many_peers_count"}
 	for _, f := range fields[2:] {
@@ -296,37 +308,41 @@ func (srv *Server) prepareAddNodeMetaInfoStmt() {
 		strings.Join(fields, ", "), strings.Join(updateFields, ", "))
 	pStmt, err := srv.DB.Prepare(stmt)
 	if err != nil {
-		log.Debug("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
+		log.Error("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared AddNodeMetaInfo sql statement")
 		srv.addNodeMetaInfoStmt = pStmt
 	}
+	return nil
 }
 
 func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept bool, tooManyPeers bool) {
 	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept), boolToInt(tooManyPeers))
 	if err != nil {
-		log.Debug("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
+		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
 	} else {
 		log.Trace("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
 	}
 }
 
-func (srv *Server) prepareGetRowID() {
+func (srv *Server) prepareGetRowID() error {
 	pStmt, err := srv.DB.Prepare("SELECT MAX(id) FROM node_info WHERE node_id=?")
 	if err != nil {
-		log.Debug("Failed to prepare GetRowID sql statement", "err", err)
+		log.Error("Failed to prepare GetRowID sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared GetRowID sql statement")
 		srv.GetRowIDStmt = pStmt
 	}
+	return nil
 }
 
 func (srv *Server) getRowID(nodeid string) uint64 {
 	var rowID uint64
 	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowID)
 	if err != nil {
-		log.Debug("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
+		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
 		return 0
 	} else {
 		log.Trace("Executed GetRowID sql statement", "id", nodeid, "rowid", rowID)
