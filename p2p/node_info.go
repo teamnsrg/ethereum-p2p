@@ -180,7 +180,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		currentInfo.Lock()
 		currentInfo.LastHelloAt = newInfo.LastHelloAt
 		currentInfo.RemotePort = newInfo.RemotePort
-		if nodeInfoChanged(currentInfo, newInfo) {
+		if isNewNode(currentInfo, newInfo) {
 			// new entry to the mysql db should contain only the new address, DEVp2p info
 			// let Ethereum protocol update the Status info, if available.
 			currentInfo.IP = newInfo.IP
@@ -207,7 +207,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	}
 }
 
-func nodeInfoChanged(oldInfo *Info, newInfo *Info) bool {
+func isNewNode(oldInfo *Info, newInfo *Info) bool {
 	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
 		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
 }
