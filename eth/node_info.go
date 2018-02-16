@@ -17,17 +17,19 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 		LastReceivedTd:  status.TD,
 		BestHash:        status.CurrentBlock.String()[2:],
 		GenesisHash:     status.GenesisBlock.String()[2:],
+		FirstStatusAt:   receivedAt,
+		LastStatusAt:    receivedAt,
 	}
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
-		currentInfo.LastStatusAt = receivedAt
+		currentInfo.LastStatusAt = newInfo.LastStatusAt
 		currentInfo.LastReceivedTd = newInfo.LastReceivedTd
 		currentInfo.BestHash = newInfo.BestHash
 		if currentInfo.FirstStatusAt == nil {
 			// add new eth info to existing entry
-			currentInfo.FirstStatusAt = receivedAt
+			currentInfo.FirstStatusAt = newInfo.FirstStatusAt
 			currentInfo.FirstReceivedTd = newInfo.FirstReceivedTd
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
@@ -35,6 +37,8 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 		} else if isNewEthNode(currentInfo, newInfo) {
 			// a new entry, including address and DEVp2p info, is added to mysql db
+			currentInfo.FirstStatusAt = newInfo.FirstStatusAt
+			currentInfo.FirstReceivedTd = newInfo.FirstReceivedTd
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash

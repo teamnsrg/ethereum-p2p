@@ -127,6 +127,7 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	}
 	newNodeInfo := &Info{
 		Keccak256Hash: hash,
+		FirstHelloAt:  receivedAt,
 		LastHelloAt:   receivedAt,
 		IP:            remoteIP,
 		TCPPort:       tcpPort,
@@ -165,7 +166,6 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
-		newInfo.FirstHelloAt = newInfo.LastHelloAt
 		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
 		if rowID := srv.getRowID(nodeid); rowID > 0 {
 			newInfo.RowID = rowID
@@ -185,10 +185,11 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			// let Ethereum protocol update the Status info, if available.
 			currentInfo.IP = newInfo.IP
 			currentInfo.TCPPort = newInfo.TCPPort
-			currentInfo.P2PVersion = p2pVersion
-			currentInfo.ClientId = clientId
-			currentInfo.Caps = caps
-			currentInfo.ListenPort = listenPort
+			currentInfo.P2PVersion = newInfo.P2PVersion
+			currentInfo.ClientId = newInfo.ClientId
+			currentInfo.Caps = newInfo.Caps
+			currentInfo.ListenPort = newInfo.ListenPort
+			currentInfo.FirstHelloAt = newInfo.FirstHelloAt
 			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 			if rowID := srv.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID

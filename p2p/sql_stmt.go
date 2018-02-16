@@ -264,10 +264,9 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	firstUnixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
-	lastUnixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
+	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
-		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstUnixTime, lastUnixTime)
+		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, unixTime, unixTime)
 	if err != nil {
 		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
