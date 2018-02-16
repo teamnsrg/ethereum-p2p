@@ -93,7 +93,7 @@ def create_node_info(conn):
               "last_received_td DECIMAL(65) NULL, " \
               "best_hash VARCHAR(64) NULL, " \
               "genesis_hash VARCHAR(64) NULL, " \
-              "dao_fork TINYINT unsigned NULL, " \
+              "dao_fork TINYINT NULL, " \
               "first_status_at DECIMAL(18,6) NULL, " \
               "last_status_at DECIMAL(18,6) NULL, " \
               "PRIMARY KEY (id), " \

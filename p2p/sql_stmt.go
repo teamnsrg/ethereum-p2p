@@ -38,7 +38,7 @@ func (srv *Server) initSql() error {
 		srv.loadKnownNodeInfos()
 
 		// prepare sql statements
-		if err:= srv.prepareAddNodeInfoStmt(); err != nil {
+		if err := srv.prepareAddNodeInfoStmt(); err != nil {
 			return err
 		}
 		if err := srv.prepareUpdateNodeInfoStmt(); err != nil {
@@ -229,11 +229,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			nodeInfo.LastStatusAt = &t
 		}
 		if sqlObj.daoForkSupport.Valid {
-			var daoForkSupport bool
-			if uint16(sqlObj.daoForkSupport.Int64) != 0 {
-				daoForkSupport = true
-			}
-			nodeInfo.DAOForkSupport = daoForkSupport
+			nodeInfo.DAOForkSupport = int8(sqlObj.daoForkSupport.Int64)
 		}
 		srv.KnownNodeInfos.Infos()[id] = nodeInfo
 

@@ -19,11 +19,11 @@ import (
 type Info struct {
 	mux sync.RWMutex
 
-	RowID           uint64     `json:"RowID"`                     // Most recent row ID
-	Keccak256Hash   string     `json:"keccak256Hash"`             // Keccak256 hash of node ID
-	IP              string     `json:"ip"`                        // IP address of the node
-	TCPPort         uint16     `json:"tcpPort"`                   // TCP listening port for RLPx
-	RemotePort      uint16     `json:"tcpPort"`                   // Remote TCP port of the most recent connection
+	RowID         uint64 `json:"RowID"`         // Most recent row ID
+	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
+	IP            string `json:"ip"`            // IP address of the node
+	TCPPort       uint16 `json:"tcpPort"`       // TCP listening port for RLPx
+	RemotePort    uint16 `json:"tcpPort"`       // Remote TCP port of the most recent connection
 
 	// DEVp2p Hello info
 	P2PVersion   uint64     `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
@@ -42,7 +42,7 @@ type Info struct {
 	GenesisHash     string     `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
 	FirstStatusAt   *time.Time `json:"firstStatusAt,omitempty"`   // First time the node sent Status
 	LastStatusAt    *time.Time `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
-	DAOForkSupport  bool       `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+	DAOForkSupport  int8       `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
 }
 
 func (k *Info) Lock() {
