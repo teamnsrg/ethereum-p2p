@@ -13,6 +13,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"sort"
 )
 
 // Info represents a short summary of the information known about a known node.
@@ -144,15 +145,14 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 
 	// DEVp2p Hello
-	p2pVersion, clientId, capsArray, listenPort := hs.Version, hs.Name, hs.Caps, uint16(hs.ListenPort)
-	caps := ""
-	capsLen := len(capsArray)
-	for i, c := range capsArray {
-		caps += fmt.Sprintf("%s", c.String())
-		if i < capsLen-1 {
-			caps += ","
-		}
+	p2pVersion, clientId, listenPort := hs.Version, hs.Name, uint16(hs.ListenPort)
+	var capsArray []string
+	for _, c := range hs.Caps {
+		capsArray = append(capsArray, c.String())
 	}
+	sort.Strings(capsArray)
+	caps := strings.Join(capsArray, ",")
+
 	clientId = strings.Replace(clientId, "'", "", -1)
 	clientId = strings.Replace(clientId, "\"", "", -1)
 	caps = strings.Replace(caps, "'", "", -1)
