@@ -86,9 +86,9 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
 		firstUnixTime, lastUnixTime, newInfo.RowID)
 	if err != nil {
-		log.Error("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddEthInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
-		log.Debug("Executed AddEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed AddEthInfo sql statement", "id", nodeid, "newInfo", newInfo)
 	}
 }
 
@@ -117,9 +117,9 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
 	_, err := pm.updateEthInfoStmt.Exec(newInfo.LastReceivedTd.String(), newInfo.BestHash, unixTime, newInfo.RowID)
 	if err != nil {
-		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
-		log.Debug("Executed UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed UpdateEthInfo sql statement", "id", nodeid, "newInfo", newInfo)
 	}
 }
 
@@ -159,9 +159,9 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
 		newInfo.DAOForkSupport, firstStatusAt, lastStatusAt)
 	if err != nil {
-		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
-		log.Debug("Executed AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed AddEthNodeInfo sql statement", "id", nodeid, "newInfo", newInfo)
 	}
 }
 
@@ -188,9 +188,9 @@ func (pm *ProtocolManager) addDAOForkSupport(newInfoWrapper *p2p.KnownNodeInfosW
 	nodeid := newInfoWrapper.NodeId
 	_, err := pm.addDAOForkSupportStmt.Exec(newInfo.DAOForkSupport, newInfo.RowID)
 	if err != nil {
-		log.Error("Failed to execute AddDAOForkSupport sql statement", "id", nodeid[:16], "daoForkSupport", newInfo.DAOForkSupport, "err", err)
+		log.Error("Failed to execute AddDAOForkSupport sql statement", "id", nodeid, "daoForkSupport", newInfo.DAOForkSupport, "err", err)
 	} else {
-		log.Debug("Executed AddDAOForkSupport sql statement", "id", nodeid[:16], "daoForkSupport", newInfo.DAOForkSupport)
+		log.Debug("Executed AddDAOForkSupport sql statement", "id", nodeid, "daoForkSupport", newInfo.DAOForkSupport)
 	}
 }
 

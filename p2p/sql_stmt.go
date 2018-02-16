@@ -269,9 +269,9 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstUnixTime, lastUnixTime)
 	if err != nil {
-		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
-		log.Debug("Executed AddNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed AddNodeInfo sql statement", "id", nodeid, "newInfo", newInfo)
 	}
 }
 
@@ -300,9 +300,9 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
 	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, newInfo.RowID)
 	if err != nil {
-		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
-		log.Debug("Executed UpdateNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+		log.Debug("Executed UpdateNodeInfo sql statement", "id", nodeid, "newInfo", newInfo)
 	}
 }
 
