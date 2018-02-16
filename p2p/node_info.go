@@ -140,9 +140,6 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	if srv.addNodeMetaInfoStmt == nil {
-		log.Crit("No prepared statement for AddNodeMetaInfo")
-	}
 	srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 
 	// DEVp2p Hello
@@ -169,13 +166,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
 		newInfo.FirstHelloAt = newInfo.LastHelloAt
-		if srv.addNodeInfoStmt == nil {
-			log.Crit("No prepared statement for AddNodeInfo")
-		}
 		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-		if srv.GetRowIDStmt == nil {
-			log.Crit("No prepared statement for GetRowID")
-		}
 		if rowID := srv.getRowID(nodeid); rowID > 0 {
 			newInfo.RowID = rowID
 		}
@@ -198,13 +189,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			currentInfo.ClientId = clientId
 			currentInfo.Caps = caps
 			currentInfo.ListenPort = listenPort
-			if srv.addNodeInfoStmt == nil {
-				log.Crit("No prepared statement for AddNodeInfo")
-			}
 			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
-			if srv.GetRowIDStmt == nil {
-				log.Crit("No prepared statement for GetRowID")
-			}
 			if rowID := srv.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID
 			}
@@ -215,9 +200,6 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				srv.addNewStatic(id, newInfo)
 			}
 		} else {
-			if srv.updateNodeInfoStmt == nil {
-				log.Crit("No prepared statement for UpdateNodeInfo")
-			}
 			srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 		}
 		currentInfo.Unlock()

@@ -1,7 +1,6 @@
 package discover
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -9,13 +8,13 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 )
 
-func (t *udp) prepareAddNeighborStmt(db *sql.DB) error {
+func (t *udp) prepareAddNeighborStmt() error {
 	fields := []string{"node_id", "hash", "ip", "tcp_port", "udp_port", "first_received_at", "last_received_at"}
 	updateFields := "last_received_at=VALUES(last_received_at), count=count+1"
 
 	stmt := fmt.Sprintf(`INSERT INTO neighbors (%s) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE %s`,
 		strings.Join(fields, ", "), updateFields)
-	pStmt, err := db.Prepare(stmt)
+	pStmt, err := t.sqldb.Prepare(stmt)
 	if err != nil {
 		log.Error("Failed to prepare AddNeighbor sql statement", "err", err)
 		return err
@@ -27,6 +26,11 @@ func (t *udp) prepareAddNeighborStmt(db *sql.DB) error {
 }
 
 func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
+	// exit if no prepared statement
+	if t.addNeighborStmt == nil {
+		log.Crit("No prepared statement for AddNeighbor")
+		return
+	}
 	nodeid := node.ID.String()
 	hash := crypto.Keccak256Hash(node.ID[:]).String()[2:]
 	ip := node.IP.String()

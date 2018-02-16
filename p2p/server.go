@@ -779,9 +779,6 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if srv.DB != nil {
-			if srv.addNodeMetaInfoStmt == nil {
-				log.Crit("No prepared statement for AddNodeMetaInfo")
-			}
 			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
 				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 				nodeid := c.id.String()

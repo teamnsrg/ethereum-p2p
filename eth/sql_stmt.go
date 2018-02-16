@@ -72,6 +72,12 @@ func (pm *ProtocolManager) prepareAddEthInfoStmt() error {
 }
 
 func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	// exit if no prepared statement
+	if pm.addEthInfoStmt == nil {
+		log.Crit("No prepared statement for AddEthInfo")
+		return
+	}
+
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	firstUnixTime := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
@@ -100,6 +106,12 @@ func (pm *ProtocolManager) prepareUpdateEthInfoStmt() error {
 }
 
 func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	// exit if no prepared statement
+	if pm.updateEthInfoStmt == nil {
+		log.Crit("No prepared statement for UpdateEthInfo")
+		return
+	}
+
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
@@ -130,6 +142,12 @@ func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
 }
 
 func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	// exit if no prepared statement
+	if pm.addEthNodeInfoStmt == nil {
+		log.Crit("No prepared statement for AddEthNodeInfo")
+		return
+	}
+
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	firstHelloAt := float64(newInfo.FirstHelloAt.UnixNano()) / 1000000000
@@ -160,6 +178,12 @@ func (pm *ProtocolManager) prepareAddDAOForkSupportStmt() error {
 }
 
 func (pm *ProtocolManager) addDAOForkSupport(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	// exit if no prepared statement
+	if pm.addDAOForkSupportStmt == nil {
+		log.Crit("No prepared statement for AddDAOForkSupport")
+		return
+	}
+
 	newInfo := newInfoWrapper.Info
 	nodeid := newInfoWrapper.NodeId
 	_, err := pm.addDAOForkSupportStmt.Exec(newInfo.DAOForkSupport, newInfo.RowID)
@@ -171,6 +195,12 @@ func (pm *ProtocolManager) addDAOForkSupport(newInfoWrapper *p2p.KnownNodeInfosW
 }
 
 func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
+	// exit if no prepared statement
+	if pm.getRowIDStmt == nil {
+		log.Crit("No prepared statement for AddEthNodeInfo")
+		return 0
+	}
+
 	var rowID uint64
 	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowID)
 	if err != nil {

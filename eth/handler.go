@@ -213,7 +213,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
-		if statusWrapper.validStatus() && pm.db != nil {
+		if pm.db != nil && statusWrapper.validStatus() {
 			pm.storeEthNodeInfo(p.ID(), &statusWrapper)
 		}
 		return err

@@ -1,7 +1,6 @@
 package eth
 
 import (
-	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 )
@@ -33,30 +32,18 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			if pm.addEthInfoStmt == nil {
-				log.Crit("No prepared statement for AddEthInfo")
-			}
 			pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 		} else if isNewEthNode(currentInfo, newInfo) {
 			// a new entry, including address and DEVp2p info, is added to mysql db
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			if pm.addEthNodeInfoStmt == nil {
-				log.Crit("No prepared statement for AddEthNodeInfo")
-			}
 			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			if pm.getRowIDStmt == nil {
-				log.Crit("No prepared statement for GetRowID")
-			}
 			if rowID := pm.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID
 			}
 		} else {
 			// update eth info
-			if pm.updateEthInfoStmt == nil {
-				log.Crit("No prepared statement for UpdateEthInfo")
-			}
 			pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 		}
 	}
@@ -76,20 +63,11 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSu
 		if currentInfo.DAOForkSupport == 0 {
 			// add DAOForkSupport flag to existing entry for the first time
 			currentInfo.DAOForkSupport = daoForkSupport
-			if pm.addDAOForkSupportStmt == nil {
-				log.Crit("No prepared statement for AddDAOForkSupport")
-			}
 			pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 		} else if currentInfo.DAOForkSupport != daoForkSupport {
 			// DAOForkSupport flag value changed. add a new entry to mysql db
 			currentInfo.DAOForkSupport = daoForkSupport
-			if pm.addEthNodeInfoStmt == nil {
-				log.Crit("No prepared statement for AddEthNodeInfo")
-			}
 			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			if pm.getRowIDStmt == nil {
-				log.Crit("No prepared statement for AddEthNodeInfo")
-			}
 			if rowID := pm.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID
 			}

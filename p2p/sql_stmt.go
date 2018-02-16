@@ -256,6 +256,12 @@ func (srv *Server) prepareAddNodeInfoStmt() error {
 }
 
 func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
+	// exit if no prepared statement
+	if srv.addNodeInfoStmt == nil {
+		log.Crit("No prepared statement for AddNodeInfo")
+		return
+	}
+
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	firstUnixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
@@ -283,6 +289,12 @@ func (srv *Server) prepareUpdateNodeInfoStmt() error {
 }
 
 func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
+	// exit if no prepared statement
+	if srv.updateNodeInfoStmt == nil {
+		log.Crit("No prepared statement for UpdateNodeInfo")
+		return
+	}
+
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
@@ -314,6 +326,12 @@ func (srv *Server) prepareAddNodeMetaInfoStmt() error {
 }
 
 func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept bool, tooManyPeers bool) {
+	// exit if no prepared statement
+	if srv.addNodeMetaInfoStmt == nil {
+		log.Crit("No prepared statement for AddNodeMetaInfo")
+		return
+	}
+
 	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept), boolToInt(tooManyPeers))
 	if err != nil {
 		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
@@ -335,6 +353,12 @@ func (srv *Server) prepareGetRowID() error {
 }
 
 func (srv *Server) getRowID(nodeid string) uint64 {
+	// exit if no prepared statement
+	if srv.GetRowIDStmt == nil {
+		log.Crit("No prepared statement for GetRowID")
+		return 0
+	}
+
 	var rowID uint64
 	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowID)
 	if err != nil {
