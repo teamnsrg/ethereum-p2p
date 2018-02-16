@@ -235,7 +235,7 @@ type statusDataWrapper struct {
 	ErrorCode  errCode
 }
 
-func (s *statusDataWrapper) validStatus() bool {
+func (s *statusDataWrapper) isValidIncompatibleStatus() bool {
 	return s.ErrorCode == ErrGenesisBlockMismatch || s.ErrorCode == ErrNetworkIdMismatch || s.ErrorCode == ErrProtocolVersionMismatch
 }
 
