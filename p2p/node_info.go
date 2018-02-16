@@ -171,28 +171,18 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			newInfo.RowID = rowID
 		}
 
-		// add new node info to in-memory
-		srv.KnownNodeInfos.Infos()[id] = newInfo
-
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
+
+		// add new node info to in-memory
+		srv.KnownNodeInfos.Infos()[id] = newInfo
 	} else {
-		currentInfo.Lock()
-		currentInfo.LastHelloAt = newInfo.LastHelloAt
-		currentInfo.RemotePort = newInfo.RemotePort
 		if isNewNode(currentInfo, newInfo) {
 			// new entry to the mysql db should contain only the new address, DEVp2p info
 			// let Ethereum protocol update the Status info, if available.
-			currentInfo.IP = newInfo.IP
-			currentInfo.TCPPort = newInfo.TCPPort
-			currentInfo.P2PVersion = newInfo.P2PVersion
-			currentInfo.ClientId = newInfo.ClientId
-			currentInfo.Caps = newInfo.Caps
-			currentInfo.ListenPort = newInfo.ListenPort
-			currentInfo.FirstHelloAt = newInfo.FirstHelloAt
-			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
 			if rowID := srv.getRowID(nodeid); rowID > 0 {
-				currentInfo.RowID = rowID
+				newInfo.RowID = rowID
 			}
 
 			// if the node's listening port changed
@@ -200,10 +190,16 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			if currentInfo.TCPPort != newInfo.TCPPort {
 				srv.addNewStatic(id, newInfo)
 			}
+
+			// replace the current info with new info, setting all fields related to Ethereum Status to null
+			srv.KnownNodeInfos.Infos()[id] = newInfo
 		} else {
+			currentInfo.Lock()
+			defer currentInfo.Unlock()
+			currentInfo.LastHelloAt = newInfo.LastHelloAt
+			currentInfo.RemotePort = newInfo.RemotePort
 			srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 		}
-		currentInfo.Unlock()
 	}
 }
 
