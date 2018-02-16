@@ -16,6 +16,42 @@ import (
 	"sort"
 )
 
+const (
+	tdMaxNumDigits = 65
+)
+
+type UnixTime struct {
+	*time.Time
+}
+
+func (t *UnixTime) String() string {
+	return strconv.FormatFloat(float64(t.Time.UnixNano())/1000000000, 'f', 6, 64)
+}
+
+func (t *UnixTime) Float64() float64 {
+	return float64(t.Time.UnixNano()) / 1000000000
+}
+
+type Td struct {
+	Value    *big.Int
+	Overflow bool
+}
+
+func NewTd(i *big.Int) *Td {
+	var overflow bool
+	if len(i.String()) > tdMaxNumDigits {
+		overflow = true
+	}
+	return &Td{Value: i, Overflow: overflow}
+}
+
+func (td *Td) String() string {
+	if td.Overflow {
+		return strings.Repeat("9", tdMaxNumDigits)
+	}
+	return td.Value.String()
+}
+
 // Info represents a short summary of the information known about a known node.
 type Info struct {
 	mux sync.RWMutex
@@ -27,23 +63,23 @@ type Info struct {
 	RemotePort    uint16 `json:"tcpPort"`       // Remote TCP port of the most recent connection
 
 	// DEVp2p Hello info
-	P2PVersion   uint64     `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
-	ClientId     string     `json:"clientId,omitempty"`     // Name of the node, including client type, version, OS, custom data
-	Caps         string     `json:"caps,omitempty"`         // Node's capabilities
-	ListenPort   uint16     `json:"listenPort,omitempty"`   // Listening port reported in the node's DEVp2p Hello
-	FirstHelloAt *time.Time `json:"firstHelloAt,omitempty"` // First time the node sent Hello
-	LastHelloAt  *time.Time `json:"lastHelloAt,omitempty"`  // Last time the node sent Hello
+	P2PVersion   uint64    `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
+	ClientId     string    `json:"clientId,omitempty"`     // Name of the node, including client type, version, OS, custom data
+	Caps         string    `json:"caps,omitempty"`         // Node's capabilities
+	ListenPort   uint16    `json:"listenPort,omitempty"`   // Listening port reported in the node's DEVp2p Hello
+	FirstHelloAt *UnixTime `json:"firstHelloAt,omitempty"` // First time the node sent Hello
+	LastHelloAt  *UnixTime `json:"lastHelloAt,omitempty"`  // Last time the node sent Hello
 
 	// Ethereum Status info
-	ProtocolVersion uint64     `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
-	NetworkId       uint64     `json:"networkId,omitempty"`       // Ethereum network ID
-	FirstReceivedTd *big.Int   `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
-	LastReceivedTd  *big.Int   `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
-	BestHash        string     `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
-	GenesisHash     string     `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
-	FirstStatusAt   *time.Time `json:"firstStatusAt,omitempty"`   // First time the node sent Status
-	LastStatusAt    *time.Time `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
-	DAOForkSupport  int8       `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+	ProtocolVersion uint64    `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
+	NetworkId       uint64    `json:"networkId,omitempty"`       // Ethereum network ID
+	FirstReceivedTd *Td       `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
+	LastReceivedTd  *Td       `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
+	BestHash        string    `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
+	GenesisHash     string    `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
+	FirstStatusAt   *UnixTime `json:"firstStatusAt,omitempty"`   // First time the node sent Status
+	LastStatusAt    *UnixTime `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
+	DAOForkSupport  int8      `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
 }
 
 func (k *Info) Lock() {
@@ -128,8 +164,8 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	}
 	newNodeInfo := &Info{
 		Keccak256Hash: hash,
-		FirstHelloAt:  receivedAt,
-		LastHelloAt:   receivedAt,
+		FirstHelloAt:  &UnixTime{Time: receivedAt},
+		LastHelloAt:   &UnixTime{Time: receivedAt},
 		IP:            remoteIP,
 		TCPPort:       tcpPort,
 		RemotePort:    remotePort,

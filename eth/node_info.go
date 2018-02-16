@@ -8,13 +8,14 @@ import (
 func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *statusDataWrapper) {
 	nodeid := id.String()
 	status := statusWrapper.Status
-	receivedAt := statusWrapper.ReceivedAt
+	receivedTd := p2p.NewTd(status.TD)
+	receivedAt := &p2p.UnixTime{Time: statusWrapper.ReceivedAt}
 
 	newInfo := &p2p.Info{
 		ProtocolVersion: uint64(status.ProtocolVersion),
 		NetworkId:       status.NetworkId,
-		FirstReceivedTd: status.TD,
-		LastReceivedTd:  status.TD,
+		FirstReceivedTd: receivedTd,
+		LastReceivedTd:  receivedTd,
 		BestHash:        status.CurrentBlock.String()[2:],
 		GenesisHash:     status.GenesisBlock.String()[2:],
 		FirstStatusAt:   receivedAt,

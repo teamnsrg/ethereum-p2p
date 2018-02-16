@@ -179,12 +179,12 @@ func (srv *Server) loadKnownNodeInfos() {
 		if sqlObj.firstHelloAt.Valid {
 			i, f := math.Modf(sqlObj.firstHelloAt.Float64)
 			t := time.Unix(int64(i), int64(f*1000000000))
-			nodeInfo.FirstHelloAt = &t
+			nodeInfo.FirstHelloAt = &UnixTime{Time: &t}
 		}
 		if sqlObj.lastHelloAt.Valid {
 			i, f := math.Modf(sqlObj.lastHelloAt.Float64)
 			t := time.Unix(int64(i), int64(f*1000000000))
-			nodeInfo.LastHelloAt = &t
+			nodeInfo.LastHelloAt = &UnixTime{Time: &t}
 		}
 		if sqlObj.protocolVersion.Valid {
 			nodeInfo.ProtocolVersion = uint64(sqlObj.protocolVersion.Int64)
@@ -199,7 +199,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			if !ok {
 				log.Error("Failed to parse first_received_td value from db", "rowid", rowid, "value", s)
 			} else {
-				nodeInfo.FirstReceivedTd = firstReceivedTd
+				nodeInfo.FirstReceivedTd = NewTd(firstReceivedTd)
 			}
 		}
 		if sqlObj.lastReceivedTd.Valid {
@@ -209,7 +209,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			if !ok {
 				log.Error("Failed to parse last_received_td value from db", "rowid", rowid, "value", s)
 			} else {
-				nodeInfo.LastReceivedTd = lastReceivedTd
+				nodeInfo.LastReceivedTd = NewTd(lastReceivedTd)
 			}
 		}
 		if sqlObj.bestHash.Valid {
@@ -221,12 +221,12 @@ func (srv *Server) loadKnownNodeInfos() {
 		if sqlObj.firstStatusAt.Valid {
 			i, f := math.Modf(sqlObj.firstStatusAt.Float64)
 			t := time.Unix(int64(i), int64(f*1000000000))
-			nodeInfo.FirstStatusAt = &t
+			nodeInfo.FirstStatusAt = &UnixTime{Time: &t}
 		}
 		if sqlObj.lastStatusAt.Valid {
 			i, f := math.Modf(sqlObj.lastStatusAt.Float64)
 			t := time.Unix(int64(i), int64(f*1000000000))
-			nodeInfo.LastStatusAt = &t
+			nodeInfo.LastStatusAt = &UnixTime{Time: &t}
 		}
 		if sqlObj.daoForkSupport.Valid {
 			nodeInfo.DAOForkSupport = int8(sqlObj.daoForkSupport.Int64)
@@ -264,9 +264,9 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
+	lastHelloAt := newInfo.LastHelloAt.Float64()
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
-		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, unixTime, unixTime)
+		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, lastHelloAt, lastHelloAt)
 	if err != nil {
 		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
@@ -296,8 +296,8 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
-	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, unixTime, newInfo.RowID)
+	lastHelloAt := newInfo.LastHelloAt.Float64()
+	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, lastHelloAt, newInfo.RowID)
 	if err != nil {
 		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {

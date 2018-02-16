@@ -80,10 +80,10 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	receivedTd := newInfo.LastReceivedTd.String()
-	_, err := pm.addEthInfoStmt.Exec(newInfo.ProtocolVersion, newInfo.NetworkId, receivedTd, receivedTd,
-		newInfo.BestHash, newInfo.GenesisHash, unixTime, unixTime, newInfo.RowID)
+	lastStatusAt := newInfo.LastStatusAt.Float64()
+	lastReceivedTd := newInfo.LastReceivedTd.String()
+	_, err := pm.addEthInfoStmt.Exec(newInfo.ProtocolVersion, newInfo.NetworkId, lastReceivedTd, lastReceivedTd,
+		newInfo.BestHash, newInfo.GenesisHash, lastStatusAt, lastStatusAt, newInfo.RowID)
 	if err != nil {
 		log.Error("Failed to execute AddEthInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
@@ -113,9 +113,9 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	receivedTd := newInfo.LastReceivedTd.String()
-	_, err := pm.updateEthInfoStmt.Exec(receivedTd, newInfo.BestHash, unixTime, newInfo.RowID)
+	lastStatusAt := newInfo.LastStatusAt.Float64()
+	lastReceivedTd := newInfo.LastReceivedTd.String()
+	_, err := pm.updateEthInfoStmt.Exec(lastReceivedTd, newInfo.BestHash, lastStatusAt, newInfo.RowID)
 	if err != nil {
 		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
@@ -150,13 +150,15 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
-	firstHelloAt := float64(newInfo.FirstHelloAt.UnixNano()) / 1000000000
-	lastHelloAt := float64(newInfo.LastHelloAt.UnixNano()) / 1000000000
-	firstStatusAt := float64(newInfo.FirstStatusAt.UnixNano()) / 1000000000
-	lastStatusAt := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	_, err := pm.addEthNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort, newInfo.P2PVersion,
-		newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstHelloAt, lastHelloAt, newInfo.ProtocolVersion, newInfo.NetworkId,
-		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
+	firstHelloAt := newInfo.FirstHelloAt.Float64()
+	lastHelloAt := newInfo.LastHelloAt.Float64()
+	firstStatusAt := newInfo.FirstStatusAt.Float64()
+	lastStatusAt := newInfo.LastStatusAt.Float64()
+	firstReceivedTd := newInfo.FirstReceivedTd.String()
+	lastReceivedTd := newInfo.LastReceivedTd.String()
+	_, err := pm.addEthNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
+		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstHelloAt, lastHelloAt,
+		newInfo.ProtocolVersion, newInfo.NetworkId, firstReceivedTd, lastReceivedTd, newInfo.BestHash, newInfo.GenesisHash,
 		newInfo.DAOForkSupport, firstStatusAt, lastStatusAt)
 	if err != nil {
 		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
