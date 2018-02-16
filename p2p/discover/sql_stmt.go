@@ -42,7 +42,7 @@ func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
 
 func (t *udp) closeSqlStmts() {
 	// close addNeighbor statement
-	if t.db != nil && t.addNeighborStmt != nil {
+	if t.addNeighborStmt != nil {
 		if err := t.addNeighborStmt.Close(); err != nil {
 			log.Error("Failed to close AddNeighbor sql statement", "err", err)
 		} else {
