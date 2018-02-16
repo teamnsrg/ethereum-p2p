@@ -46,11 +46,12 @@ def create_neighbors(conn):
     with conn.cursor() as cursor:
         sql = "CREATE TABLE IF NOT EXISTS neighbors (" \
               "node_id VARCHAR(128) NOT NULL, " \
+              "hash VARCHAR(64) NOT NULL, " \
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
               "udp_port SMALLINT unsigned NOT NULL, " \
-              "first_received_at DECIMAL(18,6) NULL, " \
-              "last_received_at DECIMAL(18,6) NULL, " \
+              "first_received_at DECIMAL(18,6) NOT NULL, " \
+              "last_received_at DECIMAL(18,6) NOT NULL, " \
               "count BIGINT unsigned DEFAULT 1, " \
               "PRIMARY KEY (node_id, ip, tcp_port, udp_port)" \
               ")"
@@ -80,19 +81,21 @@ def create_node_info(conn):
               "ip VARCHAR(39) NOT NULL, " \
               "tcp_port SMALLINT unsigned NOT NULL, " \
               "remote_port SMALLINT unsigned NOT NULL, " \
-              "p2p_version TINYINT unsigned NOT NULL, " \
-              "client_id VARCHAR(255) NOT NULL, " \
-              "caps VARCHAR(255) NOT NULL, " \
-              "listen_port SMALLINT unsigned NOT NULL, " \
-              "protocol_version BIGINT unsigned NOT NULL, " \
-              "network_id BIGINT unsigned NOT NULL, " \
-              "first_received_td DECIMAL(65) NOT NULL, " \
-              "last_received_td DECIMAL(65) NOT NULL, " \
-              "best_hash VARCHAR(64) NOT NULL, " \
-              "genesis_hash VARCHAR(64) NOT NULL, " \
-              "dao_fork TINYINT unsigned NULL, " \
-              "first_received_at DECIMAL(18,6) NULL, " \
-              "last_received_at DECIMAL(18,6) NULL, " \
+              "p2p_version BIGINT unsigned NULL, " \
+              "client_id VARCHAR(255) NULL, " \
+              "caps VARCHAR(255) NULL, " \
+              "listen_port SMALLINT unsigned NULL, " \
+              "first_hello_at DECIMAL(18,6) NULL, " \
+              "last_hello_at DECIMAL(18,6) NULL, " \
+              "protocol_version BIGINT unsigned NULL, " \
+              "network_id BIGINT unsigned NULL, " \
+              "first_received_td DECIMAL(65) NULL, " \
+              "last_received_td DECIMAL(65) NULL, " \
+              "best_hash VARCHAR(64) NULL, " \
+              "genesis_hash VARCHAR(64) NULL, " \
+              "dao_fork TINYINT NULL, " \
+              "first_status_at DECIMAL(18,6) NULL, " \
+              "last_status_at DECIMAL(18,6) NULL, " \
               "PRIMARY KEY (id), " \
               "KEY (node_id)" \
               ")"

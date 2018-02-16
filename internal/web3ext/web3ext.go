@@ -162,6 +162,10 @@ web3._extend({
 	],
 	properties: [
 		new web3._extend.Property({
+			name: 'knownNodes',
+			getter: 'admin_knownNodes'
+		}),
+		new web3._extend.Property({
 			name: 'nodeInfo',
 			getter: 'admin_nodeInfo'
 		}),

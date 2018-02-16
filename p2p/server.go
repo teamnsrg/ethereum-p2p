@@ -154,7 +154,12 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
-	DB *sql.DB
+	addNodeInfoStmt     *sql.Stmt
+	updateNodeInfoStmt  *sql.Stmt
+	addNodeMetaInfoStmt *sql.Stmt
+	GetRowIDStmt        *sql.Stmt
+	KnownNodeInfos      *knownNodeInfos // information on known nodes
+	DB                  *sql.DB         // MySQL database handle
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -219,7 +224,7 @@ type conn struct {
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -362,15 +367,7 @@ func (srv *Server) Stop() {
 	close(srv.quit)
 	srv.loopWG.Wait()
 
-	// close mysql db handle
-	if srv.DB != nil {
-		driver := "mysql"
-		if err := srv.DB.Close(); err != nil {
-			log.Proto("MYSQL", "action", "close handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
-		} else {
-			log.Proto("MYSQL", "action", "close handle", "result", "success", "database", srv.MySQLName, "driver", driver)
-		}
-	}
+	srv.CloseSql()
 }
 
 // Start starts running the server.
@@ -382,22 +379,11 @@ func (srv *Server) Start() (err error) {
 		return errors.New("server already running")
 	}
 
-	// open mysql db handle
-	if srv.MySQLName != "" {
-		driver := "mysql"
-		db, err := sql.Open(driver, srv.MySQLName)
-		if err != nil {
-			log.Proto("MYSQL", "action", "open handle", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
-			return err
-		}
-		log.Proto("MYSQL", "action", "open handle", "result", "success", "database", srv.MySQLName, "driver", driver)
-		err = db.Ping()
-		if err != nil {
-			log.Proto("MYSQL", "action", "ping test", "result", "fail", "database", srv.MySQLName, "driver", driver, "err", err)
-			return err
-		}
-		log.Proto("MYSQL", "action", "ping test", "result", "success")
-		srv.DB = db
+	srv.KnownNodeInfos = &knownNodeInfos{infos: make(map[discover.NodeID]*Info)}
+
+	// initiate sql connection and prepare statements
+	if err := srv.initSql(); err != nil {
+		return err
 	}
 
 	srv.running = true
@@ -448,8 +434,12 @@ func (srv *Server) Start() (err error) {
 	// TODO: determine whether srv.MaxPeers/2 is necessary
 	// use srv.MaxDial for now
 	// dynPeers := (srv.MaxPeers + 1) / 2
+	// dynPeers needs to be something much smaller than srv.MaxDial
+	// my current understanding is that srv.MaxDial will cap how many peers we will re-dial at any given time
+	// we still want some dynPeers discovered through the discovery protocol,
+	// but we don't want them to take up too many of the dialTasks
 
-	dynPeers := srv.MaxDial
+	dynPeers := srv.MaxDial / 3
 
 	if srv.NoDiscovery {
 		dynPeers = 0
@@ -733,7 +723,7 @@ func (srv *Server) listenLoop() {
 		// Reject connections that match Blacklist.
 		if srv.Blacklist != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
-				log.Proto("BLACKLIST", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
+				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue
@@ -785,9 +775,16 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake, c.id)
+	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
+		if srv.DB != nil {
+			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
+				nodeid := c.id.String()
+				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+			}
+		}
 		c.close(err, c.id)
 		return
 	}
@@ -796,6 +793,12 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(DiscUnexpectedIdentity, c.id)
 		return
 	}
+
+	// if sql database handle is available, update node information
+	if srv.DB != nil {
+		srv.storeNodeInfo(c, receivedAt, phs)
+	}
+
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
