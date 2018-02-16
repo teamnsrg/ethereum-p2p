@@ -8,12 +8,19 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p"
 )
 
-func (pm *ProtocolManager) prepareSqlStmts() {
+func (pm *ProtocolManager) prepareSqlStmts() error {
 	if pm.db != nil {
-		pm.prepareAddEthInfoStmt()
-		pm.prepareUpdateEthInfoStmt()
-		pm.prepareAddEthNodeInfoStmt()
+		if err := pm.prepareAddEthInfoStmt(); err != nil {
+			return err
+		}
+		if err := pm.prepareUpdateEthInfoStmt(); err != nil {
+			return err
+		}
+		if err := pm.prepareAddEthNodeInfoStmt(); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (pm *ProtocolManager) closeSqlStmts() {
@@ -40,16 +47,18 @@ func (pm *ProtocolManager) closeSqlStmts() {
 	}
 }
 
-func (pm *ProtocolManager) prepareAddEthInfoStmt() {
+func (pm *ProtocolManager) prepareAddEthInfoStmt() error {
 	pStmt, err := pm.db.Prepare("UPDATE node_info " +
 		"SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, " +
 		"best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? WHERE id=?")
 	if err != nil {
 		log.Error("Failed to prepare AddEthInfo sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared AddEthInfo sql statement")
 		pm.addEthInfoStmt = pStmt
 	}
+	return nil
 }
 
 func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
@@ -67,22 +76,24 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 	}
 }
 
-func (pm *ProtocolManager) prepareUpdateEthInfoStmt() {
+func (pm *ProtocolManager) prepareUpdateEthInfoStmt() error {
 	pStmt, err := pm.db.Prepare("UPDATE node_info SET last_received_td=?, best_hash=?, last_status_at=? WHERE id=?")
 
 	if err != nil {
 		log.Error("Failed to prepare UpdateEthInfo sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared UpdateEthInfo sql statement")
 		pm.updateEthInfoStmt = pStmt
 	}
+	return nil
 }
 
 func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	unixTime := float64(newInfo.LastStatusAt.UnixNano()) / 1000000000
-	_, err := pm.updateEthInfoStmt.Exec(newInfo.LastReceivedTd, newInfo.BestHash, unixTime, newInfo.RowID)
+	_, err := pm.updateEthInfoStmt.Exec(newInfo.LastReceivedTd.String(), newInfo.BestHash, unixTime, newInfo.RowID)
 	if err != nil {
 		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
@@ -90,7 +101,7 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 	}
 }
 
-func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() {
+func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
 	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
 		"first_hello_at", "last_hello_at", "protocol_version", "network_id", "first_received_td", "last_received_td",
 		"best_hash", "genesis_hash", "first_status_at", "last_status_at"}
@@ -100,10 +111,12 @@ func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() {
 	pStmt, err := pm.db.Prepare(stmt)
 	if err != nil {
 		log.Error("Failed to prepare AddEthNodeInfo sql statement", "err", err)
+		return err
 	} else {
 		log.Trace("Prepared AddEthNodeInfo sql statement")
 		pm.addEthNodeInfoStmt = pStmt
 	}
+	return nil
 }
 
 func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {

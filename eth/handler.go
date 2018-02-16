@@ -161,7 +161,9 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
 	// prepare sql statements
-	pm.prepareSqlStmts()
+	if err := pm.prepareSqlStmts(); err != nil {
+		log.Crit("Failed to prepare sql statements", "err", err)
+	}
 
 	// start sync handlers
 	go pm.syncer()
