@@ -47,7 +47,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			}
 			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
 			if pm.getRowIDStmt == nil {
-				log.Crit("No prepared statement for AddEthNodeInfo")
+				log.Crit("No prepared statement for GetRowID")
 			}
 			if rowID := pm.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID
@@ -65,4 +65,34 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 	return oldInfo.ProtocolVersion != newInfo.ProtocolVersion || oldInfo.NetworkId != newInfo.NetworkId ||
 		oldInfo.GenesisHash != newInfo.GenesisHash
+}
+
+func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSupport int8) {
+	nodeid := id.String()
+
+	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
+		currentInfo.Lock()
+		defer currentInfo.Unlock()
+		if currentInfo.DAOForkSupport == 0 {
+			// add DAOForkSupport flag to existing entry for the first time
+			currentInfo.DAOForkSupport = daoForkSupport
+			if pm.addDAOForkSupportStmt == nil {
+				log.Crit("No prepared statement for AddDAOForkSupport")
+			}
+			pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+		} else if currentInfo.DAOForkSupport != daoForkSupport {
+			// DAOForkSupport flag value changed. add a new entry to mysql db
+			currentInfo.DAOForkSupport = daoForkSupport
+			if pm.addEthNodeInfoStmt == nil {
+				log.Crit("No prepared statement for AddEthNodeInfo")
+			}
+			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			if pm.getRowIDStmt == nil {
+				log.Crit("No prepared statement for AddEthNodeInfo")
+			}
+			if rowID := pm.getRowID(nodeid); rowID > 0 {
+				currentInfo.RowID = rowID
+			}
+		}
+	}
 }

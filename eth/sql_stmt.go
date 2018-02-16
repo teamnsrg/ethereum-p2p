@@ -19,6 +19,9 @@ func (pm *ProtocolManager) prepareSqlStmts() error {
 		if err := pm.prepareAddEthNodeInfoStmt(); err != nil {
 			return err
 		}
+		if err := pm.prepareAddDAOForkSupportStmt(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -43,6 +46,13 @@ func (pm *ProtocolManager) closeSqlStmts() {
 			log.Error("Failed to close AddEthNodeInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed AddEthNodeInfo sql statement")
+		}
+	}
+	if pm.addDAOForkSupportStmt != nil {
+		if err := pm.addDAOForkSupportStmt.Close(); err != nil {
+			log.Error("Failed to close AddDAOForkSupport sql statement", "err", err)
+		} else {
+			log.Trace("Closed AddDAOForkSupport sql statement")
 		}
 	}
 }
@@ -104,9 +114,9 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
 	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
 		"first_hello_at", "last_hello_at", "protocol_version", "network_id", "first_received_td", "last_received_td",
-		"best_hash", "genesis_hash", "first_status_at", "last_status_at"}
+		"best_hash", "genesis_hash", "dao_fork", "first_status_at", "last_status_at"}
 
-	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		strings.Join(fields, ", "))
 	pStmt, err := pm.db.Prepare(stmt)
 	if err != nil {
@@ -129,11 +139,34 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 	_, err := pm.addEthNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort, newInfo.P2PVersion,
 		newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstHelloAt, lastHelloAt, newInfo.ProtocolVersion, newInfo.NetworkId,
 		newInfo.FirstReceivedTd.String(), newInfo.LastReceivedTd.String(), newInfo.BestHash, newInfo.GenesisHash,
-		firstStatusAt, lastStatusAt)
+		newInfo.DAOForkSupport, firstStatusAt, lastStatusAt)
 	if err != nil {
 		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo, "err", err)
 	} else {
 		log.Debug("Executed AddEthNodeInfo sql statement", "id", nodeid[:16], "newInfo", newInfo)
+	}
+}
+
+func (pm *ProtocolManager) prepareAddDAOForkSupportStmt() error {
+	pStmt, err := pm.db.Prepare("UPDATE node_info SET dao_fork=? WHERE id=?")
+	if err != nil {
+		log.Error("Failed to prepare AddDAOForkSupport sql statement", "err", err)
+		return err
+	} else {
+		log.Trace("Prepared AddDAOForkSupport sql statement")
+		pm.addDAOForkSupportStmt = pStmt
+	}
+	return nil
+}
+
+func (pm *ProtocolManager) addDAOForkSupport(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+	newInfo := newInfoWrapper.Info
+	nodeid := newInfoWrapper.NodeId
+	_, err := pm.addDAOForkSupportStmt.Exec(newInfo.DAOForkSupport, newInfo.RowID)
+	if err != nil {
+		log.Error("Failed to execute AddDAOForkSupport sql statement", "id", nodeid[:16], "daoForkSupport", newInfo.DAOForkSupport, "err", err)
+	} else {
+		log.Debug("Executed AddDAOForkSupport sql statement", "id", nodeid[:16], "daoForkSupport", newInfo.DAOForkSupport)
 	}
 }
 
