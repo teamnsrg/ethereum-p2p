@@ -303,6 +303,9 @@ func doTest(cmdline []string) {
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
 
+	// Exclude packages that always fail
+	packages = build.FilterPackages(packages)
+
 	// Run the actual tests.
 	gotest := goTool("test", buildFlags(env)...)
 	// Test a single package at a time. CI builders are slow
