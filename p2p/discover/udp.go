@@ -155,7 +155,7 @@ func (t *udp) nodeFromRPC(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
 		return nil, errors.New("not contained in netrestrict whitelist")
 	}
 	if t.blacklist != nil && t.blacklist.Contains(rn.IP) {
-		log.Proto("BLACKLIST", "addr", rn.IP.String(), "transport", "udp")
+		log.Debug("Node ignored (blacklisted)", "addr", rn.IP.String(), "transport", "tcp")
 		return nil, errors.New("contained in blacklist")
 	}
 	n := NewNode(rn.ID, rn.IP, rn.UDP, rn.TCP)
@@ -181,6 +181,7 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
+	sqldb				*sql.DB
 	addNeighborStmt *sql.Stmt
 	blacklist       *netutil.Netlist
 
@@ -255,6 +256,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 
 func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, *udp, error) {
 	udp := &udp{
+		sqldb:       db,
 		conn:        c,
 		priv:        priv,
 		netrestrict: netrestrict,
@@ -282,8 +284,10 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 	udp.Table = tab
 
 	// prepare sql statement
-	if db != nil {
-		udp.prepareAddNeighborStmt(db)
+	if udp.sqldb != nil {
+		if err := udp.prepareAddNeighborStmt(); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	go udp.loop()
@@ -559,11 +563,9 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	log.Proto("<<"+packet.name(), "receivedAt", unixTime, "from", from.String(), "size", len(buf), "err", err, "obj", packet, "peer", fromID)
 
 	// if NEIGHBORS packet, add the node address info to the sql database
-	if packet.name() == "RLPX_NEIGHBORS" {
+	if t.sqldb != nil && packet.name() == "RLPX_NEIGHBORS" {
 		for _, node := range packet.(*neighbors).Nodes {
-			if t.addNeighborStmt != nil {
-				t.addNeighbor(node, unixTime)
-			}
+			t.addNeighbor(node, unixTime)
 		}
 	}
 	return err

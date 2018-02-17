@@ -168,7 +168,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 		if err := s.checkDial(n, peers); err != nil {
 			log.Trace("Skipping dial candidate", "id", n.ID, "addr", &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, "err", err)
 			if err == errBlacklisted {
-				log.Debug("BLACKLIST", "addr", n.IP.String(), "transport", "tcp")
+				log.Debug("Rejected conn (blacklisted)", "addr", n.IP.String(), "transport", "tcp")
 			}
 			return false
 		}

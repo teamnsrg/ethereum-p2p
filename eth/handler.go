@@ -51,13 +51,14 @@ func errResp(code errCode, format string, v ...interface{}) error {
 }
 
 type ProtocolManager struct {
-	addEthInfoStmt     *sql.Stmt
-	updateEthInfoStmt  *sql.Stmt
-	addEthNodeInfoStmt *sql.Stmt
-	getRowIDStmt       *sql.Stmt
-	knownNodeInfos     map[discover.NodeID]*p2p.Info // information on known nodes
-	db                 *sql.DB                       // mysql db handle
-	noMaxPeers         bool                          // Flag whether to ignore maxPeers
+	addEthInfoStmt        *sql.Stmt
+	updateEthInfoStmt     *sql.Stmt
+	addEthNodeInfoStmt    *sql.Stmt
+	addDAOForkSupportStmt *sql.Stmt
+	getRowIDStmt          *sql.Stmt
+	knownNodeInfos        map[discover.NodeID]*p2p.Info // information on known nodes
+	db                    *sql.DB                       // mysql db handle
+	noMaxPeers            bool                          // Flag whether to ignore maxPeers
 
 	networkId uint64
 
@@ -169,7 +170,9 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
 	// prepare sql statements
-	pm.prepareSqlStmts()
+	if err := pm.prepareSqlStmts(); err != nil {
+		log.Crit("Failed to prepare sql statements", "err", err)
+	}
 
 	// start sync handlers
 	go pm.syncer()
@@ -218,7 +221,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
-		if statusWrapper.validStatus() && pm.db != nil {
+		if pm.db != nil && statusWrapper.isValidIncompatibleStatus() {
 			pm.storeEthNodeInfo(p.ID(), &statusWrapper)
 		}
 		return err
@@ -351,12 +354,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
 			verifyDAO := true
 
-			// If we already have a DAO header, we can check the peer's TD against it. If
-			// the peer's ahead of this, it too must have a reply to the DAO check
-			if daoHeader := pm.blockchain.GetHeaderByNumber(pm.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
-				if _, td := p.Head(); td.Cmp(pm.blockchain.GetTd(daoHeader.Hash(), daoHeader.Number.Uint64())) >= 0 {
-					verifyDAO = false
-				}
+			// If the peer's td is ahead of the DAO fork block's td, it too must have a reply to the DAO check
+			daoTd := new(big.Int)
+			daoTd.SetString("39490964433395682584", 10)
+			if _, td := p.Head(); td.Cmp(daoTd) >= 0 {
+				verifyDAO = false
 			}
 			// If we're seemingly on the same chain, disable the drop timer
 			if verifyDAO {
@@ -378,9 +380,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				// Validate the header and either drop the peer or continue
 				if err := misc.VerifyDAOHeaderExtraData(pm.chainconfig, headers[0]); err != nil {
 					p.Log().Debug("Verified to be on the other side of the DAO fork, dropping")
+					if pm.db != nil {
+						pm.storeDAOForkSupportInfo(p.ID(), -1)
+					}
 					return err
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
+				if pm.db != nil {
+					pm.storeDAOForkSupportInfo(p.ID(), 1)
+				}
 				return p2p.DiscQuitting
 			}
 		}

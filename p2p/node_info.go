@@ -13,37 +13,73 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"sort"
 )
+
+const (
+	tdMaxNumDigits = 65
+)
+
+type UnixTime struct {
+	*time.Time
+}
+
+func (t *UnixTime) String() string {
+	return strconv.FormatFloat(float64(t.Time.UnixNano())/1000000000, 'f', 6, 64)
+}
+
+func (t *UnixTime) Float64() float64 {
+	return float64(t.Time.UnixNano()) / 1000000000
+}
+
+type Td struct {
+	Value    *big.Int
+	Overflow bool
+}
+
+func NewTd(i *big.Int) *Td {
+	var overflow bool
+	if len(i.String()) > tdMaxNumDigits {
+		overflow = true
+	}
+	return &Td{Value: i, Overflow: overflow}
+}
+
+func (td *Td) String() string {
+	if td.Overflow {
+		return strings.Repeat("9", tdMaxNumDigits)
+	}
+	return td.Value.String()
+}
 
 // Info represents a short summary of the information known about a known node.
 type Info struct {
 	mux sync.RWMutex
 
-	RowID           uint64     `json:"RowID"`                     // Most recent row ID
-	Keccak256Hash   string     `json:"keccak256Hash"`             // Keccak256 hash of node ID
-	LastConnectedAt *time.Time `json:"lastConnectedAt,omitempty"` // Last time the node was connected
-	IP              string     `json:"ip"`                        // IP address of the node
-	TCPPort         uint16     `json:"tcpPort"`                   // TCP listening port for RLPx
-	RemotePort      uint16     `json:"remotePort"`                // Remote TCP port of the most recent connection
+	RowID         uint64 `json:"RowID"`         // Most recent row ID
+	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
+	IP            string `json:"ip"`            // IP address of the node
+	TCPPort       uint16 `json:"tcpPort"`       // TCP listening port for RLPx
+	RemotePort    uint16 `json:"tcpPort"`       // Remote TCP port of the most recent connection
 
 	// DEVp2p Hello info
-	P2PVersion   uint64     `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
-	ClientId     string     `json:"clientId,omitempty"`     // Name of the node, including client type, version, OS, custom data
-	Caps         string     `json:"caps,omitempty"`         // Node's capabilities
-	ListenPort   uint16     `json:"listenPort,omitempty"`   // Listening port reported in the node's DEVp2p Hello
-	FirstHelloAt *time.Time `json:"firstHelloAt,omitempty"` // First time the node sent Hello
-	LastHelloAt  *time.Time `json:"lastHelloAt,omitempty"`  // Last time the node sent Hello
+	P2PVersion   uint64    `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
+	ClientId     string    `json:"clientId,omitempty"`     // Name of the node, including client type, version, OS, custom data
+	Caps         string    `json:"caps,omitempty"`         // Node's capabilities
+	ListenPort   uint16    `json:"listenPort,omitempty"`   // Listening port reported in the node's DEVp2p Hello
+	FirstHelloAt *UnixTime `json:"firstHelloAt,omitempty"` // First time the node sent Hello
+	LastHelloAt  *UnixTime `json:"lastHelloAt,omitempty"`  // Last time the node sent Hello
 
 	// Ethereum Status info
-	ProtocolVersion uint64     `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
-	NetworkId       uint64     `json:"networkId,omitempty"`       // Ethereum network ID
-	FirstReceivedTd *big.Int   `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
-	LastReceivedTd  *big.Int   `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
-	BestHash        string     `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
-	GenesisHash     string     `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
-	FirstStatusAt   *time.Time `json:"firstStatusAt,omitempty"`   // First time the node sent Status
-	LastStatusAt    *time.Time `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
-	DAOForkSupport  bool       `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+	ProtocolVersion uint64    `json:"protocolVersion,omitempty"` // Ethereum sub-protocol version
+	NetworkId       uint64    `json:"networkId,omitempty"`       // Ethereum network ID
+	FirstReceivedTd *Td       `json:"firstReceivedTd,omitempty"` // First reported total difficulty of the node's blockchain
+	LastReceivedTd  *Td       `json:"lastReceivedTd,omitempty"`  // Last reported total difficulty of the node's blockchain
+	BestHash        string    `json:"bestHash,omitempty"`        // Hex string of SHA3 hash of the node's best owned block
+	GenesisHash     string    `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
+	FirstStatusAt   *UnixTime `json:"firstStatusAt,omitempty"`   // First time the node sent Status
+	LastStatusAt    *UnixTime `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
+	DAOForkSupport  int8      `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
 }
 
 func (k *Info) Lock() {
@@ -128,7 +164,8 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	}
 	newNodeInfo := &Info{
 		Keccak256Hash: hash,
-		LastHelloAt:   receivedAt,
+		FirstHelloAt:  &UnixTime{Time: receivedAt},
+		LastHelloAt:   &UnixTime{Time: receivedAt},
 		IP:            remoteIP,
 		TCPPort:       tcpPort,
 		RemotePort:    remotePort,
@@ -141,20 +178,17 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	if srv.addNodeMetaInfoStmt != nil {
-		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
-	}
+	srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 
 	// DEVp2p Hello
-	p2pVersion, clientId, capsArray, listenPort := hs.Version, hs.Name, hs.Caps, uint16(hs.ListenPort)
-	caps := ""
-	capsLen := len(capsArray)
-	for i, c := range capsArray {
-		caps += fmt.Sprintf("%s", c.String())
-		if i < capsLen-1 {
-			caps += ","
-		}
+	p2pVersion, clientId, listenPort := hs.Version, hs.Name, uint16(hs.ListenPort)
+	var capsArray []string
+	for _, c := range hs.Caps {
+		capsArray = append(capsArray, c.String())
 	}
+	sort.Strings(capsArray)
+	caps := strings.Join(capsArray, ",")
+
 	clientId = strings.Replace(clientId, "'", "", -1)
 	clientId = strings.Replace(clientId, "\"", "", -1)
 	caps = strings.Replace(caps, "'", "", -1)
@@ -168,57 +202,44 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
-		newInfo.FirstHelloAt = newInfo.LastHelloAt
-		if srv.addNodeInfoStmt != nil {
-			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+		if rowID := srv.getRowID(nodeid); rowID > 0 {
+			newInfo.RowID = rowID
 		}
-		if srv.GetRowIDStmt != nil {
-			if rowID := srv.getRowID(nodeid); rowID > 0 {
-				newInfo.RowID = rowID
-			}
-		}
-		srv.KnownNodeInfos.Infos()[id] = newInfo
 
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
+
+		// add new node info to in-memory
+		srv.KnownNodeInfos.Infos()[id] = newInfo
 	} else {
-		currentInfo.Lock()
-		currentInfo.LastHelloAt = newInfo.LastHelloAt
-		currentInfo.RemotePort = newInfo.RemotePort
-		if nodeInfoChanged(currentInfo, newInfo) {
-			currentInfo.IP = newInfo.IP
-			currentInfo.TCPPort = newInfo.TCPPort
-			currentInfo.P2PVersion = p2pVersion
-			currentInfo.ClientId = clientId
-			currentInfo.Caps = caps
-			currentInfo.ListenPort = listenPort
-			if srv.addNodeInfoStmt != nil {
-				// TODO: check logic
-				// in-memory entry should keep the Ethereum Status info
-				// new entry to the mysql db should contain only the new address, DEVp2p info
-				// let Ethereum protocol update the Status info, if available.
-				srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+		if isNewNode(currentInfo, newInfo) {
+			// new entry to the mysql db should contain only the new address, DEVp2p info
+			// let Ethereum protocol update the Status info, if available.
+			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+			if rowID := srv.getRowID(nodeid); rowID > 0 {
+				newInfo.RowID = rowID
 			}
-			if srv.GetRowIDStmt != nil {
-				if rowID := srv.getRowID(nodeid); rowID > 0 {
-					currentInfo.RowID = rowID
-				}
-			}
+
 			// if the node's listening port changed
 			// add it as a static node
 			if currentInfo.TCPPort != newInfo.TCPPort {
 				srv.addNewStatic(id, newInfo)
 			}
+
+			// replace the current info with new info, setting all fields related to Ethereum Status to null
+			srv.KnownNodeInfos.Infos()[id] = newInfo
 		} else {
-			if srv.updateNodeInfoStmt != nil {
-				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
-			}
+			currentInfo.Lock()
+			defer currentInfo.Unlock()
+			currentInfo.LastHelloAt = newInfo.LastHelloAt
+			currentInfo.RemotePort = newInfo.RemotePort
+			srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 		}
-		currentInfo.Unlock()
 	}
 }
 
-func nodeInfoChanged(oldInfo *Info, newInfo *Info) bool {
+func isNewNode(oldInfo *Info, newInfo *Info) bool {
 	return oldInfo.IP != newInfo.IP || oldInfo.TCPPort != newInfo.TCPPort || oldInfo.P2PVersion != newInfo.P2PVersion ||
 		oldInfo.ClientId != newInfo.ClientId || oldInfo.Caps != newInfo.Caps || oldInfo.ListenPort != newInfo.ListenPort
 }
@@ -230,7 +251,7 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Debug("Failed to add node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
+			log.Error("Failed to add node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 		} else {
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
@@ -248,12 +269,13 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Debug("Failed to add static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
+			log.Error("Failed to add static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
 		} else {
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
+			log.Trace("Adding static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}

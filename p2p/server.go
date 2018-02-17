@@ -723,7 +723,7 @@ func (srv *Server) listenLoop() {
 		// Reject connections that match Blacklist.
 		if srv.Blacklist != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
-				log.Debug("BLACKLIST", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
+				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue
@@ -778,7 +778,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		if srv.addNodeMetaInfoStmt != nil {
+		if srv.DB != nil {
 			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
 				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 				nodeid := c.id.String()
