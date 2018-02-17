@@ -23,10 +23,8 @@ import (
 	"math/rand"
 	"reflect"
 
-	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
-	"github.com/teamnsrg/go-ethereum/log"
 )
 
 const (
@@ -244,12 +242,4 @@ func (a *UnprefixedAddress) UnmarshalText(input []byte) error {
 // MarshalText encodes the address as hex.
 func (a UnprefixedAddress) MarshalText() ([]byte, error) {
 	return []byte(hex.EncodeToString(a[:])), nil
-}
-
-func MarshalObj(obj interface{}) string {
-	j, err := json.Marshal(obj)
-	if err != nil {
-		log.Proto(err.Error())
-	}
-	return string(j)
 }

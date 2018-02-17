@@ -44,8 +44,8 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
 			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			if rowID := pm.getRowID(nodeid); rowID > 0 {
-				currentInfo.RowID = rowID
+			if rowId := pm.getRowID(nodeid); rowId > 0 {
+				currentInfo.RowId = rowId
 			}
 		} else {
 			// update eth info
@@ -73,8 +73,8 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSu
 			// DAOForkSupport flag value changed. add a new entry to mysql db
 			currentInfo.DAOForkSupport = daoForkSupport
 			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
-			if rowID := pm.getRowID(nodeid); rowID > 0 {
-				currentInfo.RowID = rowID
+			if rowId := pm.getRowID(nodeid); rowId > 0 {
+				currentInfo.RowId = rowId
 			}
 		}
 	}

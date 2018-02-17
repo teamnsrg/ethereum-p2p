@@ -54,10 +54,6 @@ func Error(msg string, ctx ...interface{}) {
 	root.write(msg, LvlError, ctx)
 }
 
-func Proto(msg string, ctx ...interface{}) {
-	root.write(msg+CtxToString(ctx), LvlCrit, nil)
-}
-
 // Crit is a convenient alias for Root().Crit
 func Crit(msg string, ctx ...interface{}) {
 	root.write(msg, LvlCrit, ctx)

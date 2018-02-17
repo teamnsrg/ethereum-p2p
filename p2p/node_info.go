@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"reflect"
 	"sort"
 )
 
@@ -56,7 +57,7 @@ func (td *Td) String() string {
 type Info struct {
 	mux sync.RWMutex
 
-	RowID         uint64 `json:"RowID"`         // Most recent row ID
+	RowId         uint64 `json:"rowId"`         // Most recent row ID
 	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
 	IP            string `json:"ip"`            // IP address of the node
 	TCPPort       uint16 `json:"tcpPort"`       // TCP listening port for RLPx
@@ -79,7 +80,67 @@ type Info struct {
 	GenesisHash     string    `json:"genesisHash,omitempty"`     // Hex string of SHA3 hash of the node's genesis block
 	FirstStatusAt   *UnixTime `json:"firstStatusAt,omitempty"`   // First time the node sent Status
 	LastStatusAt    *UnixTime `json:"lastStatusAt,omitempty"`    // Last time the node sent Status
-	DAOForkSupport  int8      `json:"daoForkSupport"`            // Whether the node supports or opposes the DAO hard-fork
+	DAOForkSupport  int8      `json:"daoForkSupport,omitempty"`  // Whether the node supports or opposes the DAO hard-fork
+}
+
+func (k *Info) String() string {
+	var s string
+	v := reflect.ValueOf(k).Elem()
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		if len(s) > 0 {
+			s += " "
+		}
+		elem := v.Field(i)
+		elemName := t.Field(i).Name
+		switch elem.Kind() {
+		case reflect.Ptr:
+			ptrV := elem.Elem()
+			if ptrV.IsValid() {
+				s += fmt.Sprintf("%s:%v", elemName, elem.Interface())
+			} else {
+				s += fmt.Sprintf("%s:nil", elemName)
+			}
+		case reflect.Struct:
+			continue
+		default:
+			s += fmt.Sprintf("%s:%v", elemName, elem.Interface())
+		}
+	}
+	return s
+}
+
+func (k *Info) MarshalJSON() ([]byte, error) {
+	type Alias Info
+	temp := &struct {
+		FirstHelloAt    float64 `json:"firstHelloAt,omitempty"`
+		LastHelloAt     float64 `json:"lastHelloAt,omitempty"`
+		FirstStatusAt   float64 `json:"firstStatusAt,omitempty"`
+		LastStatusAt    float64 `json:"lastStatusAt,omitempty"`
+		FirstReceivedTd string  `json:"firstReceivedTd,omitempty"`
+		LastReceivedTd  string  `json:"lastReceivedTd,omitempty"`
+		*Alias
+	}{Alias: (*Alias)(k)}
+	if k.FirstHelloAt != nil {
+		temp.FirstHelloAt = k.FirstHelloAt.Float64()
+	}
+	if k.LastHelloAt != nil {
+		temp.LastHelloAt = k.LastHelloAt.Float64()
+	}
+	if k.FirstStatusAt != nil {
+		temp.FirstStatusAt = k.FirstStatusAt.Float64()
+	}
+	if k.LastStatusAt != nil {
+		temp.LastStatusAt = k.LastStatusAt.Float64()
+	}
+	if k.FirstReceivedTd != nil {
+		temp.FirstReceivedTd = k.FirstReceivedTd.String()
+	}
+	if k.LastReceivedTd != nil {
+		temp.LastReceivedTd = k.LastReceivedTd.String()
+	}
+	return json.Marshal(temp)
 }
 
 func (k *Info) Lock() {
@@ -189,10 +250,13 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	sort.Strings(capsArray)
 	caps := strings.Join(capsArray, ",")
 
-	clientId = strings.Replace(clientId, "'", "", -1)
-	clientId = strings.Replace(clientId, "\"", "", -1)
-	caps = strings.Replace(caps, "'", "", -1)
-	caps = strings.Replace(caps, "\"", "", -1)
+	// replace unwanted characters
+	if srv.strReplacer == nil {
+		log.Crit("No strings.Replacer")
+		return
+	}
+	clientId = srv.strReplacer.Replace(clientId)
+	caps = srv.strReplacer.Replace(caps)
 
 	newInfo.P2PVersion = p2pVersion
 	newInfo.ClientId = clientId
@@ -203,8 +267,8 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
 		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-		if rowID := srv.getRowID(nodeid); rowID > 0 {
-			newInfo.RowID = rowID
+		if rowId := srv.getRowID(nodeid); rowId > 0 {
+			newInfo.RowId = rowId
 		}
 
 		// add the new node as a static node
@@ -217,8 +281,8 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			// new entry to the mysql db should contain only the new address, DEVp2p info
 			// let Ethereum protocol update the Status info, if available.
 			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-			if rowID := srv.getRowID(nodeid); rowID > 0 {
-				newInfo.RowID = rowID
+			if rowId := srv.getRowID(nodeid); rowId > 0 {
+				newInfo.RowId = rowId
 			}
 
 			// if the node's listening port changed
@@ -251,13 +315,16 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Error("Failed to add node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
+			log.Error("Failed to add node to initial StaticNodes list", "node",
+				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort),
+				"err", "failed to parse ip")
 		} else {
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding node to initial StaticNodes list", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
+			log.Trace("Adding node to initial StaticNodes list", "node",
+				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.StaticNodes = append(srv.StaticNodes, discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}
@@ -269,20 +336,23 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 	if nodeInfo.TCPPort != 0 {
 		var ip net.IP
 		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Error("Failed to add static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort), "err", "failed to parse ip")
+			log.Error("Failed to add static node", "node",
+				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort),
+				"err", "failed to parse ip")
 		} else {
 			// Ensure the IP is 4 bytes long for IPv4 addresses.
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding static node", "node", fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
+			log.Trace("Adding static node", "node",
+				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}
 }
 
 type KnownNodeInfosWrapper struct {
-	NodeId string `json:"nodeid"` // Unique node identifier (also the encryption key)
+	NodeId string `json:"nodeId"` // Unique node identifier (also the encryption key)
 	Info   *Info  `json:"info"`
 }
 

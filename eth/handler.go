@@ -146,11 +146,11 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if peer == nil {
 		return
 	}
-	log.Proto("Removing Ethereum peer", "peer", peer.ID())
+	log.Debug("Removing Ethereum peer", "id", id)
 
 	// Unregister the peer from the Ethereum peer set
 	if err := pm.peers.Unregister(id); err != nil {
-		log.Error("Peer removal failed", "peer", id, "err", err)
+		log.Error("Peer removal failed", "id", id, "err", err)
 	}
 	// Hard disconnect at the networking layer
 	if peer != nil {
@@ -203,7 +203,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if !pm.noMaxPeers && pm.peers.Len() >= pm.maxPeers {
 		return p2p.DiscTooManyPeers
 	}
-	p.Log().Proto("Ethereum peer connected", "name", p.Name(), "nodeID", p.ID())
+	p.Log().Debug("Ethereum peer connected", "name", p.Name())
 
 	// Execute the Ethereum handshake
 	var statusWrapper statusDataWrapper
@@ -275,7 +275,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
-	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+	if msgStr, ok := ethCodeToString[msg.Code]; ok {
+		p.Log().Trace("<<"+msgStr, "receivedAt", msg.ReceivedAt)
+	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
@@ -283,10 +285,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		var status statusData
 		// Decode the handshake and make sure everything matches
 		if err := msg.Decode(&status); err != nil {
-			log.Proto("<<FAIL_UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		log.Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", status, "size", int(msg.Size), "peer", p.ID())
 		// if sql database handle is available, update node information
 		if pm.db != nil {
 			pm.storeEthNodeInfo(p.ID(), &statusDataWrapper{
@@ -301,11 +301,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
-
-		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 		// Return DAOForkBlock header
 		var headers []*types.Header
@@ -335,12 +332,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
-			log.Proto("<<FAIL_"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-
-		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
-
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -384,9 +377,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				return p2p.DiscQuitting
 			}
 		}
-
-	case msg.Code <= ReceiptsMsg:
-		log.Proto("<<"+ethCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
 
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

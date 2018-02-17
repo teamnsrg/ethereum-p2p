@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
@@ -35,6 +34,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/discv5"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
+	"strings"
 )
 
 const (
@@ -160,6 +160,7 @@ type Server struct {
 	GetRowIDStmt        *sql.Stmt
 	KnownNodeInfos      *knownNodeInfos // information on known nodes
 	DB                  *sql.DB         // MySQL database handle
+	strReplacer         *strings.Replacer
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -232,7 +233,7 @@ type transport interface {
 	// transports must provide Close because we use MsgPipe in some of
 	// the tests. Closing the actual network connection doesn't do
 	// anything in those tests because NsgPipe doesn't use it.
-	close(err error, peer discover.NodeID)
+	close(err error)
 }
 
 func (c *conn) String() string {
@@ -385,6 +386,13 @@ func (srv *Server) Start() (err error) {
 	if err := srv.initSql(); err != nil {
 		return err
 	}
+
+	// initiate string replacer
+	srv.strReplacer = strings.NewReplacer(
+		"|", "",
+		" ", "",
+		"'", "",
+		"\"", "")
 
 	srv.running = true
 	log.Info("Starting P2P networking")
@@ -602,7 +610,7 @@ running:
 					p.events = &srv.peerFeed
 				}
 				name := truncateName(c.name)
-				log.Proto("Adding p2p peer", "id", c.id, "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
+				log.Debug("Adding p2p peer", "id", c.id, "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
 				peers[c.id] = p
 				go srv.runPeer(p)
 			}
@@ -617,7 +625,7 @@ running:
 		case pd := <-srv.delpeer:
 			// A peer disconnected.
 			d := common.PrettyDuration(mclock.Now() - pd.created)
-			pd.log.Proto("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
+			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
 		}
 	}
@@ -752,26 +760,26 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	srv.lock.Unlock()
 	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
 	if !running {
-		c.close(errServerStopped, discover.NodeID{})
+		c.close(errServerStopped)
 		return
 	}
 	// Run the encryption handshake.
 	var err error
 	if c.id, err = c.doEncHandshake(srv.PrivateKey, dialDest); err != nil {
 		log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
-		c.close(err, c.id)
+		c.close(err)
 		return
 	}
 	// For dialed connections, check that the remote public key matches.
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	if dialDest != nil && c.id != dialDest.ID {
-		c.close(DiscUnexpectedIdentity, c.id)
+		c.close(DiscUnexpectedIdentity)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
 		return
 	}
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
-		c.close(err, c.id)
+		c.close(err)
 		return
 	}
 	// Run the protocol handshake
@@ -785,12 +793,12 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
 		}
-		c.close(err, c.id)
+		c.close(err)
 		return
 	}
 	if phs.ID != c.id {
 		clog.Trace("Wrong devp2p handshake identity", "err", phs.ID)
-		c.close(DiscUnexpectedIdentity, c.id)
+		c.close(DiscUnexpectedIdentity)
 		return
 	}
 
@@ -802,7 +810,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
-		c.close(err, c.id)
+		c.close(err)
 		return
 	}
 	// If the checks completed successfully, runPeer has now been

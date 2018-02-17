@@ -59,7 +59,7 @@ func testPeer(protos []Protocol) (func(), *conn, *Peer, <-chan error) {
 		errc <- err
 	}()
 
-	closer := func() { c2.close(errors.New("close func called"), peer.ID()) }
+	closer := func() { c2.close(errors.New("close func called")) }
 	return closer, c2, peer, errc
 }
 
