@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
