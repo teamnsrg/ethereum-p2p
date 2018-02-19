@@ -48,6 +48,7 @@ var DefaultConfig = Config{
 		MySQLName:       "",
 		MaxDial:         16,
 		MaxAcceptConns:  50,
+		DialFreq:        30,
 		NoMaxPeers:      false,
 	},
 }

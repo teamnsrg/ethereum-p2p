@@ -57,6 +57,7 @@ var (
 		utils.MaxDialFlag,
 		utils.MaxAcceptConnsFlag,
 		utils.NoMaxPeersFlag,
+		utils.DialFreqFlag,
 		utils.BlacklistFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,

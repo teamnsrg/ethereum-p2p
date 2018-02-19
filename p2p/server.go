@@ -60,11 +60,14 @@ type Config struct {
 	// MaxDial is the maximum number of concurrently dialing outbound connections.
 	MaxDial int
 
-	// MaxDial is the maximum number of concurrently handshaking inbound connections.
+	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
 	MaxAcceptConns int
 
 	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
 	NoMaxPeers bool
+
+	// DialFreq is the frequency of re-dialing static nodes (in seconds).
+	DialFreq int
 
 	// Blacklist is the list of IP networks that we should not connect to
 	Blacklist *netutil.Netlist `toml:",omitempty"`
@@ -444,7 +447,9 @@ func (srv *Server) Start() (err error) {
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
-	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict, srv.Blacklist)
+	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer.setBlacklist(srv.Blacklist)
+	dialer.setDialFreq(srv.DialFreq)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -494,6 +499,8 @@ type dialer interface {
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
+	setBlacklist(*netutil.Netlist)
+	setDialFreq(int)
 }
 
 func (srv *Server) run(dialstate dialer) {
