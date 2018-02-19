@@ -30,10 +30,6 @@ import (
 )
 
 const (
-	// This is the amount of time spent waiting in between
-	// redialing a certain node.
-	dialHistoryExpiration = 30 * time.Second
-
 	// Discovery lookups are throttled and can only run
 	// once every few seconds.
 	lookupInterval = 4 * time.Second
@@ -73,6 +69,7 @@ type dialstate struct {
 	ntab        discoverTable
 	netrestrict *netutil.Netlist
 	blacklist   *netutil.Netlist
+	dialFreq    time.Duration
 
 	lookupRunning bool
 	dialing       map[discover.NodeID]connFlag
@@ -128,12 +125,11 @@ type waitExpireTask struct {
 	time.Duration
 }
 
-func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab discoverTable, maxdyn int, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) *dialstate {
+func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab discoverTable, maxdyn int, netrestrict *netutil.Netlist) *dialstate {
 	s := &dialstate{
 		maxDynDials: maxdyn,
 		ntab:        ntab,
 		netrestrict: netrestrict,
-		blacklist:   blacklist,
 		static:      make(map[discover.NodeID]*dialTask),
 		dialing:     make(map[discover.NodeID]connFlag),
 		bootnodes:   make([]*discover.Node, len(bootnodes)),
@@ -145,6 +141,14 @@ func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab disc
 		s.addStatic(n)
 	}
 	return s
+}
+
+func (s *dialstate) setBlacklist(blacklist *netutil.Netlist) {
+	s.blacklist = blacklist
+}
+
+func (s *dialstate) setDialFreq(f int) {
+	s.dialFreq = time.Duration(f) * time.Second
 }
 
 func (s *dialstate) addStatic(n *discover.Node) {
@@ -285,7 +289,7 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 func (s *dialstate) taskDone(t task, now time.Time) {
 	switch t := t.(type) {
 	case *dialTask:
-		s.hist.add(t.dest.ID, now.Add(dialHistoryExpiration))
+		s.hist.add(t.dest.ID, now.Add(s.dialFreq))
 		delete(s.dialing, t.dest.ID)
 	case *discoverTask:
 		s.lookupRunning = false
