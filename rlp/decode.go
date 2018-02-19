@@ -22,7 +22,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/teamnsrg/go-ethereum/common"
 	"io"
 	"math/big"
 	"reflect"
@@ -613,10 +612,6 @@ type Stream struct {
 	byteval byte   // value of single byte in type tag
 	kinderr error  // error from last readKind
 	stack   []listpos
-}
-
-func (s Stream) GoString() string {
-	return common.MarshalObj(s)
 }
 
 type listpos struct{ pos, size uint64 }

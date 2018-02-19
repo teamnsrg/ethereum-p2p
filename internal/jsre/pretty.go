@@ -150,7 +150,7 @@ func (ctx ppctx) printObject(obj *otto.Object, level int, inArray bool) {
 		fmt.Fprintln(ctx.w, "{")
 		for i, k := range keys {
 			v, _ := obj.Get(k)
-			fmt.Fprintf(ctx.w, "%s%s: ", ctx.indent(level+1), k)
+			fmt.Fprintf(ctx.w, "%s\"%s\": ", ctx.indent(level+1), k)
 			ctx.printValue(v, level+1, false)
 			if i < len(keys)-1 {
 				fmt.Fprintf(ctx.w, ",")

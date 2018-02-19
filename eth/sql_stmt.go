@@ -1,9 +1,6 @@
 package eth
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 )
@@ -58,9 +55,12 @@ func (pm *ProtocolManager) closeSqlStmts() {
 }
 
 func (pm *ProtocolManager) prepareAddEthInfoStmt() error {
-	pStmt, err := pm.db.Prepare("UPDATE node_info " +
-		"SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, " +
-		"best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? WHERE id=?")
+	pStmt, err := pm.db.Prepare(`
+		UPDATE node_info 
+		SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, 
+			best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? 
+		WHERE id=?
+	`)
 	if err != nil {
 		log.Error("Failed to prepare AddEthInfo sql statement", "err", err)
 		return err
@@ -83,7 +83,7 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 	lastStatusAt := newInfo.LastStatusAt.Float64()
 	lastReceivedTd := newInfo.LastReceivedTd.String()
 	_, err := pm.addEthInfoStmt.Exec(newInfo.ProtocolVersion, newInfo.NetworkId, lastReceivedTd, lastReceivedTd,
-		newInfo.BestHash, newInfo.GenesisHash, lastStatusAt, lastStatusAt, newInfo.RowID)
+		newInfo.BestHash, newInfo.GenesisHash, lastStatusAt, lastStatusAt, newInfo.RowId)
 	if err != nil {
 		log.Error("Failed to execute AddEthInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
@@ -92,7 +92,11 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 }
 
 func (pm *ProtocolManager) prepareUpdateEthInfoStmt() error {
-	pStmt, err := pm.db.Prepare("UPDATE node_info SET last_received_td=?, best_hash=?, last_status_at=? WHERE id=?")
+	pStmt, err := pm.db.Prepare(`
+		UPDATE node_info 
+		SET last_received_td=?, best_hash=?, last_status_at=? 
+		WHERE id=?
+		`)
 
 	if err != nil {
 		log.Error("Failed to prepare UpdateEthInfo sql statement", "err", err)
@@ -115,7 +119,7 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 	newInfo := newInfoWrapper.Info
 	lastStatusAt := newInfo.LastStatusAt.Float64()
 	lastReceivedTd := newInfo.LastReceivedTd.String()
-	_, err := pm.updateEthInfoStmt.Exec(lastReceivedTd, newInfo.BestHash, lastStatusAt, newInfo.RowID)
+	_, err := pm.updateEthInfoStmt.Exec(lastReceivedTd, newInfo.BestHash, lastStatusAt, newInfo.RowId)
 	if err != nil {
 		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
@@ -124,13 +128,14 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 }
 
 func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
-	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
-		"first_hello_at", "last_hello_at", "protocol_version", "network_id", "first_received_td", "last_received_td",
-		"best_hash", "genesis_hash", "dao_fork", "first_status_at", "last_status_at"}
-
-	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		strings.Join(fields, ", "))
-	pStmt, err := pm.db.Prepare(stmt)
+	pStmt, err := pm.db.Prepare(`
+		INSERT INTO node_info 
+			(node_id, ip, tcp_port, remote_port, 
+			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
+			 protocol_version, network_id, first_received_td, last_received_td, 
+			 best_hash, genesis_hash, dao_fork, first_status_at, last_status_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`)
 	if err != nil {
 		log.Error("Failed to prepare AddEthNodeInfo sql statement", "err", err)
 		return err
@@ -168,7 +173,11 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 }
 
 func (pm *ProtocolManager) prepareAddDAOForkSupportStmt() error {
-	pStmt, err := pm.db.Prepare("UPDATE node_info SET dao_fork=? WHERE id=?")
+	pStmt, err := pm.db.Prepare(`
+		UPDATE node_info 
+		SET dao_fork=? 
+		WHERE id=?
+		`)
 	if err != nil {
 		log.Error("Failed to prepare AddDAOForkSupport sql statement", "err", err)
 		return err
@@ -188,7 +197,7 @@ func (pm *ProtocolManager) addDAOForkSupport(newInfoWrapper *p2p.KnownNodeInfosW
 
 	newInfo := newInfoWrapper.Info
 	nodeid := newInfoWrapper.NodeId
-	_, err := pm.addDAOForkSupportStmt.Exec(newInfo.DAOForkSupport, newInfo.RowID)
+	_, err := pm.addDAOForkSupportStmt.Exec(newInfo.DAOForkSupport, newInfo.RowId)
 	if err != nil {
 		log.Error("Failed to execute AddDAOForkSupport sql statement", "id", nodeid, "daoForkSupport", newInfo.DAOForkSupport, "err", err)
 	} else {
@@ -203,13 +212,13 @@ func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
 		return 0
 	}
 
-	var rowID uint64
-	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowID)
+	var rowId uint64
+	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowId)
 	if err != nil {
 		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
 		return 0
 	} else {
-		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowid", rowID)
-		return rowID
+		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowId", rowId)
+		return rowId
 	}
 }

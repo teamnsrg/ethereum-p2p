@@ -262,13 +262,13 @@ func TestPrettyPrint(t *testing.T) {
 	)
 	// Assemble the actual output we're after and verify
 	want := `{
-  int: ` + one + `,
-  list: [` + three + `, ` + three + `, ` + three + `],
-  obj: {
-    null: ` + null + `,
-    func: ` + fun + `
+  "int": ` + one + `,
+  "list": [` + three + `, ` + three + `, ` + three + `],
+  "obj": {
+    "null": ` + null + `,
+    "func": ` + fun + `
   },
-  string: ` + two + `
+  "string": ` + two + `
 }
 `
 	if output := string(tester.output.Bytes()); output != want {

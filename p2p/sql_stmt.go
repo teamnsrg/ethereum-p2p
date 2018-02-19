@@ -2,10 +2,8 @@ package p2p
 
 import (
 	"database/sql"
-	"fmt"
 	"math"
 	"math/big"
-	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -101,14 +99,18 @@ func (srv *Server) closeSqlStmts() {
 }
 
 func (srv *Server) loadKnownNodeInfos() {
-	fields := "ni.id, ni.node_id, nmi.hash, ip, tcp_port, remote_port, " +
-		"p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, " +
-		"protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, " +
-		"first_status_at, last_status_at, dao_fork"
-	maxIds := "SELECT node_id as nid, MAX(id) as max_id FROM node_info GROUP BY node_id"
-	nodeInfos := fmt.Sprintf("SELECT * FROM node_info x INNER JOIN (%s) max_ids ON x.id = max_ids.max_id", maxIds)
-	stmt := fmt.Sprintf("SELECT %s FROM (%s) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id", fields, nodeInfos)
-	rows, _ := srv.DB.Query(stmt)
+	rows, _ := srv.DB.Query(`
+		SELECT ni.id, ni.node_id, nmi.hash, ip, tcp_port, remote_port, 
+			   p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
+			   protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, 
+			   first_status_at, last_status_at, dao_fork 
+		FROM (SELECT * 
+			  FROM node_info x INNER JOIN (SELECT node_id as nid, MAX(id) as max_id 
+			  							   FROM node_info 
+			  							   GROUP BY node_id
+			  							   ) max_ids ON x.id = max_ids.max_id
+			  ) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id
+		`)
 
 	type sqlObjects struct {
 		p2pVersion      sql.NullInt64
@@ -133,7 +135,7 @@ func (srv *Server) loadKnownNodeInfos() {
 
 	for rows.Next() {
 		var (
-			rowid      uint64
+			rowId      uint64
 			nodeid     string
 			hash       string
 			ip         string
@@ -141,7 +143,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			remotePort uint16
 			sqlObj     sqlObjects
 		)
-		err := rows.Scan(&rowid, &nodeid, &hash, &ip, &tcpPort, &remotePort,
+		err := rows.Scan(&rowId, &nodeid, &hash, &ip, &tcpPort, &remotePort,
 			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort,
 			&sqlObj.firstHelloAt, &sqlObj.lastHelloAt, &sqlObj.protocolVersion, &sqlObj.networkId,
 			&sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash,
@@ -153,11 +155,11 @@ func (srv *Server) loadKnownNodeInfos() {
 		// convert hex to NodeID
 		id, err := discover.HexID(nodeid)
 		if err != nil {
-			log.Error("Failed to parse node_id value from db", "rowid", rowid, "nodeid", nodeid, "err", err)
+			log.Error("Failed to parse node_id value from db", "rowId", rowId, "id", nodeid, "err", err)
 			continue
 		}
 		nodeInfo := &Info{
-			RowID:         rowid,
+			RowId:         rowId,
 			Keccak256Hash: hash,
 			IP:            ip,
 			TCPPort:       tcpPort,
@@ -196,7 +198,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.firstReceivedTd.String
 			_, ok := firstReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Error("Failed to parse first_received_td value from db", "rowid", rowid, "value", s)
+				log.Error("Failed to parse first_received_td value from db", "rowId", rowId, "value", s)
 			} else {
 				nodeInfo.FirstReceivedTd = NewTd(firstReceivedTd)
 			}
@@ -206,7 +208,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.lastReceivedTd.String
 			_, ok := lastReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Error("Failed to parse last_received_td value from db", "rowid", rowid, "value", s)
+				log.Error("Failed to parse last_received_td value from db", "rowId", rowId, "value", s)
 			} else {
 				nodeInfo.LastReceivedTd = NewTd(lastReceivedTd)
 			}
@@ -238,12 +240,12 @@ func (srv *Server) loadKnownNodeInfos() {
 }
 
 func (srv *Server) prepareAddNodeInfoStmt() error {
-	fields := []string{"node_id", "ip", "tcp_port", "remote_port", "p2p_version", "client_id", "caps", "listen_port",
-		"first_hello_at", "last_hello_at"}
-
-	stmt := fmt.Sprintf(`INSERT INTO node_info (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		strings.Join(fields, ", "))
-	pStmt, err := srv.DB.Prepare(stmt)
+	pStmt, err := srv.DB.Prepare(`
+		INSERT INTO node_info 
+			(node_id, ip, tcp_port, remote_port, 
+			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`)
 	if err != nil {
 		log.Error("Failed to prepare AddNodeInfo sql statement", "err", err)
 		return err
@@ -274,7 +276,11 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 }
 
 func (srv *Server) prepareUpdateNodeInfoStmt() error {
-	pStmt, err := srv.DB.Prepare("UPDATE node_info SET remote_port=?, last_hello_at=? WHERE id=?")
+	pStmt, err := srv.DB.Prepare(`
+		UPDATE node_info 
+		SET remote_port=?, last_hello_at=? 
+		WHERE id=?
+		`)
 
 	if err != nil {
 		log.Error("Failed to prepare UpdateNodeInfo sql statement", "err", err)
@@ -296,7 +302,7 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	lastHelloAt := newInfo.LastHelloAt.Float64()
-	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, lastHelloAt, newInfo.RowID)
+	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, lastHelloAt, newInfo.RowId)
 	if err != nil {
 		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
 	} else {
@@ -305,14 +311,14 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 }
 
 func (srv *Server) prepareAddNodeMetaInfoStmt() error {
-	var updateFields []string
-	fields := []string{"node_id", "hash", "dial_count", "accept_count", "too_many_peers_count"}
-	for _, f := range fields[2:] {
-		updateFields = append(updateFields, fmt.Sprintf("%s=%s+VALUES(%s)", f, f, f))
-	}
-	stmt := fmt.Sprintf(`INSERT INTO node_meta_info (%s) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE %s`,
-		strings.Join(fields, ", "), strings.Join(updateFields, ", "))
-	pStmt, err := srv.DB.Prepare(stmt)
+	pStmt, err := srv.DB.Prepare(`
+		INSERT INTO node_meta_info (node_id, hash, dial_count, accept_count, too_many_peers_count) 
+		VALUES (?, ?, ?, ?, ?) 
+		ON DUPLICATE KEY UPDATE 
+		dial_count=dial_count+VALUES(dial_count), 
+		accept_count=accept_count+VALUES(accept_count), 
+		too_many_peers_count=too_many_peers_count+VALUES(too_many_peers_count)
+		`)
 	if err != nil {
 		log.Error("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
 		return err
@@ -339,7 +345,11 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 }
 
 func (srv *Server) prepareGetRowID() error {
-	pStmt, err := srv.DB.Prepare("SELECT MAX(id) FROM node_info WHERE node_id=?")
+	pStmt, err := srv.DB.Prepare(`
+		SELECT MAX(id) 
+		FROM node_info 
+		WHERE node_id=?
+		`)
 	if err != nil {
 		log.Error("Failed to prepare GetRowID sql statement", "err", err)
 		return err
@@ -357,14 +367,14 @@ func (srv *Server) getRowID(nodeid string) uint64 {
 		return 0
 	}
 
-	var rowID uint64
-	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowID)
+	var rowId uint64
+	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowId)
 	if err != nil {
 		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
 		return 0
 	} else {
-		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowid", rowID)
-		return rowID
+		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowId", rowId)
+		return rowId
 	}
 }
 
