@@ -134,6 +134,11 @@ var (
 		Name:  "nomaxpeers",
 		Usage: "Ignore/overwrite MaxPeers to allow unlimited number of peer connections",
 	}
+	DialFreqFlag = cli.IntFlag{
+		Name:  "dialfreq",
+		Usage: "Frequency of re-dialing static nodes (in seconds)",
+		Value: 30,
+	}
 	BlacklistFlag = cli.StringFlag{
 		Name:  "blacklist",
 		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
@@ -822,6 +827,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(NoMaxPeersFlag.Name) {
 		cfg.NoMaxPeers = true
+	}
+	if ctx.GlobalIsSet(DialFreqFlag.Name) {
+		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
