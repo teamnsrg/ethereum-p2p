@@ -40,7 +40,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto/ecies"
 	"github.com/teamnsrg/go-ethereum/crypto/secp256k1"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
-	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -103,14 +102,14 @@ func (t *rlpx) WriteMsg(msg Msg) error {
 	return t.rw.WriteMsg(msg)
 }
 
-func (t *rlpx) close(err error, peer discover.NodeID) {
+func (t *rlpx) close(err error) {
 	t.wmu.Lock()
 	defer t.wmu.Unlock()
 	// Tell the remote end why we're disconnecting if possible.
 	if t.rw != nil {
 		if r, ok := err.(DiscReason); ok && r != DiscNetworkError {
 			t.fd.SetWriteDeadline(time.Now().Add(discWriteTimeout))
-			SendDEVp2p(t.rw, discMsg, r, peer)
+			SendItems(t.rw, discMsg, r)
 		}
 	}
 	t.fd.Close()
@@ -130,7 +129,7 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (thei
 		return nil, nil, err
 	}
 	werr := make(chan error, 1)
-	go func() { werr <- SendDEVp2p(t.rw, handshakeMsg, our, peer) }()
+	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
 	if err := <-werr; err != nil {
 		return nil, nil, fmt.Errorf("write error: %v", err)
 	}
@@ -149,7 +148,6 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, nil, fmt.Errorf("message too big")
 	}
-	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
 		// spec and we send it ourself if the posthanshake checks fail.
@@ -157,25 +155,15 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", peer)
 		return nil, nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
-		var emptyMsgObj []interface{}
-		if int(msg.Code) < len(devp2pCodeToString) {
-			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
-		} else {
-			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
-		}
 		return nil, nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
 		return nil, nil, err
 	}
-
-	log.Proto("<<"+devp2pCodeToString[msg.Code], "receivedAt", unixTime, "obj", &hs, "size", int(msg.Size), "peer", hs.ID)
 	if (hs.ID == discover.NodeID{}) {
 		return nil, nil, DiscInvalidIdentity
 	}

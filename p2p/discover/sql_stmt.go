@@ -1,20 +1,18 @@
 package discover
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 )
 
 func (t *udp) prepareAddNeighborStmt() error {
-	fields := []string{"node_id", "hash", "ip", "tcp_port", "udp_port", "first_received_at", "last_received_at"}
-	updateFields := "last_received_at=VALUES(last_received_at), count=count+1"
-
-	stmt := fmt.Sprintf(`INSERT INTO neighbors (%s) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE %s`,
-		strings.Join(fields, ", "), updateFields)
-	pStmt, err := t.sqldb.Prepare(stmt)
+	pStmt, err := t.sqldb.Prepare(`
+		INSERT INTO neighbors (node_id, hash, ip, tcp_port, udp_port, first_received_at, last_received_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?) 
+		ON DUPLICATE KEY UPDATE 
+		last_received_at=VALUES(last_received_at), 
+		count=count+1
+		`)
 	if err != nil {
 		log.Error("Failed to prepare AddNeighbor sql statement", "err", err)
 		return err
@@ -38,9 +36,9 @@ func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
 	udpPort := node.UDP
 	_, err := t.addNeighborStmt.Exec(nodeid, hash, ip, tcpPort, udpPort, unixTime, unixTime)
 	if err != nil {
-		log.Error("Failed to execute AddNeighbor sql statement", "node", node, "receivedAt", fmt.Sprintf("%f", unixTime), "err", err)
+		log.Error("Failed to execute AddNeighbor sql statement", "node", node, "receivedAt", unixTime, "err", err)
 	} else {
-		log.Debug("Executed AddNeighbor sql statement", "node", node, "receivedAt", fmt.Sprintf("%f", unixTime))
+		log.Debug("Executed AddNeighbor sql statement", "node", node, "receivedAt", unixTime)
 	}
 }
 
