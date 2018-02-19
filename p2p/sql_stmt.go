@@ -270,9 +270,9 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, lastHelloAt, lastHelloAt)
 	if err != nil {
-		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed AddNodeInfo sql statement", "id", nodeid, "newInfo", newInfo)
+		log.Debug("Executed AddNodeInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -305,9 +305,9 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	lastHelloAt := newInfo.LastHelloAt.Float64()
 	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, lastHelloAt, newInfo.RowId)
 	if err != nil {
-		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid, "newInfo", newInfo, "err", err)
+		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed UpdateNodeInfo sql statement", "id", nodeid, "newInfo", newInfo)
+		log.Debug("Executed UpdateNodeInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -339,9 +339,9 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 
 	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept), boolToInt(tooManyPeers))
 	if err != nil {
-		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
+		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
 	} else {
-		log.Debug("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
+		log.Debug("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
 	}
 }
 
@@ -371,10 +371,10 @@ func (srv *Server) getRowID(nodeid string) uint64 {
 	var rowId uint64
 	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowId)
 	if err != nil {
-		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
+		log.Error("Failed to execute GetRowID sql statement", "id", nodeid[:16], "err", err)
 		return 0
 	} else {
-		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowId", rowId)
+		log.Debug("Executed GetRowID sql statement", "id", nodeid[:16], "rowId", rowId)
 		return rowId
 	}
 }

@@ -797,6 +797,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
 				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 				nodeid := c.id.String()
+				log.Info("[DISC4]", "id", nodeid)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
 		}
@@ -809,10 +810,8 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 
-	// if sql database handle is available, update node information
-	if srv.DB != nil {
-		srv.storeNodeInfo(c, receivedAt, phs)
-	}
+	// update node information
+	srv.storeNodeInfo(c, receivedAt, phs)
 
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {

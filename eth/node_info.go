@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 )
@@ -22,6 +23,8 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 		LastStatusAt:    receivedAt,
 	}
 
+	log.Info("[STATUS]", "id", nodeid, "newInfo", newInfo)
+
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
@@ -35,7 +38,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			if pm.db != nil {
+				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			}
 		} else if isNewEthNode(currentInfo, newInfo) {
 			// a new entry, including address and DEVp2p info, is added to mysql db
 			currentInfo.FirstStatusAt = newInfo.FirstStatusAt
@@ -43,13 +48,17 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
-			if rowId := pm.getRowID(nodeid); rowId > 0 {
-				currentInfo.RowId = rowId
+			if pm.db != nil {
+				pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+				if rowId := pm.getRowID(nodeid); rowId > 0 {
+					currentInfo.RowId = rowId
+				}
 			}
 		} else {
-			// update eth info
-			pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			if pm.db != nil {
+				// update eth info
+				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			}
 		}
 	}
 }
@@ -61,6 +70,8 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 
 func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSupport int8) {
 	nodeid := id.String()
+
+	log.Info("[DAOFORK]", "id", nodeid, "daoForkSupport", daoForkSupport)
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
 		currentInfo.Lock()

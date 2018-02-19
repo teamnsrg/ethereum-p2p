@@ -240,7 +240,10 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+	if srv.DB != nil {
+		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+
+	}
 
 	// DEVp2p Hello
 	p2pVersion, clientId, listenPort := hs.Version, hs.Name, uint16(hs.ListenPort)
@@ -264,12 +267,16 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
+	log.Info("[HELLO]", "id", nodeid, "newInfo", newInfo)
+
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
-		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-		if rowId := srv.getRowID(nodeid); rowId > 0 {
-			newInfo.RowId = rowId
+		if srv.DB != nil {
+			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+			if rowId := srv.getRowID(nodeid); rowId > 0 {
+				newInfo.RowId = rowId
+			}
 		}
 
 		// add the new node as a static node
@@ -281,9 +288,11 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		if isNewNode(currentInfo, newInfo) {
 			// new entry to the mysql db should contain only the new address, DEVp2p info
 			// let Ethereum protocol update the Status info, if available.
-			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-			if rowId := srv.getRowID(nodeid); rowId > 0 {
-				newInfo.RowId = rowId
+			if srv.DB != nil {
+				srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+				if rowId := srv.getRowID(nodeid); rowId > 0 {
+					newInfo.RowId = rowId
+				}
 			}
 
 			// if the node's listening port changed
@@ -299,7 +308,9 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			defer currentInfo.Unlock()
 			currentInfo.LastHelloAt = newInfo.LastHelloAt
 			currentInfo.RemotePort = newInfo.RemotePort
-			srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			if srv.DB != nil {
+				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			}
 		}
 	}
 }
@@ -324,7 +335,7 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding node to initial StaticNodes list", "node",
+			log.Debug("Adding node to initial StaticNodes list", "node",
 				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.StaticNodes = append(srv.StaticNodes, discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
@@ -345,8 +356,6 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding static node", "node",
-				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}

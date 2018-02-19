@@ -221,16 +221,14 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
-		if pm.db != nil && statusWrapper.isValidIncompatibleStatus() {
+		if statusWrapper.isValidIncompatibleStatus() {
 			pm.storeEthNodeInfo(p.ID(), &statusWrapper)
 		}
 		return err
 	}
 
-	// if sql database handle is available, update node information
-	if pm.db != nil {
-		pm.storeEthNodeInfo(p.ID(), &statusWrapper)
-	}
+	// update node information
+	pm.storeEthNodeInfo(p.ID(), &statusWrapper)
 
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
@@ -295,13 +293,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&status); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		// if sql database handle is available, update node information
-		if pm.db != nil {
-			pm.storeEthNodeInfo(p.ID(), &statusDataWrapper{
-				ReceivedAt: &msg.ReceivedAt,
-				Status:     &status,
-			})
-		}
+		// update node information
+		pm.storeEthNodeInfo(p.ID(), &statusDataWrapper{
+			ReceivedAt: &msg.ReceivedAt,
+			Status:     &status,
+		})
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
 	// Block header query, collect the requested headers and reply
