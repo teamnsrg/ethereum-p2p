@@ -267,16 +267,16 @@ func (srv *Server) closeSqlStmts() {
 func (srv *Server) loadKnownNodeInfos() {
 	rows, _ := srv.DB.Query(`
 		SELECT ni.id, ni.node_id, nmi.hash, ip, tcp_port, remote_port, 
-			   p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
-			   protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, 
-			   first_status_at, last_status_at, dao_fork 
+			p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
+			protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, 
+			first_status_at, last_status_at, dao_fork 
 		FROM (SELECT * 
 			  FROM node_info x INNER JOIN (SELECT node_id as nid, MAX(id) as max_id 
-			  							   FROM node_info 
-			  							   GROUP BY node_id
-			  							   ) max_ids ON x.id = max_ids.max_id
+										   FROM node_info 
+										   GROUP BY node_id
+										   ) max_ids ON x.id = max_ids.max_id
 			  ) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id
-		`)
+	`)
 	defer rows.Close()
 
 	type sqlObjects struct {
@@ -412,7 +412,7 @@ func (srv *Server) prepareAddNodeInfoStmt() error {
 			(node_id, ip, tcp_port, remote_port, 
 			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`)
+	`)
 	if err != nil {
 		log.Error("Failed to prepare AddNodeInfo sql statement", "err", err)
 		return err
@@ -447,7 +447,7 @@ func (srv *Server) prepareUpdateNodeInfoStmt() error {
 		UPDATE node_info 
 		SET remote_port=?, last_hello_at=? 
 		WHERE id=?
-		`)
+	`)
 
 	if err != nil {
 		log.Error("Failed to prepare UpdateNodeInfo sql statement", "err", err)
@@ -485,7 +485,7 @@ func (srv *Server) prepareAddNodeMetaInfoStmt() error {
 		dial_count=dial_count+VALUES(dial_count), 
 		accept_count=accept_count+VALUES(accept_count), 
 		too_many_peers_count=too_many_peers_count+VALUES(too_many_peers_count)
-		`)
+	`)
 	if err != nil {
 		log.Error("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
 		return err
@@ -516,7 +516,7 @@ func (srv *Server) prepareGetRowID() error {
 		SELECT MAX(id) 
 		FROM node_info 
 		WHERE node_id=?
-		`)
+	`)
 	if err != nil {
 		log.Error("Failed to prepare GetRowID sql statement", "err", err)
 		return err
