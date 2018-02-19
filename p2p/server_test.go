@@ -28,6 +28,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 )
 
 func init() {
@@ -309,6 +310,10 @@ func (tg taskgen) taskDone(t task, now time.Time) {
 func (tg taskgen) addStatic(*discover.Node) {
 }
 func (tg taskgen) removeStatic(*discover.Node) {
+}
+func (tg taskgen) setBlacklist(blacklist *netutil.Netlist) {
+}
+func (tg taskgen) setDialFreq(f int) {
 }
 
 type testTask struct {
