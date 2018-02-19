@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"sort"
 )
 
 const (

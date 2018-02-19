@@ -4,31 +4,27 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"math/big"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"math/big"
-	"time"
 )
 
 func (srv *Server) initSql() error {
-	if srv.MySQLName != "" {
+	if srv.MySQLName == "" {
+		log.Trace("No sql db connection info provided")
+	} else {
 		db, err := sql.Open("mysql", srv.MySQLName)
 		if err != nil {
 			log.Error("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
 			return err
 		}
 		log.Trace("Opened sql db handle", "database", srv.MySQLName)
-		err = db.Ping()
-		if err != nil {
+		if err := db.Ping(); err != nil {
 			log.Error("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
-			if err := db.Close(); err != nil {
-				log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
-			} else {
-				log.Trace("Closed sql db handle", "database", srv.MySQLName)
-			}
 			return err
 		}
 		log.Trace("Sql db connection passed ping test", "database", srv.MySQLName)
@@ -50,9 +46,16 @@ func (srv *Server) initSql() error {
 		if err := srv.prepareGetRowID(); err != nil {
 			return err
 		}
-	} else {
-		log.Trace("No sql db connection info provided")
 	}
+	return nil
+}
+
+func (srv *Server) closeDB(db *sql.DB) error {
+	if err := db.Close(); err != nil {
+		log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("Closed sql db handle", "database", srv.MySQLName)
 	return nil
 }
 
@@ -62,11 +65,7 @@ func (srv *Server) CloseSql() {
 		srv.closeSqlStmts()
 
 		// close db handle
-		if err := srv.DB.Close(); err != nil {
-			log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
-		} else {
-			log.Trace("Closed sql db handle", "database", srv.MySQLName)
-		}
+		srv.closeDB(srv.DB)
 	}
 }
 
