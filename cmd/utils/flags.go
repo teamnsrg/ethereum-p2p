@@ -115,6 +115,14 @@ var (
 		Name:  "mysql",
 		Usage: "Connects to the specified database and update node information (username:password@tcp(ip:port)/db)",
 	}
+	BackupSQLFlag = cli.BoolFlag{
+		Name:  "backupsql",
+		Usage: "Makes a backup of the current MySQL db tables",
+	}
+	ResetSQLFlag = cli.BoolFlag{
+		Name:  "resetsql",
+		Usage: "Makes a backup of the current MySQL db tables and resets them (if set, backupsql is automatically set)",
+	}
 	MaxNumFileFlag = cli.Uint64Flag{
 		Name:  "maxnumfile",
 		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
@@ -818,6 +826,13 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 	if ctx.GlobalIsSet(MySQLFlag.Name) {
 		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)
+	}
+	if ctx.GlobalIsSet(BackupSQLFlag.Name) {
+		cfg.BackupSQL = true
+	}
+	if ctx.GlobalIsSet(ResetSQLFlag.Name) {
+		cfg.ResetSQL = true
+		cfg.BackupSQL = true
 	}
 	if ctx.GlobalIsSet(MaxDialFlag.Name) {
 		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)

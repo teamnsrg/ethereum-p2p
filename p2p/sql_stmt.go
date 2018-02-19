@@ -2,8 +2,10 @@ package p2p
 
 import (
 	"database/sql"
+	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -28,6 +30,30 @@ func (srv *Server) initSql() error {
 		log.Trace("Sql db connection passed ping test", "database", srv.MySQLName)
 		srv.DB = db
 
+		// backup tables
+		// If ResetSQL is true, BackupSQL should be true as well
+		// check both just in case
+		if srv.BackupSQL || srv.ResetSQL {
+			sqlNameParsed := strings.Split(srv.MySQLName, "/")
+			dbName := sqlNameParsed[len(sqlNameParsed)-1]
+			for _, tableName := range []string{"neighbors", "node_meta_info", "node_info"} {
+				if err := srv.backupTable(dbName, tableName); err != nil {
+					return err
+				}
+			}
+		}
+
+		// reset tables
+		if srv.ResetSQL {
+			if err := srv.dropTables(); err != nil {
+				return err
+			}
+		}
+
+		if err := srv.createTables(); err != nil {
+			return err
+		}
+
 		// fill KnownNodesInfos with info from the mysql database
 		srv.loadKnownNodeInfos()
 
@@ -48,12 +74,143 @@ func (srv *Server) initSql() error {
 	return nil
 }
 
-func (srv *Server) closeDB(db *sql.DB) error {
-	if err := db.Close(); err != nil {
-		log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+func (srv *Server) checkIfTableExists(dbName string, tableName string) (int, error) {
+	var result int
+	err := srv.DB.QueryRow(`
+		SELECT COUNT(*) 
+		FROM information_schema.TABLES 
+		WHERE (TABLE_SCHEMA = ?) AND (TABLE_NAME = ?)
+	`, dbName, tableName).Scan(&result)
+	return result, err
+}
+
+func (srv *Server) backupTable(dbName string, tableName string) error {
+	// check if table exists
+	if result, err := srv.checkIfTableExists(dbName, tableName); err != nil {
+		log.Error(fmt.Sprintf("Failed to check if %s table exists", tableName), "database", srv.MySQLName, "err", err)
+		return err
+	} else if result == 0 {
+		log.Debug(tableName+" table not found. Skipping backup", "database", srv.MySQLName)
+		return nil
+	}
+	log.Trace(tableName+" table exists", "database", srv.MySQLName)
+
+	// flush table
+	if _, err := srv.DB.Exec(fmt.Sprintf(`
+		FLUSH TABLES %s WITH READ LOCK
+	`, tableName)); err != nil {
+		log.Error(fmt.Sprintf("Failed to lock and flush %s table", tableName), "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("Closed sql db handle", "database", srv.MySQLName)
+	log.Trace(tableName+" table locked and flushed", "database", srv.MySQLName)
+
+	// format backup file name
+	tableNameCamel := ""
+	for _, s := range strings.Split(tableName, "_") {
+		tableNameCamel += strings.Title(s)
+	}
+	currentTime := time.Now().UTC().Format("060102-150405")
+	fileName := fmt.Sprintf("%s-%s.sql", tableNameCamel, currentTime)
+
+	// create a table backup
+	if _, err := srv.DB.Exec(fmt.Sprintf(`
+		SELECT * INTO OUTFILE '/backup/%s' FROM %s
+	`, fileName, tableName)); err != nil {
+		log.Error(fmt.Sprintf("Failed to create %s", fileName), "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace(fileName+" created", "database", srv.MySQLName)
+
+	// unlock table
+	if _, err := srv.DB.Exec(`
+		UNLOCK TABLES
+	`); err != nil {
+		log.Error(fmt.Sprintf("Failed to unlock %s table", tableName), "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace(tableName+" table unlocked", "database", srv.MySQLName)
+	return nil
+}
+
+func (srv *Server) dropTables() error {
+	if _, err := srv.DB.Exec(`
+		DROP TABLE IF EXISTS node_info, node_meta_info, neighbors
+	`); err != nil {
+		log.Error("Failed to drop sql tables", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("Existing sql tables dropped", "database", srv.MySQLName)
+	return nil
+}
+
+func (srv *Server) createTables() error {
+	// create neighbors table
+	if _, err := srv.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS neighbors (
+			node_id VARCHAR(128) NOT NULL, 
+			hash VARCHAR(64) NOT NULL, 
+			ip VARCHAR(39) NOT NULL, 
+			tcp_port SMALLINT unsigned NOT NULL, 
+			udp_port SMALLINT unsigned NOT NULL, 
+			first_received_at DECIMAL(18,6) NOT NULL, 
+			last_received_at DECIMAL(18,6) NOT NULL, 
+			count BIGINT unsigned DEFAULT 1, 
+			PRIMARY KEY (node_id, ip, tcp_port, udp_port)
+		)
+	`); err != nil {
+		log.Error("Failed to create neighbors table", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("neighbors table already exists or is newly created", "database", srv.MySQLName)
+
+	// create node_meta_info table
+	if _, err := srv.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS node_meta_info (
+			node_id VARCHAR(128) NOT NULL, 
+			hash VARCHAR(64) NOT NULL, 
+			dial_count BIGINT unsigned DEFAULT 0, 
+			accept_count BIGINT unsigned DEFAULT 0, 
+			too_many_peers_count BIGINT unsigned DEFAULT 0, 
+			PRIMARY KEY (node_id)
+		)
+	`); err != nil {
+		log.Error("Failed to create node_meta_info table", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("node_meta_info table already exists or is newly created", "database", srv.MySQLName)
+
+	// create node_info table
+	if _, err := srv.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS node_info (
+			id BIGINT unsigned NOT NULL AUTO_INCREMENT, 
+			node_id VARCHAR(128) NOT NULL, 
+			ip VARCHAR(39) NOT NULL, 
+			tcp_port SMALLINT unsigned NOT NULL, 
+			remote_port SMALLINT unsigned NOT NULL, 
+			p2p_version BIGINT unsigned NULL, 
+			client_id VARCHAR(255) NULL, 
+			caps VARCHAR(255) NULL, 
+			listen_port SMALLINT unsigned NULL, 
+			first_hello_at DECIMAL(18,6) NULL, 
+			last_hello_at DECIMAL(18,6) NULL, 
+			protocol_version BIGINT unsigned NULL, 
+			network_id BIGINT unsigned NULL, 
+			first_received_td DECIMAL(65) NULL, 
+			last_received_td DECIMAL(65) NULL, 
+			best_hash VARCHAR(64) NULL, 
+			genesis_hash VARCHAR(64) NULL, 
+			dao_fork TINYINT NULL, 
+			first_status_at DECIMAL(18,6) NULL, 
+			last_status_at DECIMAL(18,6) NULL, 
+			PRIMARY KEY (id), 
+			KEY (node_id)
+		)
+	`); err != nil {
+		log.Error("Failed to create node_info table", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("node_info table already exists or is newly created", "database", srv.MySQLName)
+
 	return nil
 }
 
@@ -65,6 +222,15 @@ func (srv *Server) CloseSql() {
 		// close db handle
 		srv.closeDB(srv.DB)
 	}
+}
+
+func (srv *Server) closeDB(db *sql.DB) error {
+	if err := db.Close(); err != nil {
+		log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("Closed sql db handle", "database", srv.MySQLName)
+	return nil
 }
 
 func (srv *Server) closeSqlStmts() {
@@ -111,6 +277,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			  							   ) max_ids ON x.id = max_ids.max_id
 			  ) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id
 		`)
+	defer rows.Close()
 
 	type sqlObjects struct {
 		p2pVersion      sql.NullInt64

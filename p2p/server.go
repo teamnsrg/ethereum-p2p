@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/discv5"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
-	"strings"
 )
 
 const (
@@ -56,6 +56,13 @@ var errServerStopped = errors.New("server stopped")
 type Config struct {
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
+
+	// BackupSQL makes a backup of the current MySQL db tables.
+	BackupSQL bool
+
+	// ResetSQL makes a backup of the current MySQL db tables and resets them.
+	// If set true, BackupSQL should be set true as well.
+	ResetSQL bool
 
 	// MaxDial is the maximum number of concurrently dialing outbound connections.
 	MaxDial int
