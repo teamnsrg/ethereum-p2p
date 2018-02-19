@@ -35,7 +35,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			pm.addEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 		} else if isNewEthNode(currentInfo, newInfo) {
 			// a new entry, including address and DEVp2p info, is added to mysql db
 			currentInfo.FirstStatusAt = newInfo.FirstStatusAt
@@ -43,13 +43,13 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			if rowID := pm.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID
 			}
 		} else {
 			// update eth info
-			pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 		}
 	}
 }
@@ -68,11 +68,11 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSu
 		if currentInfo.DAOForkSupport == 0 {
 			// add DAOForkSupport flag to existing entry for the first time
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 		} else if currentInfo.DAOForkSupport != daoForkSupport {
 			// DAOForkSupport flag value changed. add a new entry to mysql db
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{nodeid, currentInfo})
+			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			if rowID := pm.getRowID(nodeid); rowID > 0 {
 				currentInfo.RowID = rowID
 			}

@@ -181,7 +181,7 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
-	sqldb				*sql.DB
+	sqldb           *sql.DB
 	addNeighborStmt *sql.Stmt
 	blacklist       *netutil.Netlist
 

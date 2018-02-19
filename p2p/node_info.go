@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
@@ -60,7 +59,7 @@ type Info struct {
 	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
 	IP            string `json:"ip"`            // IP address of the node
 	TCPPort       uint16 `json:"tcpPort"`       // TCP listening port for RLPx
-	RemotePort    uint16 `json:"tcpPort"`       // Remote TCP port of the most recent connection
+	RemotePort    uint16 `json:"remotePort"`    // Remote TCP port of the most recent connection
 
 	// DEVp2p Hello info
 	P2PVersion   uint64    `json:"p2pVersion,omitempty"`   // DEVp2p protocol version
