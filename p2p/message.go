@@ -142,7 +142,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...dis
 	}
 
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
-	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", int(size), "peer", peer)
+	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
@@ -158,12 +158,15 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 		peer = peers[0]
 	}
 
-	msgType := devp2pCodeToString[msgcode]
-	if msgcode == discMsg {
-		data = discReasonToString[data.(DiscReason)]
+	msgType := "DEVP2P_UNKNOWN"
+	if msgcode < uint64(len(devp2pCodeToString)) {
+		msgType = devp2pCodeToString[msgcode]
+	}
+	if i, ok := data.(DiscReason); ok {
+		data = discReasonToString[i]
 	}
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
-	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", int(size), "peer", peer)
+	log.Proto(">>"+msgType, "sentAt", unixTime, "obj", data, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
