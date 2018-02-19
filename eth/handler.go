@@ -98,11 +98,19 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		noMorePeers: make(chan struct{}),
 		quitSync:    make(chan struct{}),
 	}
+	// Figure out whether to allow fast sync or not
+	if mode == downloader.FastSync && blockchain.CurrentBlock().NumberU64() > 0 {
+		log.Warn("Blockchain not empty, fast sync disabled")
+		mode = downloader.FullSync
+	}
+	if mode == downloader.FastSync {
+		manager.fastSync = uint32(1)
+	}
 	// Initiate a sub-protocol for every implemented version we can handle
 	manager.SubProtocols = make([]p2p.Protocol, 0, len(ProtocolVersions))
 	for i, version := range ProtocolVersions {
 		// Skip protocol version if incompatible with the mode of operation
-		if version < eth63 {
+		if mode == downloader.FastSync && version < eth63 {
 			continue
 		}
 		// Compatible; initialise the sub-protocol

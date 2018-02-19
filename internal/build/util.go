@@ -186,3 +186,19 @@ func ExpandPackagesNoVendor(patterns []string) []string {
 	}
 	return patterns
 }
+
+func FilterPackages(packages []string) []string {
+	var filtered []string
+	for _, line := range packages {
+		if includePackage(line) {
+			filtered = append(filtered, strings.TrimSpace(line))
+		}
+	}
+	return filtered
+}
+
+func includePackage(line string) bool {
+	return !strings.Contains(line, "/swarm") && !strings.Contains(line, "/p2p/simulations") &&
+		!strings.Contains(line, "/eth/downloader") && !strings.Contains(line, "/accounts/keystore") &&
+		!strings.Contains(line, "/contracts/")
+}
