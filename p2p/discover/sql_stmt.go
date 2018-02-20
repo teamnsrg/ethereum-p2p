@@ -36,9 +36,9 @@ func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
 	udpPort := node.UDP
 	_, err := t.addNeighborStmt.Exec(nodeid, hash, ip, tcpPort, udpPort, unixTime, unixTime)
 	if err != nil {
-		log.Error("Failed to execute AddNeighbor sql statement", "node", node, "receivedAt", unixTime, "err", err)
+		log.Error("Failed to execute AddNeighbor sql statement", "err", err)
 	} else {
-		log.Debug("Executed AddNeighbor sql statement", "node", node, "receivedAt", unixTime)
+		log.Trace("Executed AddNeighbor sql statement")
 	}
 }
 
