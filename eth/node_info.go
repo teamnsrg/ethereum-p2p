@@ -25,7 +25,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 		LastStatusAt:    receivedAt,
 	}
 
-	log.Info("[STATUS]", "id", nodeid, "newInfo", newInfo)
+	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "info", newInfo)
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
 		currentInfo.Lock()

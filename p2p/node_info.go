@@ -111,6 +111,14 @@ func (k *Info) String() string {
 	return s
 }
 
+func (k *Info) Hello() string {
+	return ""
+}
+
+func (k *Info) Status() string {
+	return ""
+}
+
 func (k *Info) MarshalJSON() ([]byte, error) {
 	type Alias Info
 	temp := &struct {
@@ -270,7 +278,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
-	log.Info("[HELLO]", "id", nodeid, "newInfo", newInfo)
+	log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "info", newInfo)
 
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()

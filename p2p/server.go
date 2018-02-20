@@ -812,7 +812,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
 			nodeid := c.id.String()
-			log.Info("[DISC4]", "id", nodeid, "receivedAt", receivedAt)
+			log.Info("[DISC4]", "receivedAt", receivedAt, "id", nodeid)
 			if srv.DB != nil {
 				nodeInfo, dial, accept := srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
