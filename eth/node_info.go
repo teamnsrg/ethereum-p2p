@@ -9,10 +9,6 @@ import (
 
 func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWrapper) {
 	id := p.ID()
-	connType := "dial"
-	if p.IsInbound() {
-		connType = "accept"
-	}
 	nodeid := id.String()
 	status := statusWrapper.Status
 	receivedTd := p2p.NewTd(status.TD)
@@ -69,7 +65,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 		}
 		infoStr = currentInfo.EthSummary()
 	}
-	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", infoStr)
+	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "info", infoStr)
 
 }
 
@@ -80,10 +76,6 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 
 func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time, daoForkSupport int8) {
 	id := p.ID()
-	connType := "dial"
-	if p.IsInbound() {
-		connType = "accept"
-	}
 	nodeid := id.String()
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
@@ -102,5 +94,5 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 			}
 		}
 	}
-	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "support", daoForkSupport > 0)
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "support", daoForkSupport > 0)
 }

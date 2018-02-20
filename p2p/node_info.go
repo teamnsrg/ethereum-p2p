@@ -269,11 +269,6 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 	}
 
-	connType := "dial"
-	if accept {
-		connType = "accept"
-	}
-
 	// DEVp2p Hello
 	p2pVersion, clientId, listenPort := hs.Version, hs.Name, uint16(hs.ListenPort)
 	var capsArray []string
@@ -344,7 +339,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			infoStr = currentInfo.P2PSummary()
 		}
 	}
-	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "conn", connType, "info", infoStr)
+	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "conn", c.flags, "info", infoStr)
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {

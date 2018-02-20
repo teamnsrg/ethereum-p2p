@@ -825,15 +825,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
-			connType := "dial"
-			if !dial && !accept {
-				if c.isInbound() {
-					connType = "accept"
-				}
-			} else if accept {
-				connType = "accept"
-			}
-			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", connType)
+			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", c.flags)
 		}
 		c.close(err)
 		return
