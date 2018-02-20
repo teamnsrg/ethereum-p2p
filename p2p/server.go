@@ -631,6 +631,23 @@ running:
 			}
 		case pd := <-srv.delpeer:
 			// A peer disconnected.
+			// if sql db available, remotedRequested, and the discReason is TooManyPeers
+			// update the node meta info's too many peer counter
+			// TODO: split the too_many_peer_counter into 2 fields, one for p2p another for eth
+			/*
+				if srv.DB != nil && pd.requested {
+					if r, ok := pd.err.(DiscReason); ok && r == DiscTooManyPeers {
+						var dial, accept bool
+						if pd.rw.flags&inboundConn != 0 || pd.rw.flags&trustedConn != 0 {
+							accept = true
+						} else {
+							dial = true
+						}
+						id := pd.ID()
+						nodeInfo := srv.KnownNodeInfos.Infos()[id]
+						srv.addNodeMetaInfo(id.String(), nodeInfo.Keccak256Hash, dial, accept, true)
+					}
+				}*/
 			d := common.PrettyDuration(mclock.Now() - pd.created)
 			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
@@ -793,11 +810,11 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		if srv.DB != nil {
-			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
-				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
-				nodeid := c.id.String()
-				log.Info("[DISC4]", "id", nodeid)
+		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+			nodeid := c.id.String()
+			log.Info("[DISC4]", "id", nodeid, "receivedAt", receivedAt)
+			if srv.DB != nil {
+				nodeInfo, dial, accept := srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
 		}

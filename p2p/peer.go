@@ -283,6 +283,10 @@ func (p *Peer) handle(msg Msg) error {
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
+		if reason[0] == DiscTooManyPeers {
+			nodeid := p.ID().String()
+			log.Info("[DISC4]", "id", nodeid, "receivedAt", msg.ReceivedAt)
+		}
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
