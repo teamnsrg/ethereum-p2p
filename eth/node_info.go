@@ -102,5 +102,5 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 			}
 		}
 	}
-	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "daoForkSupport", daoForkSupport)
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "support", daoForkSupport > 0)
 }
