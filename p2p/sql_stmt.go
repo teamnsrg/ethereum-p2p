@@ -272,7 +272,7 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	if err != nil {
 		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed AddNodeInfo sql statement", "id", nodeid[:16])
+		log.Trace("Executed AddNodeInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -307,7 +307,7 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	if err != nil {
 		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed UpdateNodeInfo sql statement", "id", nodeid[:16])
+		log.Trace("Executed UpdateNodeInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -341,7 +341,7 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 	if err != nil {
 		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
 	} else {
-		log.Debug("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
+		log.Trace("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
 	}
 }
 
@@ -374,7 +374,7 @@ func (srv *Server) getRowID(nodeid string) uint64 {
 		log.Error("Failed to execute GetRowID sql statement", "id", nodeid[:16], "err", err)
 		return 0
 	} else {
-		log.Debug("Executed GetRowID sql statement", "id", nodeid[:16], "rowId", rowId)
+		log.Trace("Executed GetRowID sql statement", "id", nodeid[:16])
 		return rowId
 	}
 }

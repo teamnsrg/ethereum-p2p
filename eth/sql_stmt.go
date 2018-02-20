@@ -87,7 +87,7 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 	if err != nil {
 		log.Error("Failed to execute AddEthInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed AddEthInfo sql statement", "id", nodeid[:16])
+		log.Trace("Executed AddEthInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -123,7 +123,7 @@ func (pm *ProtocolManager) updateEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapp
 	if err != nil {
 		log.Error("Failed to execute UpdateEthInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed UpdateEthInfo sql statement", "id", nodeid[:16])
+		log.Trace("Executed UpdateEthInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -168,7 +168,7 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 	if err != nil {
 		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed AddEthNodeInfo sql statement", "id", nodeid[:16])
+		log.Trace("Executed AddEthNodeInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -199,9 +199,9 @@ func (pm *ProtocolManager) addDAOForkSupport(newInfoWrapper *p2p.KnownNodeInfosW
 	nodeid := newInfoWrapper.NodeId
 	_, err := pm.addDAOForkSupportStmt.Exec(newInfo.DAOForkSupport, newInfo.RowId)
 	if err != nil {
-		log.Error("Failed to execute AddDAOForkSupport sql statement", "id", nodeid[:16], "daoForkSupport", newInfo.DAOForkSupport, "err", err)
+		log.Error("Failed to execute AddDAOForkSupport sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Debug("Executed AddDAOForkSupport sql statement", "id", nodeid[:16], "daoForkSupport", newInfo.DAOForkSupport)
+		log.Trace("Executed AddDAOForkSupport sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -218,7 +218,7 @@ func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
 		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
 		return 0
 	} else {
-		log.Debug("Executed GetRowID sql statement", "id", nodeid, "rowId", rowId)
+		log.Trace("Executed GetRowID sql statement", "id", nodeid)
 		return rowId
 	}
 }
