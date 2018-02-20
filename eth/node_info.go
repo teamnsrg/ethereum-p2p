@@ -78,7 +78,7 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 		oldInfo.GenesisHash != newInfo.GenesisHash
 }
 
-func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt *time.Time, daoForkSupport int8) {
+func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time, daoForkSupport int8) {
 	id := p.ID()
 	connType := "dial"
 	if p.IsInbound() {

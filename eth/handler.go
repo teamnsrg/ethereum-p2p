@@ -370,13 +370,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if err := misc.VerifyDAOHeaderExtraData(pm.chainconfig, headers[0]); err != nil {
 					p.Log().Debug("Verified to be on the other side of the DAO fork, dropping")
 					if pm.db != nil {
-						pm.storeDAOForkSupportInfo(p, &msg.ReceivedAt, -1)
+						pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, -1)
 					}
 					return err
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
 				if pm.db != nil {
-					pm.storeDAOForkSupportInfo(p, &msg.ReceivedAt, 1)
+					pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, 1)
 				}
 				return p2p.DiscQuitting
 			}

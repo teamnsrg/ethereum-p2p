@@ -833,7 +833,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 			} else if accept {
 				connType = "accept"
 			}
-			log.Info("[DISC4]", "receivedAt", receivedAt, "id", nodeid, "conn", connType)
+			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", connType)
 		}
 		c.close(err)
 		return

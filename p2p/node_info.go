@@ -344,7 +344,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			infoStr = currentInfo.P2PSummary()
 		}
 	}
-	log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", infoStr)
+	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "conn", connType, "info", infoStr)
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {
