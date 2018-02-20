@@ -126,12 +126,12 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (thei
 	// as the error so it can be tracked elsewhere.
 	// Read their handshake before sending ours, to prevent them from rejecting us early
 	if their, receivedAt, err = readProtocolHandshake(t.rw, peer); err != nil {
-		return nil, nil, err
+		return nil, receivedAt, err
 	}
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
 	if err := <-werr; err != nil {
-		return nil, nil, fmt.Errorf("write error: %v", err)
+		return nil, receivedAt, fmt.Errorf("write error: %v", err)
 	}
 	// If the protocol version supports Snappy encoding, upgrade immediately
 	t.rw.snappy = their.Version >= snappyProtocolVersion
