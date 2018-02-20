@@ -29,8 +29,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 		LastStatusAt:    receivedAt,
 	}
 
+	var infoStr string
 	if currentInfo, ok := pm.knownNodeInfos[id]; !ok {
-		log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", newInfo)
+		infoStr = newInfo.EthSummary()
 	} else {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
@@ -66,8 +67,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			}
 		}
-		log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", currentInfo)
+		infoStr = currentInfo.EthSummary()
 	}
+	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", infoStr)
 
 }
 

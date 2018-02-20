@@ -111,12 +111,26 @@ func (k *Info) String() string {
 	return s
 }
 
+func (k *Info) Address() string {
+	return fmt.Sprintf("IP:%v TCPPort:%v RemotePort:%v", k.IP, k.TCPPort, k.RemotePort)
+}
+
 func (k *Info) Hello() string {
-	return ""
+	return fmt.Sprintf("P2PVersion:%v ClientId:%v Caps:%v ListenPort:%v",
+		k.P2PVersion, k.ClientId, k.Caps, k.ListenPort)
 }
 
 func (k *Info) Status() string {
-	return ""
+	return fmt.Sprintf("ProtocolVersion:%v NetworkId:%v Td:%v BestHash:%v GenesisHash:%v",
+		k.ProtocolVersion, k.NetworkId, k.LastReceivedTd, k.BestHash, k.GenesisHash)
+}
+
+func (k *Info) P2PSummary() string {
+	return fmt.Sprintf("RowID:%v %v %v", k.RowId, k.Address(), k.Hello())
+}
+
+func (k *Info) EthSummary() string {
+	return fmt.Sprintf("%v %v", k.P2PSummary(), k.Status())
 }
 
 func (k *Info) MarshalJSON() ([]byte, error) {
@@ -282,6 +296,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
+	var infoStr string
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
@@ -291,13 +306,13 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				newInfo.RowId = rowId
 			}
 		}
+		infoStr = newInfo.P2PSummary()
 
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
 
 		// add new node info to in-memory
 		srv.KnownNodeInfos.Infos()[id] = newInfo
-		log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", newInfo)
 	} else {
 		if isNewNode(currentInfo, newInfo) {
 			// new entry to the mysql db should contain only the new address, DEVp2p info
@@ -308,6 +323,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 					newInfo.RowId = rowId
 				}
 			}
+			infoStr = newInfo.P2PSummary()
 
 			// if the node's listening port changed
 			// add it as a static node
@@ -325,9 +341,10 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			if srv.DB != nil {
 				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
+			infoStr = currentInfo.P2PSummary()
 		}
-		log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", currentInfo)
 	}
+	log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", infoStr)
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {
