@@ -223,7 +223,10 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 		tcpPort = remotePort
 		dial = true
 	}
-	unixTime := &UnixTime{Time: receivedAt}
+	var unixTime *UnixTime
+	if receivedAt != nil {
+		unixTime = &UnixTime{Time: receivedAt}
+	}
 	newNodeInfo := &Info{
 		Keccak256Hash: hash,
 		FirstHelloAt:  unixTime,
