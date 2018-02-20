@@ -272,6 +272,13 @@ func (c *conn) is(f connFlag) bool {
 	return c.flags&f != 0
 }
 
+func (c *conn) isInbound() bool {
+	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+		return true
+	}
+	return false
+}
+
 // Peers returns all connected peers.
 func (srv *Server) Peers() []*Peer {
 	var ps []*Peer
@@ -812,11 +819,21 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
 			nodeid := c.id.String()
-			log.Info("[DISC4]", "receivedAt", receivedAt, "id", nodeid)
+			var dial, accept bool
 			if srv.DB != nil {
-				nodeInfo, dial, accept := srv.getNodeAddress(c, nil)
+				var nodeInfo *Info
+				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
+			connType := "dial"
+			if !dial && !accept {
+				if c.isInbound() {
+					connType = "accept"
+				}
+			} else if accept {
+				connType = "accept"
+			}
+			log.Info("[DISC4]", "receivedAt", receivedAt, "id", nodeid, "conn", connType)
 		}
 		c.close(err)
 		return

@@ -222,13 +222,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
 		if statusWrapper.isValidIncompatibleStatus() {
-			pm.storeEthNodeInfo(p.ID(), &statusWrapper)
+			pm.storeEthNodeInfo(p, &statusWrapper)
 		}
 		return err
 	}
 
 	// update node information
-	pm.storeEthNodeInfo(p.ID(), &statusWrapper)
+	pm.storeEthNodeInfo(p, &statusWrapper)
 
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
@@ -294,7 +294,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// update node information
-		pm.storeEthNodeInfo(p.ID(), &statusDataWrapper{
+		pm.storeEthNodeInfo(p, &statusDataWrapper{
 			ReceivedAt: &msg.ReceivedAt,
 			Status:     &status,
 		})
@@ -370,13 +370,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if err := misc.VerifyDAOHeaderExtraData(pm.chainconfig, headers[0]); err != nil {
 					p.Log().Debug("Verified to be on the other side of the DAO fork, dropping")
 					if pm.db != nil {
-						pm.storeDAOForkSupportInfo(p.ID(), &msg.ReceivedAt, -1)
+						pm.storeDAOForkSupportInfo(p, &msg.ReceivedAt, -1)
 					}
 					return err
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
 				if pm.db != nil {
-					pm.storeDAOForkSupportInfo(p.ID(), &msg.ReceivedAt, 1)
+					pm.storeDAOForkSupportInfo(p, &msg.ReceivedAt, 1)
 				}
 				return p2p.DiscQuitting
 			}

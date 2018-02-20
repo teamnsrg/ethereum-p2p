@@ -183,6 +183,10 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
+func (p *Peer) IsInbound() bool {
+	return p.rw.isInbound()
+}
+
 func (p *Peer) Log() log.Logger {
 	return p.log
 }
@@ -285,7 +289,11 @@ func (p *Peer) handle(msg Msg) error {
 		rlp.Decode(msg.Payload, &reason)
 		if reason[0] == DiscTooManyPeers {
 			nodeid := p.ID().String()
-			log.Info("[DISC4]", "receivedAt", msg.ReceivedAt, "id", nodeid)
+			connType := "dial"
+			if p.rw.isInbound() {
+				connType = "accept"
+			}
+			log.Info("[DISC4]", "receivedAt", msg.ReceivedAt, "id", nodeid, "conn", connType)
 		}
 		return reason[0]
 	case msg.Code < baseProtocolLength:

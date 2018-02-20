@@ -5,10 +5,14 @@ import (
 
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
 )
 
-func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *statusDataWrapper) {
+func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWrapper) {
+	id := p.ID()
+	connType := "dial"
+	if p.IsInbound() {
+		connType = "accept"
+	}
 	nodeid := id.String()
 	status := statusWrapper.Status
 	receivedTd := p2p.NewTd(status.TD)
@@ -25,9 +29,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 		LastStatusAt:    receivedAt,
 	}
 
-	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "info", newInfo)
-
-	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
+	if currentInfo, ok := pm.knownNodeInfos[id]; !ok {
+		log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", newInfo)
+	} else {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
 		currentInfo.LastStatusAt = newInfo.LastStatusAt
@@ -62,7 +66,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
 			}
 		}
+		log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", currentInfo)
 	}
+
 }
 
 func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
@@ -70,10 +76,13 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 		oldInfo.GenesisHash != newInfo.GenesisHash
 }
 
-func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, receivedAt *time.Time, daoForkSupport int8) {
+func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt *time.Time, daoForkSupport int8) {
+	id := p.ID()
+	connType := "dial"
+	if p.IsInbound() {
+		connType = "accept"
+	}
 	nodeid := id.String()
-
-	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "daoForkSupport", daoForkSupport)
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
 		currentInfo.Lock()
@@ -91,4 +100,5 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, receivedA
 			}
 		}
 	}
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "daoForkSupport", daoForkSupport)
 }

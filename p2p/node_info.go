@@ -217,7 +217,7 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	}
 	// if inbound connection, resolve the node's listening port
 	// otherwise, remotePort is the listening port
-	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+	if c.isInbound() {
 		if tcpPort == 0 {
 			newNode := srv.ntab.Resolve(c.id)
 			// if the node address is resolved, set the tcpPort
@@ -253,7 +253,11 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	nodeid := id.String()
 	if srv.DB != nil {
 		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+	}
 
+	connType := "dial"
+	if accept {
+		connType = "accept"
 	}
 
 	// DEVp2p Hello
@@ -278,8 +282,6 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
-	log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "info", newInfo)
-
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
@@ -295,6 +297,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 
 		// add new node info to in-memory
 		srv.KnownNodeInfos.Infos()[id] = newInfo
+		log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", newInfo)
 	} else {
 		if isNewNode(currentInfo, newInfo) {
 			// new entry to the mysql db should contain only the new address, DEVp2p info
@@ -323,6 +326,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
 			}
 		}
+		log.Info("[HELLO]", "receivedAt", receivedAt, "id", nodeid, "conn", connType, "info", currentInfo)
 	}
 }
 
