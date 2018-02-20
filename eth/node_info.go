@@ -1,6 +1,8 @@
 package eth
 
 import (
+	"time"
+
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
@@ -68,10 +70,10 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 		oldInfo.GenesisHash != newInfo.GenesisHash
 }
 
-func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSupport int8) {
+func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, receivedAt *time.Time, daoForkSupport int8) {
 	nodeid := id.String()
 
-	log.Info("[DAOFORK]", "id", nodeid, "daoForkSupport", daoForkSupport)
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "daoForkSupport", daoForkSupport)
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
 		currentInfo.Lock()
