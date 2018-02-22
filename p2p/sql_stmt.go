@@ -99,8 +99,8 @@ func (srv *Server) backupTable(dbName string, tableName string) error {
 	for _, s := range strings.Split(tableName, "_") {
 		tableNameCamel += strings.Title(s)
 	}
-	currentTime := time.Now().UTC().Format("060102-150405")
-	fileName := fmt.Sprintf("%s-%s.sql", tableNameCamel, currentTime)
+	currentTime := time.Now().UTC().Format("20060102T150405Z07")
+	fileName := fmt.Sprintf("%s.sql-%s", tableNameCamel, currentTime)
 
 	// create a table backup
 	if _, err := srv.DB.Exec(fmt.Sprintf(`
