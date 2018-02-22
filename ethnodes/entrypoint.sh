@@ -1,4 +1,8 @@
 #!/bin/bash
+# Based on the Docker Official Image packaging for MySQL Community Server 5.7 docker-entrypoint.sh
+# Source: https://github.com/docker-library/mysql/blob/7b6d186052e268079972b4ea8c871f89161a899e/5.7/docker-entrypoint.sh
+# Changes:
+# - line 174 added
 set -eo pipefail
 shopt -s nullglob
 
@@ -167,11 +171,9 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 			echo "CREATE USER '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD' ;" | "${mysql[@]}"
 
 			if [ "$MYSQL_DATABASE" ]; then
-				#echo "GRANT RELOAD ON *.* TO '$MYSQL_USER'@'%' ;" | "${mysql[@]}"
-				#echo "GRANT CREATE, DROP, INSERT, UPDATE, SELECT, LOCK TABLES, FILE ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%' ;" | "${mysql[@]}"
-				#echo "GRANT RELOAD ON *.* TO '$MYSQL_USER'@'%' ;" | "${mysql[@]}"
 				echo "GRANT ALL ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%' ;" | "${mysql[@]}"
-				echo "GRANT RELOAD, FILE ON *.* TO '$MYSQL_USER'@'%' ;" | "${mysql[@]}"
+				# grant FILE privilege to the default user so that node-finder can make backups
+				echo "GRANT FILE ON *.* TO '$MYSQL_USER'@'%' ;" | "${mysql[@]}"
 			fi
 
 			echo 'FLUSH PRIVILEGES ;' | "${mysql[@]}"

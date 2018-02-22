@@ -1,5 +1,9 @@
 # Ethnodes - MySQL 5.7 Node Database
-## Required software: Docker, Docker Compose
+- Based on the Docker Official Image packaging for MySQL Community Server 5.7
+- Source: https://github.com/docker-library/mysql/tree/7b6d186052e268079972b4ea8c871f89161a899e/5.7
+## Required software:
+- Docker
+- Docker Compose
 ## Usage:
 1. Configure `.env`
     1. `MYSQL_USERNAME`

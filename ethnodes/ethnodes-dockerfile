@@ -1,3 +1,11 @@
+# Based on the Docker Official Image packaging for MySQL Community Server 5.7 Dockerfile
+# Source: https://github.com/docker-library/mysql/blob/7b6d186052e268079972b4ea8c871f89161a899e/5.7/Dockerfile
+# Changes:
+# - line 78: added /backup mount point
+# - line 81: entrypoint script name changed
+# - line 82: make sure the script is executable
+# - line 83: entrypoint script name changed
+# - line 85: entrypoint script name changed
 FROM debian:jessie
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
@@ -66,12 +74,15 @@ RUN { \
 # don't reverse lookup hostnames, they are usually another container
 	&& echo '[mysqld]\nskip-host-cache\nskip-name-resolve' > /etc/mysql/conf.d/docker.cnf
 
+# create mount points
 VOLUME ["/var/lib/mysql", "/backup"]
 
-COPY ethnodes-entrypoint.sh /usr/local/bin/
-RUN ln -s /usr/local/bin/ethnodes-entrypoint.sh /entrypoint.sh # backwards compat
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+# copy the entrypoint script and make it executable
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+RUN ln -s /usr/local/bin/entrypoint.sh /entrypoint.sh # backwards compat
+
+ENTRYPOINT ["entrypoint.sh"]
 
 EXPOSE 3306
 CMD ["mysqld"]
