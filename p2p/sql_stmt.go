@@ -94,15 +94,6 @@ func (srv *Server) backupTable(dbName string, tableName string) error {
 	}
 	log.Trace(tableName+" table exists", "database", srv.MySQLName)
 
-	// flush table
-	if _, err := srv.DB.Exec(fmt.Sprintf(`
-		FLUSH TABLES %s WITH READ LOCK
-	`, tableName)); err != nil {
-		log.Error(fmt.Sprintf("Failed to lock and flush %s table", tableName), "database", srv.MySQLName, "err", err)
-		return err
-	}
-	log.Trace(tableName+" table locked and flushed", "database", srv.MySQLName)
-
 	// format backup file name
 	tableNameCamel := ""
 	for _, s := range strings.Split(tableName, "_") {
@@ -119,15 +110,6 @@ func (srv *Server) backupTable(dbName string, tableName string) error {
 		return err
 	}
 	log.Trace(fileName+" created", "database", srv.MySQLName)
-
-	// unlock table
-	if _, err := srv.DB.Exec(`
-		UNLOCK TABLES
-	`); err != nil {
-		log.Error(fmt.Sprintf("Failed to unlock %s table", tableName), "database", srv.MySQLName, "err", err)
-		return err
-	}
-	log.Trace(tableName+" table unlocked", "database", srv.MySQLName)
 	return nil
 }
 
