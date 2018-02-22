@@ -58,7 +58,7 @@ func (pm *ProtocolManager) prepareAddEthInfoStmt() error {
 	pStmt, err := pm.db.Prepare(`
 		UPDATE node_info 
 		SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, 
-			best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? 
+			best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=?, status_count=1 
 		WHERE id=?
 	`)
 	if err != nil {
@@ -94,7 +94,7 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 func (pm *ProtocolManager) prepareUpdateEthInfoStmt() error {
 	pStmt, err := pm.db.Prepare(`
 		UPDATE node_info 
-		SET last_received_td=?, best_hash=?, last_status_at=? 
+		SET last_received_td=?, best_hash=?, last_status_at=?, status_count=status_count+1 
 		WHERE id=?
 		`)
 

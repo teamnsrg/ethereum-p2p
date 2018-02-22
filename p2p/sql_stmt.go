@@ -244,8 +244,8 @@ func (srv *Server) prepareAddNodeInfoStmt() error {
 	pStmt, err := srv.DB.Prepare(`
 		INSERT INTO node_info 
 			(node_id, ip, tcp_port, remote_port, 
-			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, hello_count) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 		`)
 	if err != nil {
 		log.Error("Failed to prepare AddNodeInfo sql statement", "err", err)
@@ -279,7 +279,7 @@ func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 func (srv *Server) prepareUpdateNodeInfoStmt() error {
 	pStmt, err := srv.DB.Prepare(`
 		UPDATE node_info 
-		SET remote_port=?, last_hello_at=? 
+		SET remote_port=?, last_hello_at=?, hello_count=hello_count+1 
 		WHERE id=?
 		`)
 
