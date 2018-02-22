@@ -151,7 +151,8 @@ func (srv *Server) createTables() error {
 			hash VARCHAR(64) NOT NULL, 
 			dial_count BIGINT unsigned DEFAULT 0, 
 			accept_count BIGINT unsigned DEFAULT 0, 
-			too_many_peers_count BIGINT unsigned DEFAULT 0, 
+			p2p_disc4_count bigint unsigned default 0, 
+			eth_disc4_count bigint unsigned default 0, 
 			PRIMARY KEY (node_id)
 		)
 	`); err != nil {
@@ -462,12 +463,13 @@ func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 
 func (srv *Server) prepareAddNodeMetaInfoStmt() error {
 	pStmt, err := srv.DB.Prepare(`
-		INSERT INTO node_meta_info (node_id, hash, dial_count, accept_count, too_many_peers_count) 
-		VALUES (?, ?, ?, ?, ?) 
+		INSERT INTO node_meta_info (node_id, hash, dial_count, accept_count, p2p_disc4_count, eth_disc4_count) 
+		VALUES (?, ?, ?, ?, ?, ?) 
 		ON DUPLICATE KEY UPDATE 
 		dial_count=dial_count+VALUES(dial_count), 
 		accept_count=accept_count+VALUES(accept_count), 
-		too_many_peers_count=too_many_peers_count+VALUES(too_many_peers_count)
+		p2p_disc4_count=p2p_disc4_count+values(p2p_disc4_count), 
+		eth_disc4_count=eth_disc4_count+values(eth_disc4_count)
 	`)
 	if err != nil {
 		log.Error("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
@@ -485,12 +487,22 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 		log.Crit("No prepared statement for AddNodeMetaInfo")
 		return
 	}
-
-	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept), boolToInt(tooManyPeers))
+	p2pDisc4, ethDisc4 := false, false
+	if tooManyPeers {
+		if dial || accept {
+			p2pDisc4 = true
+		} else {
+			ethDisc4 = true
+		}
+	}
+	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept),
+		boolToInt(p2pDisc4), boolToInt(ethDisc4))
 	if err != nil {
-		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers, "err", err)
+		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid,
+			"dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4, "err", err)
 	} else {
-		log.Debug("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid, "dial", dial, "accept", accept, "tooManyPeers", tooManyPeers)
+		log.Debug("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid,
+			"dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4)
 	}
 }
 
