@@ -32,8 +32,7 @@ func (srv *Server) initSql() error {
 
 		// backup tables
 		// If ResetSQL is true, BackupSQL should be true as well
-		// check both just in case
-		if srv.BackupSQL || srv.ResetSQL {
+		if srv.BackupSQL {
 			sqlNameParsed := strings.Split(srv.MySQLName, "/")
 			dbName := sqlNameParsed[len(sqlNameParsed)-1]
 			for _, tableName := range []string{"neighbors", "node_meta_info", "node_info"} {
