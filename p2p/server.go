@@ -450,7 +450,7 @@ func (srv *Server) Start() (err error) {
 	// we still want some dynPeers discovered through the discovery protocol,
 	// but we don't want them to take up too many of the dialTasks
 
-	dynPeers := srv.MaxDial / 3
+	dynPeers := (srv.MaxDial + 1) / 2
 
 	if srv.NoDiscovery {
 		dynPeers = 0
