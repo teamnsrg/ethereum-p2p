@@ -43,7 +43,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, true)
 			if rowId := pm.getRowID(nodeid); rowId > 0 {
 				currentInfo.RowId = rowId
 			}
@@ -72,7 +72,7 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSu
 		} else if currentInfo.DAOForkSupport != daoForkSupport {
 			// DAOForkSupport flag value changed. add a new entry to mysql db
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
 			if rowId := pm.getRowID(nodeid); rowId > 0 {
 				currentInfo.RowId = rowId
 			}
