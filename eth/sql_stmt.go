@@ -215,10 +215,10 @@ func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
 	var rowId uint64
 	err := pm.getRowIDStmt.QueryRow(nodeid).Scan(&rowId)
 	if err != nil {
-		log.Error("Failed to execute GetRowID sql statement", "id", nodeid, "err", err)
+		log.Error("Failed to execute GetRowID sql statement", "id", nodeid[:16], "err", err)
 		return 0
 	} else {
-		log.Trace("Executed GetRowID sql statement", "id", nodeid)
+		log.Trace("Executed GetRowID sql statement", "id", nodeid[:16])
 		return rowId
 	}
 }
