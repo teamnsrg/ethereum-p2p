@@ -198,7 +198,9 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err == nil {
 		remotePort = uint16(p)
 	}
+	srv.KnownNodeInfos.RLock()
 	oldNodeInfo := srv.KnownNodeInfos.Infos()[c.id]
+	srv.KnownNodeInfos.RUnlock()
 
 	var hash string
 	if oldNodeInfo != nil {
