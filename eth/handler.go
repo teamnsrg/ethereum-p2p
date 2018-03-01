@@ -659,6 +659,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&txs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+
+		log.Info("<< ETH_TX", "tx", txs, "peer", p.ID(), "ReceivedAt", float64(msg.ReceivedAt.UnixNano())/1000000000)
+
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
