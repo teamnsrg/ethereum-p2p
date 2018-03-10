@@ -208,13 +208,11 @@ func (srv *Server) CloseSql() {
 	}
 }
 
-func (srv *Server) closeDB(db *sql.DB) error {
+func (srv *Server) closeDB(db *sql.DB) {
 	if err := db.Close(); err != nil {
 		log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
-		return err
 	}
 	log.Trace("Closed sql db handle", "database", srv.MySQLName)
-	return nil
 }
 
 func (srv *Server) closeSqlStmts() {
