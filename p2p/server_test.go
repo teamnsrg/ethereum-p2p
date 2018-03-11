@@ -91,7 +91,7 @@ func startTestConnectServer(listener net.Listener, t *testing.T, id discover.Nod
 		MaxPeers:    10,
 		ListenAddr:  "127.0.0.1:0",
 		PrivateKey:  newkey(),
-		StaticNodes: []*discover.Node{&discover.Node{ID: id, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)}},
+		StaticNodes: []*discover.Node{{ID: id, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)}},
 	}
 	server := &Server{
 		Config:       config,
