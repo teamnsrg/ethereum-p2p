@@ -460,7 +460,7 @@ func (srv *Server) Start() (err error) {
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
-	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer := newDialState(srv.StaticNodes, srv.ntab, dynPeers, srv.NetRestrict)
 	dialer.setBlacklist(srv.Blacklist)
 	dialer.setDialFreq(srv.DialFreq)
 
