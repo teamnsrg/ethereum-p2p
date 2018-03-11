@@ -126,12 +126,12 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (thei
 	// as the error so it can be tracked elsewhere.
 	// Read their handshake before sending ours, to prevent them from rejecting us early
 	if their, receivedAt, err = readProtocolHandshake(t.rw, peer); err != nil {
-		return nil, nil, err
+		return nil, receivedAt, err
 	}
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
 	if err := <-werr; err != nil {
-		return nil, nil, fmt.Errorf("write error: %v", err)
+		return nil, receivedAt, fmt.Errorf("write error: %v", err)
 	}
 	// If the protocol version supports Snappy encoding, upgrade immediately
 	t.rw.snappy = their.Version >= snappyProtocolVersion
@@ -146,7 +146,7 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 	}
 	msg.ReceivedAt = time.Now()
 	if msg.Size > baseProtocolMaxMsgSize {
-		return nil, nil, fmt.Errorf("message too big")
+		return nil, &msg.ReceivedAt, fmt.Errorf("message too big")
 	}
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
@@ -155,17 +155,17 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		return nil, nil, reason[0]
+		return nil, &msg.ReceivedAt, reason[0]
 	}
 	if msg.Code != handshakeMsg {
-		return nil, nil, fmt.Errorf("expected handshake, got %x", msg.Code)
+		return nil, &msg.ReceivedAt, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		return nil, nil, err
+		return nil, &msg.ReceivedAt, err
 	}
 	if (hs.ID == discover.NodeID{}) {
-		return nil, nil, DiscInvalidIdentity
+		return nil, &msg.ReceivedAt, DiscInvalidIdentity
 	}
 	return &hs, &msg.ReceivedAt, nil
 }

@@ -221,16 +221,14 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
-		if pm.db != nil && statusWrapper.isValidIncompatibleStatus() {
-			pm.storeEthNodeInfo(p.ID(), &statusWrapper)
+		if statusWrapper.isValidIncompatibleStatus() {
+			pm.storeEthNodeInfo(p, &statusWrapper)
 		}
 		return err
 	}
 
-	// if sql database handle is available, update node information
-	if pm.db != nil {
-		pm.storeEthNodeInfo(p.ID(), &statusWrapper)
-	}
+	// update node information
+	pm.storeEthNodeInfo(p, &statusWrapper)
 
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
@@ -295,13 +293,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&status); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		// if sql database handle is available, update node information
-		if pm.db != nil {
-			pm.storeEthNodeInfo(p.ID(), &statusDataWrapper{
-				ReceivedAt: &msg.ReceivedAt,
-				Status:     &status,
-			})
-		}
+		// update node information
+		pm.storeEthNodeInfo(p, &statusDataWrapper{
+			ReceivedAt: &msg.ReceivedAt,
+			Status:     &status,
+		})
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
 	// Block header query, collect the requested headers and reply
@@ -374,13 +370,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				if err := misc.VerifyDAOHeaderExtraData(pm.chainconfig, headers[0]); err != nil {
 					p.Log().Debug("Verified to be on the other side of the DAO fork, dropping")
 					if pm.db != nil {
-						pm.storeDAOForkSupportInfo(p.ID(), -1)
+						pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, -1)
 					}
 					return err
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
 				if pm.db != nil {
-					pm.storeDAOForkSupportInfo(p.ID(), 1)
+					pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, 1)
 				}
 				return p2p.DiscQuitting
 			}

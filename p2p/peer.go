@@ -183,6 +183,14 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
+func (p *Peer) IsInbound() bool {
+	return p.rw.isInbound()
+}
+
+func (p *Peer) ConnFlags() connFlag {
+	return p.rw.flags
+}
+
 func (p *Peer) Log() log.Logger {
 	return p.log
 }
@@ -283,6 +291,10 @@ func (p *Peer) handle(msg Msg) error {
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
+		if reason[0] == DiscTooManyPeers {
+			nodeid := p.ID().String()
+			log.Info("[DISC4]", "receivedAt", msg.ReceivedAt, "id", nodeid, "conn", p.ConnFlags())
+		}
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages

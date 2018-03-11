@@ -119,6 +119,10 @@ type (
 	}
 )
 
+func (n *rpcNode) String() string {
+	return fmt.Sprintf("ID:%v IP:%v TCPPort:%v UDPPort:%v", n.ID, n.IP, n.TCP, n.UDP)
+}
+
 func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
 	ip := addr.IP.To4()
 	if ip == nil {
@@ -542,9 +546,12 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	err = packet.handle(t, from, fromID, hash)
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
 	// if NEIGHBORS packet, add the node address info to the sql database
-	if t.sqldb != nil && packet.name() == "RLPX_NEIGHBORS" {
+	if packet.name() == "RLPX_NEIGHBORS" {
 		for _, node := range packet.(*neighbors).Nodes {
-			t.addNeighbor(node, unixTime)
+			if t.sqldb != nil {
+				t.addNeighbor(node, unixTime)
+			}
+			log.Info("[NEIGHBOR]", "receivedAt", unixTime, "fromId", fromID.String(), "node", &node)
 		}
 	}
 	return err

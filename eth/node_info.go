@@ -1,11 +1,14 @@
 package eth
 
 import (
+	"time"
+
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
 )
 
-func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *statusDataWrapper) {
+func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWrapper) {
+	id := p.ID()
 	nodeid := id.String()
 	status := statusWrapper.Status
 	receivedTd := p2p.NewTd(status.TD)
@@ -22,7 +25,10 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 		LastStatusAt:    receivedAt,
 	}
 
-	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
+	var infoStr string
+	if currentInfo, ok := pm.knownNodeInfos[id]; !ok {
+		infoStr = newInfo.EthSummary()
+	} else {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
 		currentInfo.LastStatusAt = newInfo.LastStatusAt
@@ -35,7 +41,9 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			if pm.db != nil {
+				pm.addEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			}
 		} else if isNewEthNode(currentInfo, newInfo) {
 			// a new entry, including address and DEVp2p info, is added to mysql db
 			currentInfo.FirstStatusAt = newInfo.FirstStatusAt
@@ -43,15 +51,22 @@ func (pm *ProtocolManager) storeEthNodeInfo(id discover.NodeID, statusWrapper *s
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, true)
-			if rowId := pm.getRowID(nodeid); rowId > 0 {
-				currentInfo.RowId = rowId
+			if pm.db != nil {
+				pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, true)
+				if rowId := pm.getRowID(nodeid); rowId > 0 {
+					currentInfo.RowId = rowId
+				}
 			}
 		} else {
-			// update eth info
-			pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			if pm.db != nil {
+				// update eth info
+				pm.updateEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			}
 		}
+		infoStr = currentInfo.EthSummary()
 	}
+	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "info", infoStr)
+
 }
 
 func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
@@ -59,7 +74,8 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 		oldInfo.GenesisHash != newInfo.GenesisHash
 }
 
-func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSupport int8) {
+func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time, daoForkSupport int8) {
+	id := p.ID()
 	nodeid := id.String()
 
 	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
@@ -78,4 +94,5 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(id discover.NodeID, daoForkSu
 			}
 		}
 	}
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "support", daoForkSupport > 0)
 }

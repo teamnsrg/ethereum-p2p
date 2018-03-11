@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/discv5"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
-	"strings"
 )
 
 const (
@@ -56,6 +56,13 @@ var errServerStopped = errors.New("server stopped")
 type Config struct {
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
+
+	// BackupSQL makes a backup of the current MySQL db tables.
+	BackupSQL bool
+
+	// ResetSQL makes a backup of the current MySQL db tables and resets them.
+	// If set true, BackupSQL should be set true as well.
+	ResetSQL bool
 
 	// MaxDial is the maximum number of concurrently dialing outbound connections.
 	MaxDial int
@@ -270,6 +277,13 @@ func (f connFlag) String() string {
 
 func (c *conn) is(f connFlag) bool {
 	return c.flags&f != 0
+}
+
+func (c *conn) isInbound() bool {
+	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+		return true
+	}
+	return false
 }
 
 // Peers returns all connected peers.
@@ -785,12 +799,15 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		if srv.DB != nil {
-			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
-				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
-				nodeid := c.id.String()
+		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+			nodeid := c.id.String()
+			var dial, accept bool
+			if srv.DB != nil {
+				var nodeInfo *Info
+				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
+			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", c.flags)
 		}
 		c.close(err)
 		return
@@ -801,10 +818,8 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 
-	// if sql database handle is available, update node information
-	if srv.DB != nil {
-		srv.storeNodeInfo(c, receivedAt, phs)
-	}
+	// update node information
+	srv.storeNodeInfo(c, receivedAt, phs)
 
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {

@@ -53,6 +53,8 @@ var (
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
 		utils.MySQLFlag,
+		utils.BackupSQLFlag,
+		utils.ResetSQLFlag,
 		utils.MaxNumFileFlag,
 		utils.MaxDialFlag,
 		utils.MaxAcceptConnsFlag,

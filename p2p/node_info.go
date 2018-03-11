@@ -1,20 +1,20 @@
 package p2p
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"reflect"
-	"sort"
 )
 
 const (
@@ -109,6 +109,28 @@ func (k *Info) String() string {
 		}
 	}
 	return s
+}
+
+func (k *Info) Address() string {
+	return fmt.Sprintf("IP:%v TCPPort:%v RemotePort:%v", k.IP, k.TCPPort, k.RemotePort)
+}
+
+func (k *Info) Hello() string {
+	return fmt.Sprintf("P2PVersion:%v ClientId:%v Caps:%v ListenPort:%v",
+		k.P2PVersion, k.ClientId, k.Caps, k.ListenPort)
+}
+
+func (k *Info) Status() string {
+	return fmt.Sprintf("ProtocolVersion:%v NetworkId:%v Td:%v BestHash:%v GenesisHash:%v",
+		k.ProtocolVersion, k.NetworkId, k.LastReceivedTd, k.BestHash, k.GenesisHash)
+}
+
+func (k *Info) P2PSummary() string {
+	return fmt.Sprintf("RowID:%v %v %v", k.RowId, k.Address(), k.Hello())
+}
+
+func (k *Info) EthSummary() string {
+	return fmt.Sprintf("%v %v", k.P2PSummary(), k.Status())
 }
 
 func (k *Info) MarshalJSON() ([]byte, error) {
@@ -209,7 +231,7 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	}
 	// if inbound connection, resolve the node's listening port
 	// otherwise, remotePort is the listening port
-	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+	if c.isInbound() {
 		if tcpPort == 0 {
 			newNode := srv.ntab.Resolve(c.id)
 			// if the node address is resolved, set the tcpPort
@@ -223,10 +245,14 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 		tcpPort = remotePort
 		dial = true
 	}
+	var unixTime *UnixTime
+	if receivedAt != nil {
+		unixTime = &UnixTime{Time: receivedAt}
+	}
 	newNodeInfo := &Info{
 		Keccak256Hash: hash,
-		FirstHelloAt:  &UnixTime{Time: receivedAt},
-		LastHelloAt:   &UnixTime{Time: receivedAt},
+		FirstHelloAt:  unixTime,
+		LastHelloAt:   unixTime,
 		IP:            remoteIP,
 		TCPPort:       tcpPort,
 		RemotePort:    remotePort,
@@ -239,7 +265,9 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+	if srv.DB != nil {
+		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+	}
 
 	// DEVp2p Hello
 	p2pVersion, clientId, listenPort := hs.Version, hs.Name, uint16(hs.ListenPort)
@@ -263,13 +291,17 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
+	var infoStr string
 	srv.KnownNodeInfos.Lock()
 	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
-		srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-		if rowId := srv.getRowID(nodeid); rowId > 0 {
-			newInfo.RowId = rowId
+		if srv.DB != nil {
+			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+			if rowId := srv.getRowID(nodeid); rowId > 0 {
+				newInfo.RowId = rowId
+			}
 		}
+		infoStr = newInfo.P2PSummary()
 
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
@@ -280,10 +312,13 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 		if isNewNode(currentInfo, newInfo) {
 			// new entry to the mysql db should contain only the new address, DEVp2p info
 			// let Ethereum protocol update the Status info, if available.
-			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-			if rowId := srv.getRowID(nodeid); rowId > 0 {
-				newInfo.RowId = rowId
+			if srv.DB != nil {
+				srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+				if rowId := srv.getRowID(nodeid); rowId > 0 {
+					newInfo.RowId = rowId
+				}
 			}
+			infoStr = newInfo.P2PSummary()
 
 			// if the node's listening port changed
 			// add it as a static node
@@ -298,9 +333,13 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			defer currentInfo.Unlock()
 			currentInfo.LastHelloAt = newInfo.LastHelloAt
 			currentInfo.RemotePort = newInfo.RemotePort
-			srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			if srv.DB != nil {
+				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
+			}
+			infoStr = currentInfo.P2PSummary()
 		}
 	}
+	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "conn", c.flags, "info", infoStr)
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {
@@ -323,7 +362,7 @@ func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding node to initial StaticNodes list", "node",
+			log.Debug("Adding node to initial StaticNodes list", "node",
 				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.StaticNodes = append(srv.StaticNodes, discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
@@ -344,8 +383,6 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 			if ipv4 := ip.To4(); ipv4 != nil {
 				ip = ipv4
 			}
-			log.Trace("Adding static node", "node",
-				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
 			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}
