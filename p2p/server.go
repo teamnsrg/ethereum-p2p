@@ -279,6 +279,13 @@ func (c *conn) is(f connFlag) bool {
 	return c.flags&f != 0
 }
 
+func (c *conn) isInbound() bool {
+	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+		return true
+	}
+	return false
+}
+
 // Peers returns all connected peers.
 func (srv *Server) Peers() []*Peer {
 	var ps []*Peer
@@ -800,12 +807,15 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		if srv.DB != nil {
-			if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
-				nodeInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
-				nodeid := c.id.String()
+		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+			nodeid := c.id.String()
+			var dial, accept bool
+			if srv.DB != nil {
+				var nodeInfo *Info
+				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
 			}
+			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", c.flags)
 		}
 		c.close(err)
 		return
@@ -816,10 +826,8 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 
-	// if sql database handle is available, update node information
-	if srv.DB != nil {
-		srv.storeNodeInfo(c, receivedAt, phs)
-	}
+	// update node information
+	srv.storeNodeInfo(c, receivedAt, phs)
 
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
