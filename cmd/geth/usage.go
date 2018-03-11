@@ -67,6 +67,8 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "NODE FINDER",
 		Flags: []cli.Flag{
 			utils.MySQLFlag,
+			utils.BackupSQLFlag,
+			utils.ResetSQLFlag,
 			utils.MaxNumFileFlag,
 			utils.MaxDialFlag,
 			utils.MaxAcceptConnsFlag,

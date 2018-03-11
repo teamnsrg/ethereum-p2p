@@ -96,7 +96,7 @@ func (pm *ProtocolManager) prepareUpdateEthInfoStmt() error {
 		UPDATE node_info 
 		SET last_received_td=?, best_hash=?, last_status_at=? 
 		WHERE id=?
-		`)
+	`)
 
 	if err != nil {
 		log.Error("Failed to prepare UpdateEthInfo sql statement", "err", err)
@@ -135,7 +135,7 @@ func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
 			 protocol_version, network_id, first_received_td, last_received_td, 
 			 best_hash, genesis_hash, dao_fork, first_status_at, last_status_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`)
+	`)
 	if err != nil {
 		log.Error("Failed to prepare AddEthNodeInfo sql statement", "err", err)
 		return err
@@ -177,7 +177,7 @@ func (pm *ProtocolManager) prepareAddDAOForkSupportStmt() error {
 		UPDATE node_info 
 		SET dao_fork=? 
 		WHERE id=?
-		`)
+	`)
 	if err != nil {
 		log.Error("Failed to prepare AddDAOForkSupport sql statement", "err", err)
 		return err

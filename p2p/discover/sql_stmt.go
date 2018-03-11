@@ -12,7 +12,7 @@ func (t *udp) prepareAddNeighborStmt() error {
 		ON DUPLICATE KEY UPDATE 
 		last_received_at=VALUES(last_received_at), 
 		count=count+1
-		`)
+	`)
 	if err != nil {
 		log.Error("Failed to prepare AddNeighbor sql statement", "err", err)
 		return err

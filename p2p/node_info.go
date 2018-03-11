@@ -1,20 +1,20 @@
 package p2p
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"reflect"
-	"sort"
 )
 
 const (
