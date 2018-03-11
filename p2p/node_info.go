@@ -160,7 +160,7 @@ func (k *Info) RUnlock() {
 }
 
 type knownNodeInfos struct {
-	mux   sync.RWMutex
+	mux   sync.Mutex
 	infos map[discover.NodeID]*Info
 }
 
@@ -170,14 +170,6 @@ func (k *knownNodeInfos) Lock() {
 
 func (k *knownNodeInfos) Unlock() {
 	k.mux.Unlock()
-}
-
-func (k *knownNodeInfos) RLock() {
-	k.mux.RLock()
-}
-
-func (k *knownNodeInfos) RUnlock() {
-	k.mux.RUnlock()
 }
 
 func (k *knownNodeInfos) Infos() map[discover.NodeID]*Info {
@@ -198,14 +190,16 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err == nil {
 		remotePort = uint16(p)
 	}
-	srv.KnownNodeInfos.RLock()
+	srv.KnownNodeInfos.Lock()
 	oldNodeInfo := srv.KnownNodeInfos.Infos()[c.id]
-	srv.KnownNodeInfos.RUnlock()
+	srv.KnownNodeInfos.Unlock()
 
 	var hash string
 	if oldNodeInfo != nil {
+		oldNodeInfo.RLock()
 		hash = oldNodeInfo.Keccak256Hash
 		tcpPort = oldNodeInfo.TCPPort
+		oldNodeInfo.RUnlock()
 	} else {
 		hash = crypto.Keccak256Hash(c.id[:]).String()[2:]
 	}
