@@ -58,7 +58,7 @@ func (pm *ProtocolManager) prepareAddEthInfoStmt() error {
 	pStmt, err := pm.db.Prepare(`
 		UPDATE node_info 
 		SET protocol_version=?, network_id=?, first_received_td=?, last_received_td=?, 
-			best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=? 
+			best_hash=?, genesis_hash=?, first_status_at=?, last_status_at=?, status_count=1 
 		WHERE id=?
 	`)
 	if err != nil {
@@ -94,7 +94,7 @@ func (pm *ProtocolManager) addEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper)
 func (pm *ProtocolManager) prepareUpdateEthInfoStmt() error {
 	pStmt, err := pm.db.Prepare(`
 		UPDATE node_info 
-		SET last_received_td=?, best_hash=?, last_status_at=? 
+		SET last_received_td=?, best_hash=?, last_status_at=?, status_count=status_count+1 
 		WHERE id=?
 	`)
 
@@ -133,8 +133,8 @@ func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
 			(node_id, ip, tcp_port, remote_port, 
 			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
 			 protocol_version, network_id, first_received_td, last_received_td, 
-			 best_hash, genesis_hash, dao_fork, first_status_at, last_status_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 best_hash, genesis_hash, dao_fork, first_status_at, last_status_at, status_count) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		log.Error("Failed to prepare AddEthNodeInfo sql statement", "err", err)
@@ -146,7 +146,7 @@ func (pm *ProtocolManager) prepareAddEthNodeInfoStmt() error {
 	return nil
 }
 
-func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper) {
+func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrapper, newStatus bool) {
 	// exit if no prepared statement
 	if pm.addEthNodeInfoStmt == nil {
 		log.Crit("No prepared statement for AddEthNodeInfo")
@@ -164,7 +164,7 @@ func (pm *ProtocolManager) addEthNodeInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 	_, err := pm.addEthNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, firstHelloAt, lastHelloAt,
 		newInfo.ProtocolVersion, newInfo.NetworkId, firstReceivedTd, lastReceivedTd, newInfo.BestHash, newInfo.GenesisHash,
-		newInfo.DAOForkSupport, firstStatusAt, lastStatusAt)
+		newInfo.DAOForkSupport, firstStatusAt, lastStatusAt, boolToInt(newStatus))
 	if err != nil {
 		log.Error("Failed to execute AddEthNodeInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
@@ -221,4 +221,11 @@ func (pm *ProtocolManager) getRowID(nodeid string) uint64 {
 		log.Trace("Executed GetRowID sql statement", "id", nodeid[:16])
 		return rowId
 	}
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
