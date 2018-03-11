@@ -1,7 +1,10 @@
 version: '3'
 services:
   mysql:
-    image: "mysql:5.7"
+    build:
+      context: .
+      dockerfile: ethnodes-dockerfile
+    image: "mysql:5.7-ethnodes"
     environment:
       - MYSQL_DATABASE=${MYSQL_DB}
       - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
@@ -9,7 +12,8 @@ services:
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     volumes:
       - ./configs:/etc/mysql/conf.d
-      - ${DATADIR_ROOT}:/var/lib/mysql
+      - ${MYSQL_DIR}:/var/lib/mysql
+      - ${BACKUP_DIR}:/backup
     ports:
       - "3306:3306"
     restart: always
