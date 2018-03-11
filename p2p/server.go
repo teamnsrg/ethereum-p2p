@@ -385,6 +385,9 @@ func (srv *Server) Start() (err error) {
 		return errors.New("server already running")
 	}
 
+	// add bootnodes to static
+	srv.StaticNodes = append(srv.StaticNodes, srv.BootstrapNodes...)
+
 	srv.KnownNodeInfos = &knownNodeInfos{infos: make(map[discover.NodeID]*Info)}
 
 	// initiate sql connection and prepare statements
