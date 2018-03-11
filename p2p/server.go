@@ -442,15 +442,7 @@ func (srv *Server) Start() (err error) {
 		srv.DiscV5 = ntab
 	}
 
-	// TODO: determine whether srv.MaxPeers/2 is necessary
-	// use srv.MaxDial for now
-	// dynPeers := (srv.MaxPeers + 1) / 2
-	// dynPeers needs to be something much smaller than srv.MaxDial
-	// my current understanding is that srv.MaxDial will cap how many peers we will re-dial at any given time
-	// we still want some dynPeers discovered through the discovery protocol,
-	// but we don't want them to take up too many of the dialTasks
-
-	dynPeers := (srv.MaxDial + 1) / 2
+	dynPeers := (srv.MaxPeers + 1) / 2
 
 	if srv.NoDiscovery {
 		dynPeers = 0
