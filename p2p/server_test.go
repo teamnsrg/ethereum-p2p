@@ -84,6 +84,26 @@ func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	return server
 }
 
+func startTestConnectServer(listener net.Listener, t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
+	tcpAddr := listener.Addr().(*net.TCPAddr)
+	config := Config{
+		Name:        "test",
+		MaxPeers:    10,
+		ListenAddr:  "127.0.0.1:0",
+		PrivateKey:  newkey(),
+		StaticNodes: []*discover.Node{{ID: id, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)}},
+	}
+	server := &Server{
+		Config:       config,
+		newPeerHook:  pf,
+		newTransport: func(fd net.Conn) transport { return newTestTransport(id, fd) },
+	}
+	if err := server.Start(); err != nil {
+		t.Fatalf("Could not start server: %v", err)
+	}
+	return server
+}
+
 func TestServerListen(t *testing.T) {
 	// start the test server
 	connected := make(chan *Peer)
@@ -144,15 +164,11 @@ func TestServerDial(t *testing.T) {
 	// start the server
 	connected := make(chan *Peer)
 	remid := randomID()
-	srv := startTestServer(t, remid, func(p *Peer) { connected <- p })
+	srv := startTestConnectServer(listener, t, remid, func(p *Peer) { connected <- p })
 	srv.MaxDial = 16
 	srv.MaxAcceptConns = 50
 	defer close(connected)
 	defer srv.Stop()
-
-	// tell the server to connect
-	tcpAddr := listener.Addr().(*net.TCPAddr)
-	srv.AddPeer(&discover.Node{ID: remid, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)})
 
 	select {
 	case conn := <-accepted:
@@ -303,6 +319,9 @@ type taskgen struct {
 
 func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return tg.newFunc(running, peers)
+}
+func (tg taskgen) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
+	return nil
 }
 func (tg taskgen) taskDone(t task, now time.Time) {
 	tg.doneFunc(t)
