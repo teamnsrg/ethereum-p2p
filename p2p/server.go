@@ -38,6 +38,8 @@ import (
 )
 
 const (
+	redialCheckInterval = 60 * time.Second
+
 	defaultDialTimeout      = 15 * time.Second
 	refreshPeersInterval    = 30 * time.Second
 	staticPeerCheckInterval = 15 * time.Second
@@ -504,6 +506,7 @@ func (srv *Server) startListening() error {
 
 type dialer interface {
 	newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task
+	newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
@@ -514,11 +517,12 @@ type dialer interface {
 func (srv *Server) run(dialstate dialer) {
 	defer srv.loopWG.Done()
 	var (
-		peers        = make(map[discover.NodeID]*Peer)
-		trusted      = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
-		taskdone     = make(chan task, srv.MaxDial)
-		runningTasks []task
-		queuedTasks  []task // tasks that can't run yet
+		peers              = make(map[discover.NodeID]*Peer)
+		trusted            = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
+		taskdone           = make(chan task, srv.MaxDial)
+		staticdialtaskdone = make(chan task)
+		runningTasks       []task
+		queuedTasks        []task // tasks that can't run yet
 	)
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup and cannot be
@@ -556,6 +560,19 @@ func (srv *Server) run(dialstate dialer) {
 			queuedTasks = append(queuedTasks, startTasks(nt)...)
 		}
 	}
+	scheduleRedialTasks := func() {
+		// Query dialer for new static tasks and start all
+		for _, t := range dialstate.newRedialTasks(peers, time.Now()) {
+			log.Trace("New dial task", "task", t)
+			go func(t task) { t.Do(srv); staticdialtaskdone <- t }(t)
+		}
+	}
+
+	// start redial check timer
+	forceRedial := time.NewTicker(redialCheckInterval)
+	defer forceRedial.Stop()
+	// initial static dials
+	scheduleRedialTasks()
 
 running:
 	for {
@@ -565,6 +582,8 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
+		case <-forceRedial.C:
+			scheduleRedialTasks()
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
@@ -591,6 +610,11 @@ running:
 			log.Trace("Dial task done", "task", t)
 			dialstate.taskDone(t, time.Now())
 			delTask(t)
+		case t := <-staticdialtaskdone:
+			// A redial task got done. Tell dialstate about it so it
+			// can update its state
+			log.Trace("Dial task done", "task", t)
+			dialstate.taskDone(t, time.Now())
 		case c := <-srv.posthandshake:
 			// A connection has passed the encryption handshake so
 			// the remote identity is known (but hasn't been verified yet).

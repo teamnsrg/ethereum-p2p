@@ -38,9 +38,10 @@ type dialtest struct {
 }
 
 type round struct {
-	peers []*Peer // current peer set
-	done  []task  // tasks that got done this round
-	new   []task  // the result must match this one
+	peers     []*Peer // current peer set
+	done      []task  // tasks that got done this round
+	new       []task  // the result must match this one
+	newStatic []task  // the result must match this one
 }
 
 func runDialTest(t *testing.T, test dialtest) {
@@ -64,15 +65,24 @@ func runDialTest(t *testing.T, test dialtest) {
 			test.init.taskDone(task, vtime)
 		}
 
-		new := test.init.newTasks(running, pm(round.peers), vtime)
-		if !sametasks(new, round.new) {
+		var result, expected []task
+
+		if round.newStatic != nil {
+			expected = round.newStatic
+			result = test.init.newRedialTasks(pm(round.peers), vtime)
+
+		} else {
+			expected = round.new
+			result = test.init.newTasks(running, pm(round.peers), vtime)
+		}
+		if !sametasks(result, expected) {
 			t.Errorf("round %d: new tasks mismatch:\ngot %v\nwant %v\nstate: %v\nrunning: %v\n",
-				i, spew.Sdump(new), spew.Sdump(round.new), spew.Sdump(test.init), spew.Sdump(running))
+				i, spew.Sdump(result), spew.Sdump(expected), spew.Sdump(test.init), spew.Sdump(running))
 		}
 
 		// Time advances by 16 seconds on every round.
 		vtime = vtime.Add(16 * time.Second)
-		running += len(new)
+		running += len(result)
 	}
 }
 
@@ -462,7 +472,7 @@ func TestDialStateStaticDial(t *testing.T) {
 					{rw: &conn{flags: dynDialedConn, id: uintID(1)}},
 					{rw: &conn{flags: dynDialedConn, id: uintID(2)}},
 				},
-				new: []task{
+				newStatic: []task{
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(3)}},
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(4)}},
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(5)}},
@@ -516,7 +526,7 @@ func TestDialStateStaticDial(t *testing.T) {
 					{rw: &conn{flags: staticDialedConn, id: uintID(3)}},
 					{rw: &conn{flags: staticDialedConn, id: uintID(5)}},
 				},
-				new: []task{
+				newStatic: []task{
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(2)}},
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(4)}},
 				},
@@ -542,7 +552,7 @@ func TestDialStateCache(t *testing.T) {
 			// aren't yet connected.
 			{
 				peers: nil,
-				new: []task{
+				newStatic: []task{
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(1)}},
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(2)}},
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(3)}},
@@ -587,7 +597,7 @@ func TestDialStateCache(t *testing.T) {
 					{rw: &conn{flags: dynDialedConn, id: uintID(1)}},
 					{rw: &conn{flags: dynDialedConn, id: uintID(2)}},
 				},
-				new: []task{
+				newStatic: []task{
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(3)}},
 				},
 			},
@@ -604,7 +614,7 @@ func TestDialResolve(t *testing.T) {
 	// Check that the task is generated with an incomplete ID.
 	dest := discover.NewNode(uintID(1), nil, 0, 0)
 	state.addStatic(dest)
-	tasks := state.newTasks(0, nil, time.Time{})
+	tasks := state.newRedialTasks(nil, time.Time{})
 	if !reflect.DeepEqual(tasks, []task{&dialTask{flags: staticDialedConn, dest: dest}}) {
 		t.Fatalf("expected dial task, got %#v", tasks)
 	}
