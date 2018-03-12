@@ -65,7 +65,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 		}
 		infoStr = currentInfo.EthSummary()
 	}
-	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "info", infoStr)
+	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "info", infoStr)
 
 }
 
@@ -94,5 +94,5 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 			}
 		}
 	}
-	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "support", daoForkSupport > 0)
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "support", daoForkSupport > 0)
 }

@@ -551,7 +551,7 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 			if t.sqldb != nil {
 				t.addNeighbor(node, unixTime)
 			}
-			log.Info("[NEIGHBOR]", "receivedAt", unixTime, "fromId", fromID.String(), "node", &node)
+			log.Info("[NEIGHBORS]", "receivedAt", unixTime, "id", fromID.String(), "addr", from.String(), "neighbor", &node)
 		}
 	}
 	return err
