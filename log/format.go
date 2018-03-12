@@ -226,7 +226,7 @@ func escapeString(s string) string {
 	needsQuotes := false
 	needsEscape := false
 	for _, r := range s {
-		if r <= ' ' || r == '=' || r == '"' {
+		if r < ' ' || r == '=' || r == '"' {
 			needsQuotes = true
 		}
 		if r == '\\' || r == '"' || r == '\n' || r == '\r' || r == '\t' {
