@@ -56,7 +56,7 @@ type ProtocolManager struct {
 	addEthNodeInfoStmt    *sql.Stmt
 	addDAOForkSupportStmt *sql.Stmt
 	getRowIDStmt          *sql.Stmt
-	knownNodeInfos        map[discover.NodeID]*p2p.Info // information on known nodes
+	knownNodeInfos        *p2p.KnownNodeInfos // information on known nodes
 	db                    *sql.DB                       // mysql db handle
 	noMaxPeers            bool                          // Flag whether to ignore maxPeers
 

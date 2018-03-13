@@ -181,20 +181,20 @@ func (k *Info) RUnlock() {
 	k.mux.RUnlock()
 }
 
-type knownNodeInfos struct {
+type KnownNodeInfos struct {
 	mux   sync.Mutex
 	infos map[discover.NodeID]*Info
 }
 
-func (k *knownNodeInfos) Lock() {
+func (k *KnownNodeInfos) Lock() {
 	k.mux.Lock()
 }
 
-func (k *knownNodeInfos) Unlock() {
+func (k *KnownNodeInfos) Unlock() {
 	k.mux.Unlock()
 }
 
-func (k *knownNodeInfos) Infos() map[discover.NodeID]*Info {
+func (k *KnownNodeInfos) Infos() map[discover.NodeID]*Info {
 	return k.infos
 }
 

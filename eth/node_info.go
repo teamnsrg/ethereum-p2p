@@ -26,7 +26,10 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 	}
 
 	var infoStr string
-	if currentInfo, ok := pm.knownNodeInfos[id]; !ok {
+	pm.knownNodeInfos.Lock()
+	currentInfo, ok := pm.knownNodeInfos.Infos()[id]
+	pm.knownNodeInfos.Unlock()
+	if !ok {
 		infoStr = newInfo.EthSummary()
 	} else {
 		currentInfo.Lock()
@@ -78,7 +81,10 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 	id := p.ID()
 	nodeid := id.String()
 
-	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
+	pm.knownNodeInfos.Lock()
+	currentInfo, ok := pm.knownNodeInfos.Infos()[id]
+	pm.knownNodeInfos.Unlock()
+	if ok {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
 		if currentInfo.DAOForkSupport == 0 {

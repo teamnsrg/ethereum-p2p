@@ -168,7 +168,7 @@ type Server struct {
 	updateNodeInfoStmt  *sql.Stmt
 	addNodeMetaInfoStmt *sql.Stmt
 	GetRowIDStmt        *sql.Stmt
-	KnownNodeInfos      *knownNodeInfos // information on known nodes
+	KnownNodeInfos      *KnownNodeInfos // information on known nodes
 	DB                  *sql.DB         // MySQL database handle
 	strReplacer         *strings.Replacer
 
@@ -400,7 +400,7 @@ func (srv *Server) Start() (err error) {
 	// add bootnodes to static
 	srv.StaticNodes = append(srv.StaticNodes, srv.BootstrapNodes...)
 
-	srv.KnownNodeInfos = &knownNodeInfos{infos: make(map[discover.NodeID]*Info)}
+	srv.KnownNodeInfos = &KnownNodeInfos{infos: make(map[discover.NodeID]*Info)}
 
 	// initiate sql connection and prepare statements
 	if err := srv.initSql(); err != nil {
