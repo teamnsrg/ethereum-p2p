@@ -93,6 +93,7 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
+	pm.knownNodeInfos = &p2p.KnownNodeInfos{}
 	pm.Start(1000)
 	defer pm.Stop()
 
