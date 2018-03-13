@@ -74,23 +74,7 @@ do
     --verbosity 5 \
     --dialfreq 1800 \
     --maxnumfile 20480 \
-    --backupsql 2>&1 | while read line; do \
-      echo \${line} >> ${DATADIR}/${NODEFINDER_NAME}.log; \
-      LOG=\$(echo \${line} | egrep '(\|\[.+\]\||Dial task done|Failed proto handshake)' | cut -d'|' -f3- | sed 's/[A-Za-z]*=//g'); \
-      echo \${LOG} | grep 'NEIGH' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-neighbors.bsv; \
-      echo \${LOG} | grep 'HELLO' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-hello.bsv; \
-      echo \${LOG} | grep '\-PROT' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-disc-proto.bsv; \
-      echo \${LOG} | grep '\-PEER' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-disc-peer.bsv; \
-      echo \${LOG} | grep 'STATU' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-status.bsv; \
-      echo \${LOG} | grep 'DAOFO' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-daofork.bsv; \
-      echo \${LOG} | egrep 'done\|(static|dyn)' | cut -d'|' -f1,3 | \
-        sed 's/[ ]/|/g' | awk -F'|' '{print \$1 \"|\" \$3 \"|\" \$4 \"|\" \$2}' \
-        >> ${DATADIR}/${NODEFINDER_NAME}-dial-done.bsv; \
-      echo \${LOG} | grep 'done|discovery' | sed 's/[ ]/|/g;s/(//' | cut -d'|' -f1,7 \
-        >> ${DATADIR}/${NODEFINDER_NAME}-discovery-done.bsv; \
-      echo \${LOG} | grep 'Failed' | awk -F'|' '{print \$1 \"|\" \$3 \"|\" \$4 \"|\" \$5 \"|\" \$6}' \
-        >> ${DATADIR}/${NODEFINDER_NAME}-failed-handshake.bsv; \
-    done"
+    --backupsql >>${LOGFILE} 2>&1"
   docker run -d --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} -p ${PORT}:${PORT} -p ${PORT}:${PORT}/udp -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
  echo "${NODEFINDER_NAME}-${i} started"
 done
