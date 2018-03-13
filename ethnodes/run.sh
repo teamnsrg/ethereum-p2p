@@ -79,7 +79,8 @@ do
       LOG=\$(echo \${line} | egrep '(\|\[.+\]\||Dial task done|Failed proto handshake)' | cut -d'|' -f3- | sed 's/[A-Za-z]*=//g'); \
       echo \${LOG} | grep 'NEIGH' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-neighbors.bsv; \
       echo \${LOG} | grep 'HELLO' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-hello.bsv; \
-      echo \${LOG} | grep 'DISC-' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-disc.bsv; \
+      echo \${LOG} | grep '\-PROT' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-disc-proto.bsv; \
+      echo \${LOG} | grep '\-PEER' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-disc-peer.bsv; \
       echo \${LOG} | grep 'STATU' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-status.bsv; \
       echo \${LOG} | grep 'DAOFO' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-daofork.bsv; \
       echo \${LOG} | grep 'Dial' | cut -d'|' -f1,3 | \
