@@ -83,9 +83,11 @@ do
       echo \${LOG} | grep '\-PEER' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-disc-peer.bsv; \
       echo \${LOG} | grep 'STATU' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-status.bsv; \
       echo \${LOG} | grep 'DAOFO' | cut -d'|' -f3- >> ${DATADIR}/${NODEFINDER_NAME}-daofork.bsv; \
-      echo \${LOG} | grep 'Dial' | cut -d'|' -f1,3 | \
+      echo \${LOG} | egrep 'done\|(static|dyn)' | cut -d'|' -f1,3 | \
         sed 's/[ ]/|/g' | awk -F'|' '{print \$1 \"|\" \$3 \"|\" \$4 \"|\" \$2}' \
         >> ${DATADIR}/${NODEFINDER_NAME}-dial-done.bsv; \
+      echo \${LOG} | grep 'done|discovery' | sed 's/[ ]/|/g;s/(//' | cut -d'|' -f1,7 \
+        >> ${DATADIR}/${NODEFINDER_NAME}-discovery-done.bsv; \
       echo \${LOG} | grep 'Failed' | awk -F'|' '{print \$1 \"|\" \$3 \"|\" \$4 \"|\" \$5 \"|\" \$6}' \
         >> ${DATADIR}/${NODEFINDER_NAME}-failed-handshake.bsv; \
     done"
