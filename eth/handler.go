@@ -57,8 +57,8 @@ type ProtocolManager struct {
 	addDAOForkSupportStmt *sql.Stmt
 	getRowIDStmt          *sql.Stmt
 	knownNodeInfos        *p2p.KnownNodeInfos // information on known nodes
-	db                    *sql.DB                       // mysql db handle
-	noMaxPeers            bool                          // Flag whether to ignore maxPeers
+	db                    *sql.DB             // mysql db handle
+	noMaxPeers            bool                // Flag whether to ignore maxPeers
 
 	networkId uint64
 
@@ -369,15 +369,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				// Validate the header and either drop the peer or continue
 				if err := misc.VerifyDAOHeaderExtraData(pm.chainconfig, headers[0]); err != nil {
 					p.Log().Debug("Verified to be on the other side of the DAO fork, dropping")
-					if pm.db != nil {
-						pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, -1)
-					}
+					pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, -1)
 					return err
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
-				if pm.db != nil {
-					pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, 1)
-				}
+				pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, 1)
 				return p2p.DiscQuitting
 			}
 		}

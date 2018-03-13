@@ -90,13 +90,17 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 		if currentInfo.DAOForkSupport == 0 {
 			// add DAOForkSupport flag to existing entry for the first time
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			if pm.db != nil {
+				pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			}
 		} else if currentInfo.DAOForkSupport != daoForkSupport {
 			// DAOForkSupport flag value changed. add a new entry to mysql db
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
-			if rowId := pm.getRowID(nodeid); rowId > 0 {
-				currentInfo.RowId = rowId
+			if pm.db != nil {
+				pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
+				if rowId := pm.getRowID(nodeid); rowId > 0 {
+					currentInfo.RowId = rowId
+				}
 			}
 		}
 	}
