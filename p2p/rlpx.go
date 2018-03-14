@@ -124,12 +124,11 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (thei
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
-	// Read their handshake before sending ours, to prevent them from rejecting us early
+	werr := make(chan error, 1)
+	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
 	if their, receivedAt, err = readProtocolHandshake(t.rw, peer); err != nil {
 		return nil, receivedAt, err
 	}
-	werr := make(chan error, 1)
-	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
 	if err := <-werr; err != nil {
 		return nil, receivedAt, fmt.Errorf("write error: %v", err)
 	}
