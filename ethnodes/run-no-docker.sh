@@ -6,14 +6,14 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: sudo ./run.sh scale-size"
+  echo "usage: sudo ./run-no-docker.sh scale-size"
   exit 1
 fi
 
 n=$(( $1 - 1 ))
 WORKING_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd ${WORKING_DIR}
 MYSQL_NAME="ethnodes-mysql"
-NODEFINDER_NAME="node-finder"
 
 # build mysql container image
 MYSQL_IMAGE="mysql:5.7-ethnodes"
@@ -44,34 +44,14 @@ do
   echo "${MYSQL_NAME}-${i} started"
 done
 
-read -p "Press any key to continue... "
-# make node-finder container image
+read -p "Press enter to continue... "
 cd ${WORKING_DIR}/..
-NODEFINDER_IMAGE="geth:node-finder"
-docker build -t ${NODEFINDER_IMAGE} .
+make geth
+cp ${WORKING_DIR}/../build/bin/geth /usr/bin/geth
 
 # run node-finders
-URL="research-scan.sprai.org"
-NODEFINDER_PORT=30310
-DATADIR="/root/.ethereum"
-LOGFILE="${DATADIR}/${NODEFINDER_NAME}.log"
-echo "starting node-finder containers..."
 for i in `seq 0 ${n}`;
 do
-  IDENTITY="uiuc-${NODEFINDER_NAME}-${i} (${URL})"
-  NODEFINDER_DIR="${ROOT_DIR}-${i}/ethereum"
-  MYSQL_URL="${MYSQL_USERNAME}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:$(( ${MYSQL_PORT}+${i} )))/${MYSQL_DB}"
-  PORT=$(( ${NODEFINDER_PORT}+${i} ))
-  CMD="geth \
-    --identity \"${IDENTITY}\" \
-    --datadir \"${DATADIR}\" \
-    --port ${PORT} \
-    --mysql \"${MYSQL_URL}\" \
-    --nomaxpeers \
-    --verbosity 5 \
-    --dialfreq 1800 \
-    --maxnumfile 20480 \
-    --backupsql >>${LOGFILE} 2>&1"
-  docker run -d --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} -p ${PORT}:${PORT} -p ${PORT}:${PORT}/udp -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
- echo "${NODEFINDER_NAME}-${i} started"
+  ${WORKING_DIR}/node-finder-loop.sh ${i} > ${ROOT_DIR}-${i}/node-finder-loop.log 2>&1 &
+  echo "node-finder-${i} loop started"
 done
