@@ -14,9 +14,6 @@ n=$(( $1 - 1 ))
 WORKING_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MYSQL_NAME="ethnodes-mysql"
 NODEFINDER_NAME="node-finder"
-# remove existing instances
-docker rm -f $(docker ps -a | egrep -o "${MYSQL_NAME}-[0-9]+")
-docker rm -f $(docker ps -a | egrep -o "${NODEFINDER_NAME}-[0-9]+")
 
 # build mysql container image
 MYSQL_IMAGE="mysql:5.7-ethnodes"
