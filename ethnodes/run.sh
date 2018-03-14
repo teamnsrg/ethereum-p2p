@@ -72,6 +72,6 @@ do
     --dialfreq 1800 \
     --maxnumfile 20480 \
     --backupsql >>${LOGFILE} 2>&1"
-  docker run -d --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} -p ${PORT}:${PORT} -p ${PORT}:${PORT}/udp -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
+  docker run -d --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} --net host -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
  echo "${NODEFINDER_NAME}-${i} started"
 done
