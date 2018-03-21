@@ -64,6 +64,12 @@ type flagGroup struct {
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
 	{
+		Name: "ETH MONITOR",
+		Flags: []cli.Flag{
+			utils.MaxAcceptConnsFlag,
+		},
+	},
+	{
 		Name: "ETHEREUM",
 		Flags: []cli.Flag{
 			configFileFlag,

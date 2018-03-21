@@ -110,6 +110,12 @@ func NewApp(gitCommit, usage string) *cli.App {
 // are the same for all commands.
 
 var (
+	// Eth Monitor Settings
+	MaxAcceptConnsFlag = cli.IntFlag{
+		Name:  "maxacceptconns",
+		Usage: "Maximum number of concurrently handshaking inbound connections",
+		Value: 50,
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -782,6 +788,10 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setDiscoveryV5Address(ctx, cfg)
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
+
+	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
+		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
+	}
 
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
