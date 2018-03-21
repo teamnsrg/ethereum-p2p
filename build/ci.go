@@ -198,6 +198,9 @@ func doInstall(cmdline []string) {
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
 
+	// Exclude packages
+	packages = build.FilterPackages(packages)
+
 	if *arch == "" || *arch == runtime.GOARCH {
 		goinstall := goTool("install", buildFlags(env)...)
 		goinstall.Args = append(goinstall.Args, "-v")
@@ -303,7 +306,7 @@ func doTest(cmdline []string) {
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
 
-	// Exclude packages that always fail
+	// Exclude packages
 	packages = build.FilterPackages(packages)
 
 	// Run the actual tests.
