@@ -67,6 +67,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "ETH MONITOR",
 		Flags: []cli.Flag{
 			utils.MaxAcceptConnsFlag,
+			utils.MaxNumFileFlag,
 		},
 	},
 	{

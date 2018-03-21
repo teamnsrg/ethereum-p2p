@@ -116,6 +116,11 @@ var (
 		Usage: "Maximum number of concurrently handshaking inbound connections",
 		Value: 50,
 	}
+	MaxNumFileFlag = cli.Uint64Flag{
+		Name:  "maxnumfile",
+		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
+		Value: 2048,
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -709,8 +714,8 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 
 // makeDatabaseHandles raises out the number of allowed file handles per process
 // for Geth and returns half of the allowance to assign to the database.
-func makeDatabaseHandles() int {
-	if err := raiseFdLimit(2048); err != nil {
+func makeDatabaseHandles(max uint64) int {
+	if err := raiseFdLimit(max); err != nil {
 		Fatalf("Failed to raise file descriptor allowance: %v", err)
 	}
 	limit, err := getFdLimit()
@@ -969,7 +974,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name)
 	}
-	cfg.DatabaseHandles = makeDatabaseHandles()
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		cfg.DatabaseHandles = makeDatabaseHandles(ctx.GlobalUint64(MaxNumFileFlag.Name))
+	} else {
+		cfg.DatabaseHandles = makeDatabaseHandles(2048)
+	}
 
 	if ctx.GlobalIsSet(MinerThreadsFlag.Name) {
 		cfg.MinerThreads = ctx.GlobalInt(MinerThreadsFlag.Name)
@@ -1093,9 +1102,13 @@ func SetupNetwork(ctx *cli.Context) {
 // MakeChainDatabase open an LevelDB using the flags passed to the client and will hard crash if it fails.
 func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	var (
-		cache   = ctx.GlobalInt(CacheFlag.Name)
-		handles = makeDatabaseHandles()
+		cache      = ctx.GlobalInt(CacheFlag.Name)
+		maxNumFile = uint64(2048)
 	)
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		maxNumFile = ctx.GlobalUint64(MaxNumFileFlag.Name)
+	}
+	handles := makeDatabaseHandles(maxNumFile)
 	name := "chaindata"
 	if ctx.GlobalBool(LightModeFlag.Name) {
 		name = "lightchaindata"
