@@ -40,9 +40,6 @@ const (
 	refreshPeersInterval    = 30 * time.Second
 	staticPeerCheckInterval = 15 * time.Second
 
-	// Maximum number of concurrently handshaking inbound connections.
-	maxAcceptConns = 50
-
 	// Maximum number of concurrently dialing outbound connections.
 	maxActiveDialTasks = 16
 
@@ -58,6 +55,9 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
+	MaxAcceptConns int
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -644,7 +644,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := maxAcceptConns
+	tokens := srv.MaxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}

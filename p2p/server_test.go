@@ -67,10 +67,11 @@ func (c *testTransport) close(err error) {
 
 func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	config := Config{
-		Name:       "test",
-		MaxPeers:   10,
-		ListenAddr: "127.0.0.1:0",
-		PrivateKey: newkey(),
+		Name:           "test",
+		MaxPeers:       10,
+		ListenAddr:     "127.0.0.1:0",
+		PrivateKey:     newkey(),
+		MaxAcceptConns: 50,
 	}
 	server := &Server{
 		Config:       config,
@@ -207,6 +208,7 @@ func TestServerTaskScheduling(t *testing.T) {
 		ntab:    fakeTable{},
 		running: true,
 	}
+	srv.MaxAcceptConns = 50
 	srv.loopWG.Add(1)
 	go func() {
 		srv.run(tg)
@@ -250,6 +252,7 @@ func TestServerManyTasks(t *testing.T) {
 		done       = make(chan *testTask)
 		start, end = 0, 0
 	)
+	srv.MaxAcceptConns = 50
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
