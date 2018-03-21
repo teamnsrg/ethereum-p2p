@@ -73,6 +73,7 @@ type dialstate struct {
 	ntab        discoverTable
 	netrestrict *netutil.Netlist
 	blacklist   *netutil.Netlist
+	dialFreq    time.Duration
 
 	lookupRunning bool
 	dialing       map[discover.NodeID]connFlag
@@ -148,6 +149,10 @@ func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab disc
 
 func (s *dialstate) setBlacklist(blacklist *netutil.Netlist) {
 	s.blacklist = blacklist
+}
+
+func (s *dialstate) setDialFreq(f int) {
+	s.dialFreq = time.Duration(f) * time.Second
 }
 
 func (s *dialstate) addStatic(n *discover.Node) {
@@ -285,7 +290,7 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 func (s *dialstate) taskDone(t task, now time.Time) {
 	switch t := t.(type) {
 	case *dialTask:
-		s.hist.add(t.dest.ID, now.Add(dialHistoryExpiration))
+		s.hist.add(t.dest.ID, now.Add(s.dialFreq))
 		delete(s.dialing, t.dest.ID)
 	case *discoverTask:
 		s.lookupRunning = false

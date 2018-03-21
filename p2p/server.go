@@ -61,6 +61,9 @@ type Config struct {
 	// Blacklist is the list of IP networks that we should not connect to
 	Blacklist *netutil.Netlist `toml:",omitempty"`
 
+	// DialFreq is the frequency of re-dialing static nodes (in seconds).
+	DialFreq int
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -412,6 +415,7 @@ func (srv *Server) Start() (err error) {
 	}
 	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
 	dialer.setBlacklist(srv.Blacklist)
+	dialer.setDialFreq(srv.DialFreq)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -462,6 +466,7 @@ type dialer interface {
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
 	setBlacklist(*netutil.Netlist)
+	setDialFreq(int)
 }
 
 func (srv *Server) run(dialstate dialer) {

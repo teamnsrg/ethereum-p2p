@@ -308,6 +308,8 @@ func (tg taskgen) removeStatic(*discover.Node) {
 }
 func (tg taskgen) setBlacklist(blacklist *netutil.Netlist) {
 }
+func (tg taskgen) setDialFreq(f int) {
+}
 
 type testTask struct {
 	index  int

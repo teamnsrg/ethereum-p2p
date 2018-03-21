@@ -125,6 +125,11 @@ var (
 		Name:  "blacklist",
 		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
 	}
+	DialFreqFlag = cli.IntFlag{
+		Name:  "dialfreq",
+		Usage: "Frequency of re-dialing static nodes (in seconds)",
+		Value: 30,
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -800,6 +805,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
 		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
+	}
+	if ctx.GlobalIsSet(DialFreqFlag.Name) {
+		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
 	}
 
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {

@@ -86,8 +86,10 @@ func (t fakeTable) ReadRandomNodes(buf []*discover.Node) int { return copy(buf, 
 
 // This test checks that dynamic dials are launched from discovery results.
 func TestDialStateDynDial(t *testing.T) {
+	dialer := newDialState(nil, nil, fakeTable{}, 5, nil)
+	dialer.setDialFreq(30)
 	runDialTest(t, dialtest{
-		init: newDialState(nil, nil, fakeTable{}, 5, nil),
+		init: dialer,
 		rounds: []round{
 			// A discovery query is launched.
 			{
@@ -233,8 +235,11 @@ func TestDialStateDynDialBootnode(t *testing.T) {
 		{ID: uintID(7)},
 		{ID: uintID(8)},
 	}
+
+	dialer := newDialState(nil, bootnodes, table, 5, nil)
+	dialer.setDialFreq(30)
 	runDialTest(t, dialtest{
-		init: newDialState(nil, bootnodes, table, 5, nil),
+		init: dialer,
 		rounds: []round{
 			// 2 dynamic dials attempted, bootnodes pending fallback interval
 			{
@@ -321,8 +326,10 @@ func TestDialStateDynDialFromTable(t *testing.T) {
 		{ID: uintID(8)},
 	}
 
+	dialer := newDialState(nil, nil, table, 10, nil)
+	dialer.setDialFreq(30)
 	runDialTest(t, dialtest{
-		init: newDialState(nil, nil, table, 10, nil),
+		init: dialer,
 		rounds: []round{
 			// 5 out of 8 of the nodes returned by ReadRandomNodes are dialed.
 			{
@@ -419,8 +426,10 @@ func TestDialStateNetRestrict(t *testing.T) {
 	restrict := new(netutil.Netlist)
 	restrict.Add("127.0.2.0/24")
 
+	dialer := newDialState(nil, nil, table, 10, restrict)
+	dialer.setDialFreq(30)
 	runDialTest(t, dialtest{
-		init: newDialState(nil, nil, table, 10, restrict),
+		init: dialer,
 		rounds: []round{
 			{
 				new: []task{
@@ -442,8 +451,10 @@ func TestDialStateStaticDial(t *testing.T) {
 		{ID: uintID(5)},
 	}
 
+	dialer := newDialState(wantStatic, nil, fakeTable{}, 0, nil)
+	dialer.setDialFreq(30)
 	runDialTest(t, dialtest{
-		init: newDialState(wantStatic, nil, fakeTable{}, 0, nil),
+		init: dialer,
 		rounds: []round{
 			// Static dials are launched for the nodes that
 			// aren't yet connected.
@@ -522,9 +533,10 @@ func TestDialStateCache(t *testing.T) {
 		{ID: uintID(2)},
 		{ID: uintID(3)},
 	}
-
+	dialer := newDialState(wantStatic, nil, fakeTable{}, 0, nil)
+	dialer.setDialFreq(30)
 	runDialTest(t, dialtest{
-		init: newDialState(wantStatic, nil, fakeTable{}, 0, nil),
+		init: dialer,
 		rounds: []round{
 			// Static dials are launched for the nodes that
 			// aren't yet connected.
