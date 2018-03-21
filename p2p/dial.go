@@ -56,7 +56,7 @@ func (t TCPDialer) Dial(dest *discover.Node) (net.Conn, error) {
 // it get's a chance to compute new tasks on every iteration
 // of the main loop in Server.run.
 type dialstate struct {
-	ntab        discoverTable
+	selfId      discover.NodeID
 	netrestrict *netutil.Netlist
 
 	dialing map[discover.NodeID]connFlag
@@ -103,9 +103,9 @@ type waitExpireTask struct {
 	time.Duration
 }
 
-func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab discoverTable, maxdyn int, netrestrict *netutil.Netlist) *dialstate {
+func newDialState(static []*discover.Node, selfId discover.NodeID, netrestrict *netutil.Netlist) *dialstate {
 	s := &dialstate{
-		ntab:        ntab,
+		selfId:      selfId,
 		netrestrict: netrestrict,
 		static:      make(map[discover.NodeID]*dialTask),
 		dialing:     make(map[discover.NodeID]connFlag),
@@ -117,10 +117,12 @@ func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab disc
 	return s
 }
 
-func (s *dialstate) addStatic(n *discover.Node) {
+func (s *dialstate) addStatic(n *discover.Node) *dialTask {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
-	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n}
+	t := &dialTask{flags: staticDialedConn, dest: n}
+	s.static[n.ID] = t
+	return t
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
@@ -177,7 +179,7 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 		return errAlreadyDialing
 	case peers[n.ID] != nil:
 		return errAlreadyConnected
-	case s.ntab != nil && n.ID == s.ntab.Self().ID:
+	case n.ID == s.selfId:
 		return errSelf
 	case s.netrestrict != nil && !s.netrestrict.Contains(n.IP):
 		return errNotWhitelisted

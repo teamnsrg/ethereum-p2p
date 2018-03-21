@@ -102,7 +102,7 @@ func TestDialStateNetRestrict(t *testing.T) {
 	restrict.Add("127.0.2.0/24")
 
 	runDialTest(t, dialtest{
-		init: newDialState(static, nil, nil, 10, restrict),
+		init: newDialState(static, discover.NodeID{}, restrict),
 		rounds: []round{
 			{
 				new: []task{
@@ -124,7 +124,7 @@ func TestDialStateStaticDial(t *testing.T) {
 	}
 
 	runDialTest(t, dialtest{
-		init: newDialState(wantStatic, nil, fakeTable{}, 0, nil),
+		init: newDialState(wantStatic, discover.NodeID{}, nil),
 		rounds: []round{
 			// Static dials are launched for the nodes that
 			// aren't yet connected.
@@ -143,8 +143,8 @@ func TestDialStateStaticDial(t *testing.T) {
 			// nodes are either connected or still being dialed.
 			{
 				peers: []*Peer{
-					{rw: &conn{flags: dynDialedConn, id: uintID(1)}},
-					{rw: &conn{flags: dynDialedConn, id: uintID(2)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(1)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(2)}},
 					{rw: &conn{flags: staticDialedConn, id: uintID(3)}},
 				},
 				done: []task{
@@ -205,7 +205,7 @@ func TestDialStateCache(t *testing.T) {
 	}
 
 	runDialTest(t, dialtest{
-		init: newDialState(wantStatic, nil, fakeTable{}, 0, nil),
+		init: newDialState(wantStatic, discover.NodeID{}, nil),
 		rounds: []round{
 			// Static dials are launched for the nodes that
 			// aren't yet connected.
@@ -233,8 +233,8 @@ func TestDialStateCache(t *testing.T) {
 			// entry to expire.
 			{
 				peers: []*Peer{
-					{rw: &conn{flags: dynDialedConn, id: uintID(1)}},
-					{rw: &conn{flags: dynDialedConn, id: uintID(2)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(1)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(2)}},
 				},
 				done: []task{
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(3)}},
@@ -246,15 +246,15 @@ func TestDialStateCache(t *testing.T) {
 			// Still waiting for node 3's entry to expire in the cache.
 			{
 				peers: []*Peer{
-					{rw: &conn{flags: dynDialedConn, id: uintID(1)}},
-					{rw: &conn{flags: dynDialedConn, id: uintID(2)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(1)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(2)}},
 				},
 			},
 			// The cache entry for node 3 has expired and is retried.
 			{
 				peers: []*Peer{
-					{rw: &conn{flags: dynDialedConn, id: uintID(1)}},
-					{rw: &conn{flags: dynDialedConn, id: uintID(2)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(1)}},
+					{rw: &conn{flags: staticDialedConn, id: uintID(2)}},
 				},
 				new: []task{
 					&dialTask{flags: staticDialedConn, dest: &discover.Node{ID: uintID(3)}},
