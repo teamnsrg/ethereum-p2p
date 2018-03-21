@@ -69,6 +69,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MaxAcceptConnsFlag,
 			utils.MaxNumFileFlag,
 			utils.BlacklistFlag,
+			utils.DialFreqFlag,
 		},
 	},
 	{
