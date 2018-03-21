@@ -102,7 +102,7 @@ func TestDialStateNetRestrict(t *testing.T) {
 	restrict.Add("127.0.2.0/24")
 
 	runDialTest(t, dialtest{
-		init: newDialState(static, discover.NodeID{}, restrict),
+		init: newDialState(static, fakeTable{}, restrict),
 		rounds: []round{
 			{
 				new: []task{
@@ -124,7 +124,7 @@ func TestDialStateStaticDial(t *testing.T) {
 	}
 
 	runDialTest(t, dialtest{
-		init: newDialState(wantStatic, discover.NodeID{}, nil),
+		init: newDialState(wantStatic, fakeTable{}, nil),
 		rounds: []round{
 			// Static dials are launched for the nodes that
 			// aren't yet connected.
@@ -205,7 +205,7 @@ func TestDialStateCache(t *testing.T) {
 	}
 
 	runDialTest(t, dialtest{
-		init: newDialState(wantStatic, discover.NodeID{}, nil),
+		init: newDialState(wantStatic, fakeTable{}, nil),
 		rounds: []round{
 			// Static dials are launched for the nodes that
 			// aren't yet connected.

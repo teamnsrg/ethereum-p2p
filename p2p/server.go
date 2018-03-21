@@ -151,6 +151,7 @@ type Server struct {
 	ntab         discoverTable
 	listener     net.Listener
 	ourHandshake *protoHandshake
+	lastLookup   time.Time
 	DiscV5       *discv5.Network
 
 	// These are for Peers, PeerCount (and nothing else).
@@ -369,7 +370,17 @@ func (srv *Server) Start() (err error) {
 	srv.peerOp = make(chan peerOpFunc)
 	srv.peerOpDone = make(chan struct{})
 
-	dialer := newDialState(srv.StaticNodes, srv.makeSelf(nil, nil).ID, srv.NetRestrict)
+	// node table
+	ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict)
+	if err != nil {
+		return err
+	}
+	if err := ntab.SetFallbackNodes(srv.BootstrapNodes); err != nil {
+		return err
+	}
+	srv.ntab = ntab
+
+	dialer := newDialState(srv.StaticNodes, srv.ntab, srv.NetRestrict)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}

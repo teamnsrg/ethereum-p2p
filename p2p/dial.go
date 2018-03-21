@@ -56,7 +56,7 @@ func (t TCPDialer) Dial(dest *discover.Node) (net.Conn, error) {
 // it get's a chance to compute new tasks on every iteration
 // of the main loop in Server.run.
 type dialstate struct {
-	selfId      discover.NodeID
+	ntab        discoverTable
 	netrestrict *netutil.Netlist
 
 	dialing map[discover.NodeID]connFlag
@@ -103,9 +103,9 @@ type waitExpireTask struct {
 	time.Duration
 }
 
-func newDialState(static []*discover.Node, selfId discover.NodeID, netrestrict *netutil.Netlist) *dialstate {
+func newDialState(static []*discover.Node, ntab discoverTable, netrestrict *netutil.Netlist) *dialstate {
 	s := &dialstate{
-		selfId:      selfId,
+		ntab:        ntab,
 		netrestrict: netrestrict,
 		static:      make(map[discover.NodeID]*dialTask),
 		dialing:     make(map[discover.NodeID]connFlag),
@@ -179,7 +179,7 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 		return errAlreadyDialing
 	case peers[n.ID] != nil:
 		return errAlreadyConnected
-	case n.ID == s.selfId:
+	case s.ntab != nil && n.ID == s.ntab.Self().ID:
 		return errSelf
 	case s.netrestrict != nil && !s.netrestrict.Contains(n.IP):
 		return errNotWhitelisted
