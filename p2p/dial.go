@@ -72,6 +72,7 @@ type dialstate struct {
 	maxDynDials int
 	ntab        discoverTable
 	netrestrict *netutil.Netlist
+	blacklist   *netutil.Netlist
 
 	lookupRunning bool
 	dialing       map[discover.NodeID]connFlag
@@ -145,6 +146,10 @@ func newDialState(static []*discover.Node, bootnodes []*discover.Node, ntab disc
 	return s
 }
 
+func (s *dialstate) setBlacklist(blacklist *netutil.Netlist) {
+	s.blacklist = blacklist
+}
+
 func (s *dialstate) addStatic(n *discover.Node) {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
@@ -192,7 +197,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	for id, t := range s.static {
 		err := s.checkDial(t.dest, peers)
 		switch err {
-		case errNotWhitelisted, errSelf:
+		case errNotWhitelisted, errBlacklisted, errSelf:
 			log.Warn("Removing static dial candidate", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}, "err", err)
 			delete(s.static, t.dest.ID)
 		case nil:
@@ -255,6 +260,7 @@ var (
 	errAlreadyConnected = errors.New("already connected")
 	errRecentlyDialed   = errors.New("recently dialed")
 	errNotWhitelisted   = errors.New("not contained in netrestrict whitelist")
+	errBlacklisted      = errors.New("contained in blacklist")
 )
 
 func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer) error {
@@ -268,6 +274,8 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 		return errSelf
 	case s.netrestrict != nil && !s.netrestrict.Contains(n.IP):
 		return errNotWhitelisted
+	case s.blacklist != nil && s.blacklist.Contains(n.IP):
+		return errBlacklisted
 	case s.hist.contains(n.ID):
 		return errRecentlyDialed
 	}

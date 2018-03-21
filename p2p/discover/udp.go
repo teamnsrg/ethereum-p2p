@@ -136,6 +136,10 @@ func (t *udp) nodeFromRPC(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
 	if t.netrestrict != nil && !t.netrestrict.Contains(rn.IP) {
 		return nil, errors.New("not contained in netrestrict whitelist")
 	}
+	if t.blacklist != nil && t.blacklist.Contains(rn.IP) {
+		log.Debug("Node ignored (blacklisted)", "ip", rn.IP.String(), "transport", "udp")
+		return nil, errors.New("contained in blacklist")
+	}
 	n := NewNode(rn.ID, rn.IP, rn.UDP, rn.TCP)
 	err := n.validateComplete()
 	return n, err
@@ -161,6 +165,7 @@ type conn interface {
 type udp struct {
 	conn        conn
 	netrestrict *netutil.Netlist
+	blacklist   *netutil.Netlist
 	priv        *ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
 
@@ -211,7 +216,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, err
@@ -220,7 +225,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	if err != nil {
 		return nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict)
+	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist)
 	if err != nil {
 		return nil, err
 	}
@@ -228,11 +233,12 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	return tab, nil
 }
 
-func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist) (*Table, *udp, error) {
+func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, *udp, error) {
 	udp := &udp{
 		conn:        c,
 		priv:        priv,
 		netrestrict: netrestrict,
+		blacklist:   blacklist,
 		closing:     make(chan struct{}),
 		gotreply:    make(chan reply),
 		addpending:  make(chan *pending),

@@ -121,6 +121,10 @@ var (
 		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
 		Value: 2048,
 	}
+	BlacklistFlag = cli.StringFlag{
+		Name:  "blacklist",
+		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -824,6 +828,14 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 			Fatalf("Option %q: %v", NetrestrictFlag.Name, err)
 		}
 		cfg.NetRestrict = list
+	}
+
+	if blacklist := ctx.GlobalString(BlacklistFlag.Name); blacklist != "" {
+		list, err := netutil.ParseNetlist(blacklist)
+		if err != nil {
+			Fatalf("Option %q: %v", BlacklistFlag.Name, err)
+		}
+		cfg.Blacklist = list
 	}
 
 	if ctx.GlobalBool(DeveloperFlag.Name) {
