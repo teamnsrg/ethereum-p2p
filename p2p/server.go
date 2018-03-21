@@ -43,9 +43,6 @@ const (
 	// Maximum number of concurrently handshaking inbound connections.
 	maxAcceptConns = 50
 
-	// Maximum number of concurrently dialing outbound connections.
-	maxActiveDialTasks = 16
-
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
 	frameReadTimeout = 30 * time.Second
