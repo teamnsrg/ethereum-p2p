@@ -249,52 +249,6 @@ func (t *testTask) Do(srv *Server) {
 	t.called = true
 }
 
-// This test checks that connections are disconnected
-// just after the encryption handshake when the server is
-// at capacity. Trusted connections should still be accepted.
-func TestServerAtCap(t *testing.T) {
-	trustedID := randomID()
-	srv := &Server{
-		Config: Config{
-			PrivateKey:   newkey(),
-			MaxPeers:     10,
-			TrustedNodes: []*discover.Node{{ID: trustedID}},
-		},
-	}
-	if err := srv.Start(); err != nil {
-		t.Fatalf("could not start: %v", err)
-	}
-	defer srv.Stop()
-
-	newconn := func(id discover.NodeID) *conn {
-		fd, _ := net.Pipe()
-		tx := newTestTransport(id, fd)
-		return &conn{fd: fd, transport: tx, flags: inboundConn, id: id, cont: make(chan error)}
-	}
-
-	// Inject a few connections to fill up the peer set.
-	for i := 0; i < 10; i++ {
-		c := newconn(randomID())
-		if err := srv.checkpoint(c, srv.addpeer); err != nil {
-			t.Fatalf("could not add conn %d: %v", i, err)
-		}
-	}
-	// Try inserting a non-trusted connection.
-	c := newconn(randomID())
-	if err := srv.checkpoint(c, srv.posthandshake); err != DiscTooManyPeers {
-		t.Error("wrong error for insert:", err)
-	}
-	// Try inserting a trusted connection.
-	c = newconn(trustedID)
-	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
-		t.Error("unexpected error for trusted conn @posthandshake:", err)
-	}
-	if !c.is(trustedConn) {
-		t.Error("Server did not set trusted flag")
-	}
-
-}
-
 func TestServerSetupConn(t *testing.T) {
 	id := randomID()
 	srvkey := newkey()
