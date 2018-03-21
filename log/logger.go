@@ -32,13 +32,13 @@ func (l Lvl) AlignedString() string {
 	case LvlDebug:
 		return "DEBUG"
 	case LvlInfo:
-		return "INFO "
+		return "INFO"
 	case LvlWarn:
-		return "WARN "
+		return "WARN"
 	case LvlError:
 		return "ERROR"
 	case LvlCrit:
-		return "CRIT "
+		return "CRIT"
 	default:
 		panic("bad level")
 	}
