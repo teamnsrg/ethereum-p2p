@@ -47,6 +47,7 @@ var DefaultConfig = Config{
 		NAT:             nat.Any(),
 		MaxAcceptConns:  50,
 		DialFreq:        30,
+		MySQLName:       "",
 	},
 }
 

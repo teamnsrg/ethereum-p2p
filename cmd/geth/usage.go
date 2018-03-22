@@ -70,6 +70,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MaxNumFileFlag,
 			utils.BlacklistFlag,
 			utils.DialFreqFlag,
+			utils.MySQLFlag,
 		},
 	},
 	{
