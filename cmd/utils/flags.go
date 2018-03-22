@@ -110,7 +110,7 @@ func NewApp(gitCommit, usage string) *cli.App {
 // are the same for all commands.
 
 var (
-	// Eth Monitor Settings
+	// Eth Monitor settings
 	MaxAcceptConnsFlag = cli.IntFlag{
 		Name:  "maxacceptconns",
 		Usage: "Maximum number of concurrently handshaking inbound connections",
@@ -133,6 +133,10 @@ var (
 	MySQLFlag = cli.StringFlag{
 		Name:  "mysql",
 		Usage: "Connects to the specified database and update node information (username:password@tcp(ip:port)/db)",
+	}
+	LogToFileFlag = cli.BoolFlag{
+		Name:  "logtofile",
+		Usage: "Write log to node-finder.log instead of stderr",
 	}
 	// General settings
 	DataDirFlag = DirectoryFlag{

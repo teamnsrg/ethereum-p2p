@@ -193,6 +193,19 @@ func LvlFilterHandler(maxLvl Lvl, h Handler) Handler {
 	}, h)
 }
 
+// LvlMatchFilterHandler returns a Handler that only writes
+// records which are equal to the given verbosity
+// level to the wrapped Handler. For example, to only
+// log Error records:
+//
+//     log.LvlMatchFilterHandler(log.LvlError, log.StdoutHandler)
+//
+func LvlMatchFilterHandler(maxLvl Lvl, h Handler) Handler {
+	return FilterHandler(func(r *Record) (pass bool) {
+		return r.Lvl == maxLvl
+	}, h)
+}
+
 // A MultiHandler dispatches any write to each of its handlers.
 // This is useful for writing different types of log information
 // to different locations. For example, to log to a file and
