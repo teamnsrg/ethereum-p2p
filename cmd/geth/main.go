@@ -56,6 +56,7 @@ var (
 		utils.MaxNumFileFlag,
 		utils.BlacklistFlag,
 		utils.DialFreqFlag,
+		utils.MySQLFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,

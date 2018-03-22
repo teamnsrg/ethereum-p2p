@@ -19,6 +19,7 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -63,6 +64,9 @@ type Config struct {
 
 	// DialFreq is the frequency of re-dialing static nodes (in seconds).
 	DialFreq int
+
+	// MySQLName is the MySQL node database connection information
+	MySQLName string
 
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
@@ -149,6 +153,8 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
+	DB *sql.DB // MySQL database handle
+
 	// Config fields may not be modified while the server is running.
 	Config
 
@@ -354,6 +360,8 @@ func (srv *Server) Stop() {
 	}
 	close(srv.quit)
 	srv.loopWG.Wait()
+
+	srv.CloseSql()
 }
 
 // Start starts running the server.
@@ -364,6 +372,12 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
+
+	// initiate sql connection
+	if err := srv.initSql(); err != nil {
+		return err
+	}
+
 	srv.running = true
 	log.Info("Starting P2P networking")
 
