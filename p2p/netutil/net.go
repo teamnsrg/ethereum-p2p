@@ -81,7 +81,16 @@ func ParseNetlist(s string) (*Netlist, error) {
 		}
 		l = append(l, *n)
 	}
-	return &l, nil
+	result := make(Netlist, 0)
+	seen := map[string]*net.IPNet{}
+	for _, val := range l {
+		cidr := val.String()
+		if _, ok := seen[cidr]; !ok {
+			result = append(result, val)
+			seen[cidr] = &val
+		}
+	}
+	return &result, nil
 }
 
 // MarshalTOML implements toml.MarshalerRec.
@@ -117,6 +126,15 @@ func (l *Netlist) Add(cidr string) {
 		panic(err)
 	}
 	*l = append(*l, *n)
+}
+
+func (l *Netlist) AddNonDuplicate(cidr string) {
+	for _, val := range *l {
+		if cidr == val.String() {
+			return
+		}
+	}
+	l.Add(cidr)
 }
 
 // Contains reports whether the given IP is contained in the list.
