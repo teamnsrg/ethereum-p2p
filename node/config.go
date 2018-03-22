@@ -47,6 +47,8 @@ const (
 // P2P network layer of a protocol stack. These values can be further extended by
 // all registered services.
 type Config struct {
+	LogToFile bool `toml:",omitempty"`
+
 	// Name sets the instance name of the node. It must not contain the / character and is
 	// used in the devp2p node identifier. The instance name of geth is "geth". If no
 	// value is specified, the basename of the current executable is used.

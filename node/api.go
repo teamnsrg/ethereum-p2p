@@ -25,6 +25,7 @@ import (
 	"github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rpc"
@@ -40,6 +41,21 @@ type PrivateAdminAPI struct {
 // of the node itself.
 func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 	return &PrivateAdminAPI{node: node}
+}
+
+func (api *PrivateAdminAPI) Logrotate() error {
+	var (
+		datadir = api.node.DataDir()
+		glogger = log.Root().GetGlogger()
+	)
+	if api.node.config.LogToFile {
+		glogger.SetHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+	}
+	log.Root().SetHandler(log.MultiHandler(
+		// default logging for any lvl <= verbosity
+		glogger,
+	))
+	return nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new

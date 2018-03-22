@@ -182,9 +182,27 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		setupLogging(ctx)
-		if err := debug.Setup(ctx); err != nil {
+		var isCommand bool
+		name := ctx.Args().First()
+		for _, command := range app.Commands {
+			if name == command.Name {
+				isCommand = true
+				break
+			}
+		}
+		var glogger *log.GlogHandler
+		datadir := ctx.GlobalString(utils.DataDirFlag.Name)
+		if !isCommand && ctx.GlobalBool(utils.LogToFileFlag.Name) {
+			glogger = log.NewGlogHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+		}
+		if gl, err := debug.Setup(glogger, ctx); err != nil {
 			return err
+		} else {
+			log.Root().SetHandler(log.MultiHandler(
+				// default logging for any lvl <= verbosity
+				gl,
+			))
+			log.Root().SetGlogger(gl)
 		}
 		// Start system runtime metrics collection
 		go metrics.CollectProcessMetrics(3 * time.Second)
@@ -297,15 +315,4 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
 	}
-}
-
-// setupLogging initializes and configures logging based on the CLI flags.
-// It should be called as early as possible in the program.
-func setupLogging(ctx *cli.Context) {
-	datadir := ctx.GlobalString(utils.DataDirFlag.Name)
-	var glogger *log.GlogHandler
-	if ctx.GlobalBool(utils.LogToFileFlag.Name) {
-		glogger = log.NewGlogHandler(log.Must.FileHandler(datadir+"/node-finder.log", log.TerminalFormat(false)))
-	}
-	debug.SetupLoggingMulti(glogger, datadir, ctx)
 }

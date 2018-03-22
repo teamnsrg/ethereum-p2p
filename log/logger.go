@@ -112,6 +112,10 @@ type Logger interface {
 	// SetHandler updates the logger to write records to the specified handler.
 	SetHandler(h Handler)
 
+	SetGlogger(glogger *GlogHandler)
+
+	GetGlogger() *GlogHandler
+
 	// Log a message at the given level with context key/value pairs
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
@@ -122,8 +126,10 @@ type Logger interface {
 }
 
 type logger struct {
-	ctx []interface{}
-	h   *swapHandler
+	ctx     []interface{}
+	h       *swapHandler
+	datadir string
+	glogger *GlogHandler
 }
 
 func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
@@ -142,7 +148,7 @@ func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
 }
 
 func (l *logger) New(ctx ...interface{}) Logger {
-	child := &logger{newContext(l.ctx, ctx), new(swapHandler)}
+	child := &logger{ctx: newContext(l.ctx, ctx), h: new(swapHandler)}
 	child.SetHandler(l.h)
 	return child
 }
@@ -186,6 +192,14 @@ func (l *logger) GetHandler() Handler {
 
 func (l *logger) SetHandler(h Handler) {
 	l.h.Swap(h)
+}
+
+func (l *logger) GetGlogger() *GlogHandler {
+	return l.glogger
+}
+
+func (l *logger) SetGlogger(glogger *GlogHandler) {
+	l.glogger = glogger
 }
 
 func normalize(ctx []interface{}) []interface{} {

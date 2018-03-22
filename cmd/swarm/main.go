@@ -347,8 +347,9 @@ DEPRECATED: use 'swarm db clean'.
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		debug.SetupLogging(nil, ctx)
-		return debug.Setup(ctx)
+		glogger, err := debug.Setup(nil, ctx)
+		log.Root().SetHandler(glogger)
+		return err
 	}
 	app.After = func(ctx *cli.Context) error {
 		debug.Exit()
