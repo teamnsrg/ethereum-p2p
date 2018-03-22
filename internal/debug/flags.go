@@ -101,16 +101,9 @@ func init() {
 	glogger = log.NewGlogHandler(log.StreamHandler(output, log.TerminalFormat(usecolor)))
 }
 
-// Setup initializes profiling and logging based on the CLI flags.
+// Setup initializes profiling based on the CLI flags.
 // It should be called as early as possible in the program.
 func Setup(ctx *cli.Context) error {
-	// logging
-	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
-	glogger.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
-	glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
-	glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
-	log.Root().SetHandler(glogger)
-
 	// profiling, tracing
 	runtime.MemProfileRate = ctx.GlobalInt(memprofilerateFlag.Name)
 	Handler.SetBlockProfileRate(ctx.GlobalInt(blockprofilerateFlag.Name))
@@ -136,6 +129,35 @@ func Setup(ctx *cli.Context) error {
 		}()
 	}
 	return nil
+}
+
+// SetupLogging initializes and configures logging based on the CLI flags.
+// It should be called as early as possible in the program.
+func SetupLogging(gl *log.GlogHandler, ctx *cli.Context) {
+	if gl == nil {
+		gl = glogger
+	}
+	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
+	gl.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
+	gl.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	gl.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+	log.Root().SetHandler(gl)
+}
+
+// SetupLoggingMulti initializes and configures multi-level logging based on the CLI flags.
+// It should be called as early as possible in the program.
+func SetupLoggingMulti(gl *log.GlogHandler, datadir string, ctx *cli.Context) {
+	if gl == nil {
+		gl = glogger
+	}
+	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
+	gl.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
+	gl.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	gl.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
+	log.Root().SetHandler(log.MultiHandler(
+		// default logging for any lvl <= verbosity
+		gl,
+	))
 }
 
 // Exit stops all running profiles, flushing their output to the
