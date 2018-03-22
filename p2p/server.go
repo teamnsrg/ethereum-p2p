@@ -155,6 +155,8 @@ type Config struct {
 type Server struct {
 	DB *sql.DB // MySQL database handle
 
+	dialstate *dialstate
+
 	// Config fields may not be modified while the server is running.
 	Config
 
@@ -428,8 +430,9 @@ func (srv *Server) Start() (err error) {
 		dynPeers = 0
 	}
 	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
-	dialer.setBlacklist(srv.Blacklist)
-	dialer.setDialFreq(srv.DialFreq)
+	dialer.SetBlacklist(srv.Blacklist)
+	dialer.SetDialFreq(srv.DialFreq)
+	srv.dialstate = dialer
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -479,8 +482,14 @@ type dialer interface {
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
-	setBlacklist(*netutil.Netlist)
-	setDialFreq(int)
+	GetDialFreq() time.Duration
+	SetDialFreq(int)
+	GetBlacklist() *netutil.Netlist
+	SetBlacklist(*netutil.Netlist)
+}
+
+func (srv *Server) GetDialstate() dialer {
+	return srv.dialstate
 }
 
 func (srv *Server) run(dialstate dialer) {
