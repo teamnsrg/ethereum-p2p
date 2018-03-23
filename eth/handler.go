@@ -660,13 +660,12 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.Info("<< ETH_TX", "tx", txs, "peer", p.ID(), "ReceivedAt", float64(msg.ReceivedAt.UnixNano())/1000000000)
-
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
+			log.Info("<< ETH_TX", "tx", tx.Hash(), "peer", p.ID(), "ReceivedAt", float64(msg.ReceivedAt.UnixNano())/1000000000)
 			p.MarkTransaction(tx.Hash())
 		}
 		pm.txpool.AddRemotes(txs)
