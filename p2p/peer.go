@@ -175,6 +175,10 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
+func (p *Peer) ConnFlags() connFlag {
+	return p.rw.flags
+}
+
 func (p *Peer) Log() log.Logger {
 	return p.log
 }
@@ -272,6 +276,8 @@ func (p *Peer) handle(msg Msg) error {
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
+		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+		log.DiscPeer(fmt.Sprintf("%f", unixTime), "id", p.ID().String(), "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "reason", reason[0])
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages

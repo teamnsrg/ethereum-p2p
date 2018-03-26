@@ -119,33 +119,34 @@ func (t *rlpx) close(err error) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, receivedAt *time.Time, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
-	if their, err = readProtocolHandshake(t.rw, our); err != nil {
+	if their, receivedAt, err = readProtocolHandshake(t.rw, our); err != nil {
 		<-werr // make sure the write terminates too
-		return nil, err
+		return nil, receivedAt, err
 	}
 	if err := <-werr; err != nil {
-		return nil, fmt.Errorf("write error: %v", err)
+		return nil, receivedAt, fmt.Errorf("write error: %v", err)
 	}
 	// If the protocol version supports Snappy encoding, upgrade immediately
 	t.rw.snappy = their.Version >= snappyProtocolVersion
 
-	return their, nil
+	return their, receivedAt, nil
 }
 
-func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, error) {
+func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, *time.Time, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	msg.ReceivedAt = time.Now()
 	if msg.Size > baseProtocolMaxMsgSize {
-		return nil, fmt.Errorf("message too big")
+		return nil, &msg.ReceivedAt, fmt.Errorf("message too big")
 	}
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
@@ -154,19 +155,19 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		return nil, reason[0]
+		return nil, &msg.ReceivedAt, reason[0]
 	}
 	if msg.Code != handshakeMsg {
-		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
+		return nil, &msg.ReceivedAt, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		return nil, err
+		return nil, &msg.ReceivedAt, err
 	}
 	if (hs.ID == discover.NodeID{}) {
-		return nil, DiscInvalidIdentity
+		return nil, &msg.ReceivedAt, DiscInvalidIdentity
 	}
-	return &hs, nil
+	return &hs, &msg.ReceivedAt, nil
 }
 
 func (t *rlpx) doEncHandshake(prv *ecdsa.PrivateKey, dial *discover.Node) (discover.NodeID, error) {
