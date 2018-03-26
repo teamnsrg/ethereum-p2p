@@ -106,7 +106,7 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 	if server == nil {
 		return "", ErrNodeStopped
 	}
-	var peersBsv string
+	var peerList []string
 	for _, info := range server.PeersInfo() {
 		id := info.ID
 		name := server.StrReplacer.Replace(info.Name)
@@ -117,7 +117,9 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 		caps = server.StrReplacer.Replace(caps)
 		localAddr := info.Network.LocalAddress
 		remoteAddr := info.Network.RemoteAddress
-		p2pInfoStr := fmt.Sprintf("%v|%v|%v|%v|%v", id, remoteAddr, localAddr, name, caps)
+		rtt := info.Rtt
+		duration := info.Duration
+		p2pInfoStr := fmt.Sprintf("%v|%v|%v|%v|%v|%v|%v", id, remoteAddr, localAddr, rtt, duration, name, caps)
 		var ethInfoStr string
 		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
 			r := reflect.ValueOf(ethInfo)
@@ -142,9 +144,9 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 				}
 			}
 		}
-		peersBsv += fmt.Sprintf("%s%s\n", p2pInfoStr, ethInfoStr)
+		peerList = append(peerList, fmt.Sprintf("%s%s", p2pInfoStr, ethInfoStr))
 	}
-	return peersBsv, nil
+	return strings.Join(peerList, "\n"), nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new
