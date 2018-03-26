@@ -118,6 +118,10 @@ type (
 	}
 )
 
+func (n *rpcNode) String() string {
+	return fmt.Sprintf("ID:%v IP:%v TCPPort:%v UDPPort:%v", n.ID, n.IP, n.TCP, n.UDP)
+}
+
 func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
 	ip := addr.IP.To4()
 	if ip == nil {
@@ -300,7 +304,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 			nreceived++
 			n, err := t.nodeFromRPC(toaddr, rn)
 			if err != nil {
-				log.Trace("Invalid neighbor node received", "ip", rn.IP, "addr", toaddr, "err", err)
+				log.Trace("Invalid neighbor node received", "neighborIp", rn.IP, "senderIp", toaddr, "err", err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -471,7 +475,7 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Trace(">> "+req.name(), "addr", toaddr, "err", err)
+	log.Trace(">>"+req.name(), "addr", toaddr, "err", err)
 	return err
 }
 
@@ -526,7 +530,13 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		return err
 	}
 	err = packet.handle(t, from, fromID, hash)
-	log.Trace("<< "+packet.name(), "addr", from, "err", err)
+	unixTime := float64(time.Now().UnixNano()) / 1000000000
+	log.Trace("<<"+packet.name(), "addr", from, "err", err)
+	if packet.name() == "RLPX_NEIGHBORS" {
+		for _, node := range packet.(*neighbors).Nodes {
+			log.Neighbors(fmt.Sprintf("%f", unixTime), "id", fromID.String(), "addr", from.String(), "neighbor", &node)
+		}
+	}
 	return err
 }
 
@@ -577,7 +587,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 	return nil
 }
 
-func (req *ping) name() string { return "PING/v4" }
+func (req *ping) name() string { return "RLPX_PING" }
 
 func (req *pong) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) error {
 	if expired(req.Expiration) {
@@ -589,7 +599,7 @@ func (req *pong) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 	return nil
 }
 
-func (req *pong) name() string { return "PONG/v4" }
+func (req *pong) name() string { return "RLPX_PONG" }
 
 func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) error {
 	if expired(req.Expiration) {
@@ -626,7 +636,7 @@ func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte
 	return nil
 }
 
-func (req *findnode) name() string { return "FINDNODE/v4" }
+func (req *findnode) name() string { return "RLPX_FINDNODE" }
 
 func (req *neighbors) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) error {
 	if expired(req.Expiration) {
@@ -638,7 +648,7 @@ func (req *neighbors) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byt
 	return nil
 }
 
-func (req *neighbors) name() string { return "NEIGHBORS/v4" }
+func (req *neighbors) name() string { return "RLPX_NEIGHBORS" }
 
 func expired(ts uint64) bool {
 	return time.Unix(int64(ts), 0).Before(time.Now())
