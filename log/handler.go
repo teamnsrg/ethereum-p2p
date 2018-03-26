@@ -193,17 +193,17 @@ func LvlFilterHandler(maxLvl Lvl, h Handler) Handler {
 	}, h)
 }
 
-// LvlMatchFilterHandler returns a Handler that only writes
+// LvlMatchFilterFileHandler returns a Handler that only writes
 // records which are equal to the given verbosity
-// level to the wrapped Handler. For example, to only
-// log Error records:
+// level to a FileHandler. For example, to only
+// log Error records to datadir/eror.log:
 //
-//     log.LvlMatchFilterHandler(log.LvlError, log.StdoutHandler)
+//     log.LvlMatchFilterFileHandler(log.LvlError, datadir)
 //
-func LvlMatchFilterHandler(maxLvl Lvl, h Handler) Handler {
+func LvlMatchFilterFileHandler(targetLvl Lvl, logDir string) Handler {
 	return FilterHandler(func(r *Record) (pass bool) {
-		return r.Lvl == maxLvl
-	}, h)
+		return r.Lvl == targetLvl
+	}, Must.FileHandler(fmt.Sprintf("%s/%s.log", logDir, targetLvl.String()), TerminalFormat(false)))
 }
 
 // A MultiHandler dispatches any write to each of its handlers.

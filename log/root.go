@@ -59,3 +59,63 @@ func Crit(msg string, ctx ...interface{}) {
 	root.write(msg, LvlCrit, ctx)
 	os.Exit(1)
 }
+
+// Neighbors is a convenient alias for Root().Neighbors
+func Neighbors(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNeighbors, ctx)
+}
+
+// Hello is a convenient alias for Root().Hello
+func Hello(msg string, ctx ...interface{}) {
+	root.write(msg, LvlHello, ctx)
+}
+
+// DiscProto is a convenient alias for Root().DiscProto
+func DiscProto(msg string, ctx ...interface{}) {
+	root.write(msg, LvlDiscProto, ctx)
+}
+
+// DiscPeer is a convenient alias for Root().DiscPeer
+func DiscPeer(msg string, ctx ...interface{}) {
+	root.write(msg, LvlDiscPeer, ctx)
+}
+
+// Status is a convenient alias for Root().Status
+func Status(msg string, ctx ...interface{}) {
+	root.write(msg, LvlStatus, ctx)
+}
+
+// DaoFork is a convenient alias for Root().DaoFork
+func DaoFork(msg string, ctx ...interface{}) {
+	root.write(msg, LvlDaoFork, ctx)
+}
+
+// TxRx is a convenient alias for Root().TxRx
+func TxRx(msg string, ctx ...interface{}) {
+	root.write(msg, LvlTxRx, ctx)
+}
+
+// TxTx is a convenient alias for Root().TxTx
+func TxTx(msg string, ctx ...interface{}) {
+	root.write(msg, LvlTxTx, ctx)
+}
+
+// NewBlockRx is a convenient alias for Root().NewBlockRx
+func NewBlockRx(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNewBlockRx, ctx)
+}
+
+// NewBlockTx is a convenient alias for Root().NewBlockTx
+func NewBlockTx(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNewBlockTx, ctx)
+}
+
+// NewBlockHashesRx is a convenient alias for Root().NewBlockHashesRx
+func NewBlockHashesRx(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNewBlockHashesRx, ctx)
+}
+
+// NewBlockHashesTx is a convenient alias for Root().NewBlockHashesTx
+func NewBlockHashesTx(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNewBlockHashesTx, ctx)
+}
