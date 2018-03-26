@@ -87,7 +87,7 @@ func (p *peer) Info() *PeerInfo {
 	return &PeerInfo{
 		Version:    p.version,
 		Difficulty: td,
-		Head:       hash.Hex(),
+		Head:       hash.Hex()[2:],
 	}
 }
 
