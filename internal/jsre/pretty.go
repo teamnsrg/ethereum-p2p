@@ -92,7 +92,7 @@ func (ctx ppctx) printValue(v otto.Value, level int, inArray bool) {
 		fmt.Fprint(ctx.w, SpecialColor("undefined"))
 	case v.IsString():
 		s, _ := v.ToString()
-		fmt.Fprint(ctx.w, StringColor("%q", s))
+		fmt.Fprint(ctx.w, StringColor("%s", s))
 	case v.IsBoolean():
 		b, _ := v.ToBoolean()
 		fmt.Fprint(ctx.w, SpecialColor("%t", b))

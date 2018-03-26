@@ -19,6 +19,8 @@ package node
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -95,6 +97,54 @@ func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
 		}
 	}
 	return nil
+}
+
+// PeersList retrieves all the information we know about each individual peer at the
+// protocol granularity in bsv.
+func (api *PublicAdminAPI) PeerList() (string, error) {
+	server := api.node.Server()
+	if server == nil {
+		return "", ErrNodeStopped
+	}
+	var peersBsv string
+	for _, info := range server.PeersInfo() {
+		id := info.ID
+		name := server.StrReplacer.Replace(info.Name)
+		capsArray := make([]string, len(info.Caps))
+		copy(capsArray, info.Caps)
+		sort.Strings(capsArray)
+		caps := strings.Join(capsArray, ",")
+		caps = server.StrReplacer.Replace(caps)
+		localAddr := info.Network.LocalAddress
+		remoteAddr := info.Network.RemoteAddress
+		p2pInfoStr := fmt.Sprintf("%v|%v|%v|%v|%v", id, remoteAddr, localAddr, name, caps)
+		var ethInfoStr string
+		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
+			r := reflect.ValueOf(ethInfo)
+			switch r.Kind() {
+			case reflect.String:
+				continue
+			default:
+				v := r.Elem()
+				for i := 0; i < v.NumField(); i++ {
+					elem := v.Field(i)
+					switch elem.Kind() {
+					case reflect.Ptr:
+						ptrV := elem.Elem()
+						if ptrV.IsValid() {
+							ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+						}
+					case reflect.Int, reflect.String:
+						ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+					default:
+						continue
+					}
+				}
+			}
+		}
+		peersBsv += fmt.Sprintf("%s%s\n", p2pInfoStr, ethInfoStr)
+	}
+	return peersBsv, nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new

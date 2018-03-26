@@ -195,6 +195,10 @@ web3._extend({
 			name: 'blacklist',
 			getter: 'admin_blacklist'
 		}),
+		new web3._extend.Property({
+			name: 'peerList',
+			getter: 'admin_peerList'
+		}),
 	]
 });
 `

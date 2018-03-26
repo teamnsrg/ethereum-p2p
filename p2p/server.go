@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -153,9 +154,9 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
-	DB *sql.DB // MySQL database handle
-
-	dialstate *dialstate
+	DB          *sql.DB // MySQL database handle
+	dialstate   *dialstate
+	StrReplacer *strings.Replacer
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -379,6 +380,13 @@ func (srv *Server) Start() (err error) {
 	if err := srv.initSql(); err != nil {
 		return err
 	}
+
+	// initiate string replacer
+	srv.StrReplacer = strings.NewReplacer(
+		"|", "",
+		" ", "",
+		"'", "",
+		"\"", "")
 
 	srv.running = true
 	log.Info("Starting P2P networking")
