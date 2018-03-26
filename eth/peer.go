@@ -80,6 +80,13 @@ func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 	}
 }
 
+func (p *peer) suppressMessageError(err error) error {
+	if err != nil {
+		p.Log().Debug("Ethereum message handling failed", "err", err)
+	}
+	return nil
+}
+
 // Info gathers and returns a collection of metadata known about a peer.
 func (p *peer) Info() *PeerInfo {
 	hash, td := p.Head()
