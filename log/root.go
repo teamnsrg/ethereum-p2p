@@ -90,6 +90,11 @@ func DaoFork(msg string, ctx ...interface{}) {
 	root.write(msg, LvlDaoFork, ctx)
 }
 
+// TxData is a convenient alias for Root().TxData
+func TxData(msg string, ctx ...interface{}) {
+	root.write(msg, LvlTxData, ctx)
+}
+
 // TxRx is a convenient alias for Root().TxRx
 func TxRx(msg string, ctx ...interface{}) {
 	root.write(msg, LvlTxRx, ctx)
