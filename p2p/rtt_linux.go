@@ -19,7 +19,7 @@ func (c *conn) Srtt() float64 {
 	return float64(tcpInfo.Rtt) / 1000000
 }
 
-func (c *conn) GetTCPInfo() *tcpinfo.TCPConnectionInfo {
+func (c *conn) GetTCPInfo() *tcpinfo.TCPInfo {
 	tcpConn, ok := c.fd.(*net.TCPConn)
 	if !ok {
 		return nil
