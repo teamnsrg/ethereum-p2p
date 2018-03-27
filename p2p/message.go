@@ -44,6 +44,7 @@ type Msg struct {
 	Size       uint32 // size of the paylod
 	Payload    io.Reader
 	ReceivedAt time.Time
+	Rtt        float64
 }
 
 // Decode parses the RLP content of a message into

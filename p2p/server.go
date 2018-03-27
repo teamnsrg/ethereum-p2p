@@ -35,6 +35,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/discv5"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
+	"runtime"
 )
 
 const (
@@ -784,7 +785,11 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
 			unixTime := float64(receivedAt.UnixNano()) / 1000000000
-			log.DiscProto(fmt.Sprintf("%f", unixTime), "id", c.id.String(), "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "reason", r)
+			rtt := 0.0
+			if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+				rtt = c.Srtt()
+			}
+			log.DiscProto(fmt.Sprintf("%f", unixTime), "id", c.id.String(), "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "rtt", rtt, "reason", r)
 		}
 		c.close(err)
 		return

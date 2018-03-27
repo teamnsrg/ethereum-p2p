@@ -138,6 +138,15 @@ func (p *Peer) Caps() []Cap {
 	return p.rw.caps
 }
 
+func (p *Peer) Srtt() float64 {
+	return p.rw.Srtt()
+}
+
+func (p *Peer) Duration() float64 {
+	d := common.PrettyDuration(mclock.Now() - p.created)
+	return time.Duration(d).Seconds()
+}
+
 // RemoteAddr returns the remote address of the network connection.
 func (p *Peer) RemoteAddr() net.Addr {
 	return p.rw.fd.RemoteAddr()
@@ -259,6 +268,9 @@ func (p *Peer) readLoop(errc chan<- error) {
 			errc <- err
 			return
 		}
+		if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+			msg.Rtt = p.Srtt()
+		}
 		msg.ReceivedAt = time.Now()
 		if err = p.handle(msg); err != nil {
 			errc <- err
@@ -278,7 +290,8 @@ func (p *Peer) handle(msg Msg) error {
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
 		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		log.DiscPeer(fmt.Sprintf("%f", unixTime), "id", p.ID().String(), "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "reason", reason[0])
+		log.DiscPeer(fmt.Sprintf("%f", unixTime), "id", p.ID().String(), "addr", p.RemoteAddr().String(),
+			"conn", p.ConnFlags(), "rtt", msg.Rtt, "duration", p.Duration(), "reason", reason[0])
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -462,7 +475,6 @@ func (p *Peer) Info() *PeerInfo {
 		}
 		info.Protocols[proto.Name] = protoInfo
 	}
-	d := common.PrettyDuration(mclock.Now() - p.created)
-	info.Duration = time.Duration(d).Seconds()
+	info.Duration = p.Duration()
 	return info
 }
