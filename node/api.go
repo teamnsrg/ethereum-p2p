@@ -63,6 +63,7 @@ func (api *PrivateAdminAPI) Logrotate() error {
 			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
 			log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
 			log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
+			//log.LvlMatchFilterFileHandler(log.LvlTxData, datadir),
 			log.LvlMatchFilterFileHandler(log.LvlTxRx, datadir),
 			//log.LvlMatchFilterFileHandler(log.LvlTxTx, datadir),
 			log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, datadir),
