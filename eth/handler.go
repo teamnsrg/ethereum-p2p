@@ -20,8 +20,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,16 +42,11 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/params"
 	"github.com/teamnsrg/go-ethereum/rlp"
-	"io"
 )
 
 const (
 	softResponseLimit = 2 * 1024 * 1024 // Target maximum size of returned blocks, headers or node data.
 	estHeaderRlpSize  = 500             // Approximate size of an RLP encoded block header
-
-	// txChanSize is the size of channel listening to TxPreEvent.
-	// The number is referenced from the size of tx pool.
-	txChanSize = 4096
 )
 
 var (
@@ -71,6 +68,7 @@ type ProtocolManager struct {
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
 	txpool      txPool
+	knownTxs    map[common.Hash]*types.Transaction // All transactions to allow lookups
 	blockchain  *core.BlockChain
 	chaindb     ethdb.Database
 	chainconfig *params.ChainConfig
@@ -83,13 +81,10 @@ type ProtocolManager struct {
 	SubProtocols []p2p.Protocol
 
 	eventMux      *event.TypeMux
-	txCh          chan core.TxPreEvent
-	txSub         event.Subscription
 	minedBlockSub *event.TypeMuxSubscription
 
 	// channels for fetcher, syncer, txsyncLoop
 	newPeerCh   chan *peer
-	txsyncCh    chan *txsync
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
 
@@ -112,7 +107,6 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		peers:       newPeerSet(),
 		newPeerCh:   make(chan *peer),
 		noMorePeers: make(chan struct{}),
-		txsyncCh:    make(chan *txsync),
 		quitSync:    make(chan struct{}),
 	}
 	// Figure out whether to allow fast sync or not
@@ -206,10 +200,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
-	// broadcast transactions
-	pm.txCh = make(chan core.TxPreEvent, txChanSize)
-	pm.txSub = pm.txpool.SubscribeTxPreEvent(pm.txCh)
-	go pm.txBroadcastLoop()
+	pm.knownTxs = make(map[common.Hash]*types.Transaction)
 
 	// broadcast mined blocks
 	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
@@ -217,20 +208,18 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 
 	// start sync handlers
 	go pm.syncer()
-	go pm.txsyncLoop()
 }
 
 func (pm *ProtocolManager) Stop() {
 	log.Info("Stopping Ethereum protocol")
 
-	pm.txSub.Unsubscribe()         // quits txBroadcastLoop
 	pm.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
 
 	// Quit the sync loop.
 	// After this send has completed, no new peers will be accepted.
 	pm.noMorePeers <- struct{}{}
 
-	// Quit fetcher, txsyncLoop.
+	// Quit fetcher
 	close(pm.quitSync)
 
 	// Disconnect existing sessions.
@@ -277,9 +266,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
 	}
-	// Propagate existing transactions. new transactions appearing
-	// after this will be sent via broadcasts.
-	pm.syncTransactions(p)
 
 	// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
 	if daoBlock := pm.chainconfig.DAOForkBlock; daoBlock != nil {
@@ -654,23 +640,42 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
-		// Transactions arrived, make sure we have a valid and fresh chain to handle them
-		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
-			break
-		}
 		// Transactions can be processed, parse all of them and deliver to the pool
 		var txs []*types.Transaction
 		if err := msg.Decode(&txs); err != nil {
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
+		pid := p.ID().String()
+		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+		rtt := msg.Rtt
+		duration := p.Duration()
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
-				return p.suppressMessageError(errResp(ErrDecode, "transaction %d is nil", i))
+				p.suppressMessageError(errResp(ErrDecode, "transaction %d is nil", i))
+				continue
 			}
-			p.MarkTransaction(tx.Hash())
+			txHash := tx.Hash()
+			// if previously unknown tx, log the entire tx-data
+			if _, ok := pm.knownTxs[txHash]; !ok {
+				pm.knownTxs[txHash] = tx
+				log.TxData(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
+					"conn", p.ConnFlags(), "rtt", rtt, "duration", duration,
+					"tx", tx.LogString())
+			}
+			txHashStr := txHash.String()[2:]
+			var fromHex string
+			from, err := types.Sender(types.NewEIP155Signer(pm.chainconfig.ChainId), tx)
+			if err != nil {
+				fromHex = "nil"
+			} else {
+				fromHex = strings.ToLower(from.Hex())[2:]
+			}
+			nonce := tx.Nonce()
+			log.TxRx(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
+				"conn", p.ConnFlags(), "rtt", rtt, "duration", duration,
+				"txHash", txHashStr, "from", fromHex, "nonce", nonce)
 		}
-		pm.txpool.AddRemotes(txs)
 
 	default:
 		return p.suppressMessageError(errResp(ErrInvalidMsgCode, "%v", msg.Code))
@@ -711,18 +716,6 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 	}
 }
 
-// BroadcastTx will propagate a transaction to all peers which are not known to
-// already have the given transaction.
-func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) {
-	// Broadcast transaction to a batch of peers not knowing about it
-	peers := pm.peers.PeersWithoutTx(hash)
-	//FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
-	for _, peer := range peers {
-		peer.SendTransactions(types.Transactions{tx})
-	}
-	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers))
-}
-
 // Mined broadcast loop
 func (self *ProtocolManager) minedBroadcastLoop() {
 	// automatically stops if unsubscribe
@@ -731,19 +724,6 @@ func (self *ProtocolManager) minedBroadcastLoop() {
 		case core.NewMinedBlockEvent:
 			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
-		}
-	}
-}
-
-func (self *ProtocolManager) txBroadcastLoop() {
-	for {
-		select {
-		case event := <-self.txCh:
-			self.BroadcastTx(event.Tx.Hash(), event.Tx)
-
-		// Err() channel will be closed when unsubscribing.
-		case <-self.txSub.Err():
-			return
 		}
 	}
 }
