@@ -315,6 +315,34 @@ func (tx *Transaction) String() string {
 	)
 }
 
+func (tx *Transaction) LogString() string {
+	var from, to string
+	if tx.data.V != nil {
+		// make a best guess about the signer and use that to derive
+		// the sender.
+		signer := deriveSigner(tx.data.V)
+		if f, err := Sender(signer, tx); err != nil { // derive but don't cache
+			from = "[invalid-sig]"
+		} else {
+			from = fmt.Sprintf("%x", f[:])
+		}
+	} else {
+		from = "[nil-V]"
+	}
+
+	if tx.data.Recipient == nil {
+		to = "[contract-creation]"
+	} else {
+		to = fmt.Sprintf("%x", tx.data.Recipient[:])
+	}
+	enc, _ := rlp.EncodeToBytes(&tx.data)
+	return fmt.Sprintf("Hash:%x Contract:%v From:%s To:%s Nonce:%v GasPrice:%s GasLimit:%s Value:%s Data:0x%x "+
+		"V:%s R:%s S:%s Encoded:%x",
+		tx.Hash().String()[2:], tx.data.Recipient == nil, from, to, tx.data.AccountNonce,
+		tx.data.Price.String(), tx.data.GasLimit.String(), tx.data.Amount.String(), tx.data.Payload,
+		tx.data.V.String(), tx.data.R.String(), tx.data.S.String(), enc)
+}
+
 // Transaction slice type for basic sorting.
 type Transactions []*Transaction
 
