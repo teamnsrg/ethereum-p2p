@@ -11,16 +11,16 @@ import (
 )
 
 // Srtt in seconds (originally microseconds)
-func (p *Peer) Srtt() float64 {
-	tcpInfo := p.GetTCPInfo()
+func (c *conn) Srtt() float64 {
+	tcpInfo := c.GetTCPInfo()
 	if tcpInfo == nil {
 		return 0.0
 	}
 	return float64(tcpInfo.Rtt) / 1000000
 }
 
-func (p *Peer) GetTCPInfo() *tcpinfo.TCPInfo {
-	tcpConn, ok := (p.rw.fd).(*net.TCPConn)
+func (c *conn) GetTCPInfo() *tcpinfo.TCPConnectionInfo {
+	tcpConn, ok := c.fd.(*net.TCPConn)
 	if !ok {
 		return nil
 	}
