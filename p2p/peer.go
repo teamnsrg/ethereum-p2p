@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -434,12 +435,16 @@ func (p *Peer) Info() *PeerInfo {
 	for _, cap := range p.Caps() {
 		caps = append(caps, cap.String())
 	}
+	rtt := 0.0
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		rtt = p.Srtt()
+	}
 	// Assemble the generic peer metadata
 	info := &PeerInfo{
 		ID:        p.ID().String(),
 		Name:      p.Name(),
 		Caps:      caps,
-		Rtt:       p.Srtt(),
+		Rtt:       rtt,
 		Protocols: make(map[string]interface{}),
 	}
 	info.Network.LocalAddress = p.LocalAddr().String()
