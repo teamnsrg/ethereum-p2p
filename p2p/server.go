@@ -235,7 +235,7 @@ type conn struct {
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error)
+	doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -832,7 +832,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
+	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {

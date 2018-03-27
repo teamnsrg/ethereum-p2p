@@ -119,14 +119,15 @@ func (t *rlpx) close(err error) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (their *protoHandshake, receivedAt *time.Time, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, receivedAt *time.Time, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
-	if their, receivedAt, err = readProtocolHandshake(t.rw, peer); err != nil {
+	if their, receivedAt, err = readProtocolHandshake(t.rw, our); err != nil {
+		<-werr // make sure the write terminates too
 		return nil, receivedAt, err
 	}
 	if err := <-werr; err != nil {
@@ -138,7 +139,7 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (thei
 	return their, receivedAt, nil
 }
 
-func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake, *time.Time, error) {
+func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, *time.Time, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
 		return nil, nil, err
