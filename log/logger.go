@@ -28,6 +28,7 @@ const (
 	LvlDiscPeer
 	LvlStatus
 	LvlDaoFork
+	LvlTxData
 	LvlTxRx
 	LvlTxTx
 	LvlNewBlockRx
@@ -63,6 +64,8 @@ func (l Lvl) AlignedString() string {
 		return "STATUS"
 	case LvlDaoFork:
 		return "DAOFORK"
+	case LvlTxData:
+		return "TXDATA"
 	case LvlTxRx:
 		return "TXRX"
 	case LvlTxTx:
@@ -107,6 +110,8 @@ func (l Lvl) String() string {
 		return "status"
 	case LvlDaoFork:
 		return "daofork"
+	case LvlTxData:
+		return "tx-data"
 	case LvlTxRx:
 		return "tx-rx"
 	case LvlTxTx:
@@ -152,6 +157,8 @@ func LvlFromString(lvlString string) (Lvl, error) {
 		return LvlStatus, nil
 	case "daofork":
 		return LvlDaoFork, nil
+	case "tx-data":
+		return LvlTxData, nil
 	case "tx-rx":
 		return LvlTxRx, nil
 	case "tx-tx":
@@ -213,6 +220,7 @@ type Logger interface {
 	DiscPeer(msg string, ctx ...interface{})
 	Status(msg string, ctx ...interface{})
 	DaoFork(msg string, ctx ...interface{})
+	TxData(msg string, ctx ...interface{})
 	TxRx(msg string, ctx ...interface{})
 	TxTx(msg string, ctx ...interface{})
 	NewBlockRx(msg string, ctx ...interface{})
@@ -304,6 +312,10 @@ func (l *logger) Status(msg string, ctx ...interface{}) {
 
 func (l *logger) DaoFork(msg string, ctx ...interface{}) {
 	l.write(msg, LvlDaoFork, ctx)
+}
+
+func (l *logger) TxData(msg string, ctx ...interface{}) {
+	l.write(msg, LvlTxData, ctx)
 }
 
 func (l *logger) TxRx(msg string, ctx ...interface{}) {
