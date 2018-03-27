@@ -57,8 +57,8 @@ func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover
 	return c.id, nil
 }
 
-func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, error) {
-	return &protoHandshake{ID: c.id, Name: "test"}, nil
+func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error) {
+	return &protoHandshake{ID: c.id, Name: "test"}, nil, nil
 }
 
 func (c *testTransport) close(err error) {
@@ -474,12 +474,12 @@ func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discove
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
 }
-func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, error) {
+func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error) {
 	c.calls += "doProtoHandshake,"
 	if c.protoHandshakeErr != nil {
-		return nil, c.protoHandshakeErr
+		return nil, nil, c.protoHandshakeErr
 	}
-	return c.phs, nil
+	return c.phs, nil, nil
 }
 func (c *setupTransport) close(err error) {
 	c.calls += "close,"
