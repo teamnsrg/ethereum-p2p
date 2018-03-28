@@ -211,6 +211,7 @@ func init() {
 					log.LvlMatchFilterFileHandler(log.LvlTxData, datadir),
 					log.LvlMatchFilterFileHandler(log.LvlTxRx, datadir),
 					//log.LvlMatchFilterFileHandler(log.LvlTxTx, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlNewBlockData, datadir),
 					log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, datadir),
 					//log.LvlMatchFilterFileHandler(log.LvlNewBlockTx, datadir),
 					log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesRx, datadir),
