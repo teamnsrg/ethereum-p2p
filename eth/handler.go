@@ -23,7 +23,6 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,7 +67,7 @@ type ProtocolManager struct {
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
 	txpool      txPool
-	knownTxs    map[common.Hash]*types.Transaction // All transactions to allow lookups
+	knownTxs    map[common.Hash]struct{} // All transactions to allow lookups
 	blockchain  *core.BlockChain
 	chaindb     ethdb.Database
 	chainconfig *params.ChainConfig
@@ -200,7 +199,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
-	pm.knownTxs = make(map[common.Hash]*types.Transaction)
+	pm.knownTxs = make(map[common.Hash]struct{})
 
 	// broadcast mined blocks
 	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
@@ -658,23 +657,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			txHash := tx.Hash()
 			// if previously unknown tx, log the entire tx-data
 			if _, ok := pm.knownTxs[txHash]; !ok {
-				pm.knownTxs[txHash] = tx
+				pm.knownTxs[txHash] = struct{}{}
 				log.TxData(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-					"conn", p.ConnFlags(), "rtt", rtt, "duration", duration,
-					"tx", tx.LogString())
+					"conn", p.ConnFlags(), "rtt", rtt, "duration", duration, "tx", tx.LogString())
 			}
 			txHashStr := txHash.String()[2:]
-			var fromHex string
-			from, err := types.Sender(types.NewEIP155Signer(pm.chainconfig.ChainId), tx)
-			if err != nil {
-				fromHex = "nil"
-			} else {
-				fromHex = strings.ToLower(from.Hex())[2:]
-			}
-			nonce := tx.Nonce()
 			log.TxRx(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-				"conn", p.ConnFlags(), "rtt", rtt, "duration", duration,
-				"txHash", txHashStr, "from", fromHex, "nonce", nonce)
+				"conn", p.ConnFlags(), "rtt", rtt, "duration", duration, "txHash", txHashStr)
 		}
 
 	default:
