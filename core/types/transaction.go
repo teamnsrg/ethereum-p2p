@@ -336,9 +336,9 @@ func (tx *Transaction) LogString() string {
 		to = fmt.Sprintf("%x", tx.data.Recipient[:])
 	}
 	enc, _ := rlp.EncodeToBytes(&tx.data)
-	return fmt.Sprintf("Hash:%x Contract:%v From:%s To:%s Nonce:%v GasPrice:%s GasLimit:%s Value:%s Data:0x%x "+
+	return fmt.Sprintf("Hash:%x Contract:%v From:%s To:%s Nonce:%v GasPrice:%s GasLimit:%s Value:%s Data:%x "+
 		"V:%s R:%s S:%s Encoded:%x",
-		tx.Hash().String()[2:], tx.data.Recipient == nil, from, to, tx.data.AccountNonce,
+		tx.Hash(), tx.data.Recipient == nil, from, to, tx.data.AccountNonce,
 		tx.data.Price.String(), tx.data.GasLimit.String(), tx.data.Amount.String(), tx.data.Payload,
 		tx.data.V.String(), tx.data.R.String(), tx.data.S.String(), enc)
 }
