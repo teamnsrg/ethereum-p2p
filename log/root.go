@@ -105,6 +105,11 @@ func TxTx(msg string, ctx ...interface{}) {
 	root.write(msg, LvlTxTx, ctx)
 }
 
+// NewBlockData is a convenient alias for Root().NewBlockData
+func NewBlockData(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNewBlockData, ctx)
+}
+
 // NewBlockRx is a convenient alias for Root().NewBlockRx
 func NewBlockRx(msg string, ctx ...interface{}) {
 	root.write(msg, LvlNewBlockRx, ctx)

@@ -31,6 +31,7 @@ const (
 	LvlTxData
 	LvlTxRx
 	LvlTxTx
+	LvlNewBlockData
 	LvlNewBlockRx
 	LvlNewBlockTx
 	LvlNewBlockHashesRx
@@ -70,6 +71,8 @@ func (l Lvl) AlignedString() string {
 		return "TXRX"
 	case LvlTxTx:
 		return "TXTX"
+	case LvlNewBlockData:
+		return "NBDATA"
 	case LvlNewBlockRx:
 		return "NBRX"
 	case LvlNewBlockTx:
@@ -116,6 +119,8 @@ func (l Lvl) String() string {
 		return "tx-rx"
 	case LvlTxTx:
 		return "tx-tx"
+	case LvlNewBlockData:
+		return "newblock-data"
 	case LvlNewBlockRx:
 		return "newblock-rx"
 	case LvlNewBlockTx:
@@ -163,6 +168,8 @@ func LvlFromString(lvlString string) (Lvl, error) {
 		return LvlTxRx, nil
 	case "tx-tx":
 		return LvlTxTx, nil
+	case "newblock-data":
+		return LvlNewBlockData, nil
 	case "newblock-rx":
 		return LvlNewBlockRx, nil
 	case "newblock-tx":
@@ -223,6 +230,7 @@ type Logger interface {
 	TxData(msg string, ctx ...interface{})
 	TxRx(msg string, ctx ...interface{})
 	TxTx(msg string, ctx ...interface{})
+	NewBlockData(msg string, ctx ...interface{})
 	NewBlockRx(msg string, ctx ...interface{})
 	NewBlockTx(msg string, ctx ...interface{})
 	NewBlockHashesRx(msg string, ctx ...interface{})
@@ -324,6 +332,10 @@ func (l *logger) TxRx(msg string, ctx ...interface{}) {
 
 func (l *logger) TxTx(msg string, ctx ...interface{}) {
 	l.write(msg, LvlTxTx, ctx)
+}
+
+func (l *logger) NewBlockData(msg string, ctx ...interface{}) {
+	l.write(msg, LvlNewBlockData, ctx)
 }
 
 func (l *logger) NewBlockRx(msg string, ctx ...interface{}) {
