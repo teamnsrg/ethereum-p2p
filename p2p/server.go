@@ -164,13 +164,11 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
-	addNodeInfoStmt     *sql.Stmt
-	updateNodeInfoStmt  *sql.Stmt
+	addNodeP2PInfoStmt  *sql.Stmt
 	addNodeMetaInfoStmt *sql.Stmt
-	GetRowIDStmt        *sql.Stmt
 	KnownNodeInfos      *KnownNodeInfos // information on known nodes
 	DB                  *sql.DB         // MySQL database handle
-	strReplacer         *strings.Replacer
+	StrReplacer         *strings.Replacer
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -225,11 +223,14 @@ const (
 type conn struct {
 	fd net.Conn
 	transport
-	flags connFlag
-	cont  chan error      // The run loop uses cont to signal errors to SetupConn.
-	id    discover.NodeID // valid after the encryption handshake
-	caps  []Cap           // valid after the protocol handshake
-	name  string          // valid after the protocol handshake
+	flags      connFlag
+	cont       chan error      // The run loop uses cont to signal errors to SetupConn.
+	id         discover.NodeID // valid after the encryption handshake
+	version    uint64          // valid after the protocol handshake
+	caps       []Cap           // valid after the protocol handshake
+	name       string          // valid after the protocol handshake
+	listenPort uint16          // valid after the protocol handshake
+	tcpPort    uint16          // valid after the protocol handshake
 }
 
 type transport interface {
@@ -408,7 +409,7 @@ func (srv *Server) Start() (err error) {
 	}
 
 	// initiate string replacer
-	srv.strReplacer = strings.NewReplacer(
+	srv.StrReplacer = strings.NewReplacer(
 		"|", "",
 		" ", "",
 		"'", "",
@@ -860,7 +861,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	// update node information
 	srv.storeNodeInfo(c, receivedAt, phs)
 
-	c.caps, c.name = phs.Caps, phs.Name
+	c.version, c.caps, c.name = phs.Version, phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
 		c.close(err)

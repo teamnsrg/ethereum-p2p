@@ -35,7 +35,7 @@ func (srv *Server) initSql() error {
 		if srv.BackupSQL {
 			sqlNameParsed := strings.Split(srv.MySQLName, "/")
 			dbName := sqlNameParsed[len(sqlNameParsed)-1]
-			for _, tableName := range []string{"neighbors", "node_meta_info", "node_info"} {
+			for _, tableName := range []string{"neighbors", "node_meta_info", "node_p2p_info", "node_eth_info"} {
 				if err := srv.backupTable(dbName, tableName); err != nil {
 					return err
 				}
@@ -54,19 +54,15 @@ func (srv *Server) initSql() error {
 		}
 
 		// fill KnownNodesInfos with info from the mysql database
-		srv.loadKnownNodeInfos()
-
-		// prepare sql statements
-		if err := srv.prepareAddNodeInfoStmt(); err != nil {
+		if err := srv.loadKnownNodeInfos(); err != nil {
 			return err
 		}
-		if err := srv.prepareUpdateNodeInfoStmt(); err != nil {
+
+		// prepare sql statements
+		if err := srv.prepareAddNodeP2PInfoStmt(); err != nil {
 			return err
 		}
 		if err := srv.prepareAddNodeMetaInfoStmt(); err != nil {
-			return err
-		}
-		if err := srv.prepareGetRowID(); err != nil {
 			return err
 		}
 	}
@@ -115,7 +111,7 @@ func (srv *Server) backupTable(dbName string, tableName string) error {
 
 func (srv *Server) dropTables() error {
 	if _, err := srv.DB.Exec(`
-		DROP TABLE IF EXISTS node_info, node_meta_info, neighbors
+		DROP TABLE IF EXISTS node_eth_info, node_p2p_info, node_meta_info, neighbors
 	`); err != nil {
 		log.Error("Failed to drop sql tables", "database", srv.MySQLName, "err", err)
 		return err
@@ -161,40 +157,60 @@ func (srv *Server) createTables() error {
 	}
 	log.Trace("node_meta_info table already exists or is newly created", "database", srv.MySQLName)
 
-	// create node_info table
+	// create node_p2p_info table
 	if _, err := srv.DB.Exec(`
-		CREATE TABLE IF NOT EXISTS node_info (
+		CREATE TABLE IF NOT EXISTS node_p2p_info (
 			id BIGINT unsigned NOT NULL AUTO_INCREMENT, 
 			node_id VARCHAR(128) NOT NULL, 
 			ip VARCHAR(39) NOT NULL, 
 			tcp_port SMALLINT unsigned NOT NULL, 
 			remote_port SMALLINT unsigned NOT NULL, 
-			p2p_version BIGINT unsigned NULL, 
-			client_id VARCHAR(255) NULL, 
-			caps VARCHAR(255) NULL, 
-			listen_port SMALLINT unsigned NULL, 
+			p2p_version BIGINT unsigned NOT NULL, 
+			client_id VARCHAR(255) NOT NULL, 
+			caps VARCHAR(255) NOT NULL, 
+			listen_port SMALLINT unsigned NOT NULL, 
 			hello_count BIGINT unsigned DEFAULT 0, 
-			first_hello_at DECIMAL(18,6) NULL, 
-			last_hello_at DECIMAL(18,6) NULL, 
-			protocol_version BIGINT unsigned NULL, 
-			network_id BIGINT unsigned NULL, 
-			first_received_td DECIMAL(65) NULL, 
-			last_received_td DECIMAL(65) NULL, 
-			best_hash VARCHAR(64) NULL, 
-			genesis_hash VARCHAR(64) NULL, 
-			dao_fork TINYINT NULL, 
-			status_count BIGINT unsigned DEFAULT 0, 
-			first_status_at DECIMAL(18,6) NULL, 
-			last_status_at DECIMAL(18,6) NULL, 
-			PRIMARY KEY (id), 
-			KEY (node_id)
+			first_hello_at DECIMAL(18,6) NOT NULL, 
+			last_hello_at DECIMAL(18,6) NOT NULL, 
+			PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port),
+			KEY (id)
 		)
 	`); err != nil {
-		log.Error("Failed to create node_info table", "database", srv.MySQLName, "err", err)
+		log.Error("Failed to create node_p2p_info table", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("node_info table already exists or is newly created", "database", srv.MySQLName)
+	log.Trace("node_p2p_info table already exists or is newly created", "database", srv.MySQLName)
 
+	// create node_eth_info table
+	if _, err := srv.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS node_eth_info (
+			id BIGINT unsigned NOT NULL AUTO_INCREMENT, 
+			node_id VARCHAR(128) NOT NULL, 
+			ip VARCHAR(39) NOT NULL, 
+			tcp_port SMALLINT unsigned NOT NULL, 
+			remote_port SMALLINT unsigned NOT NULL, 
+			p2p_version BIGINT unsigned NOT NULL, 
+			client_id VARCHAR(255) NOT NULL, 
+			caps VARCHAR(255) NOT NULL, 
+			listen_port SMALLINT unsigned NOT NULL, 
+			protocol_version BIGINT unsigned NOT NULL, 
+			network_id BIGINT unsigned NOT NULL, 
+			first_received_td DECIMAL(65) NOT NULL, 
+			last_received_td DECIMAL(65) NOT NULL, 
+			best_hash VARCHAR(64) NOT NULL, 
+			genesis_hash VARCHAR(64) NOT NULL, 
+			dao_fork TINYINT NULL, 
+			status_count BIGINT unsigned DEFAULT 0, 
+			first_status_at DECIMAL(18,6) NOT NULL, 
+			last_status_at DECIMAL(18,6) NOT NULL, 
+			PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port, protocol_version, network_id, genesis_hash), 
+			KEY (id)
+		)
+	`); err != nil {
+		log.Error("Failed to create node_eth_info table", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("node_eth_info table already exists or is newly created", "database", srv.MySQLName)
 	return nil
 }
 
@@ -216,18 +232,11 @@ func (srv *Server) closeDB(db *sql.DB) {
 }
 
 func (srv *Server) closeSqlStmts() {
-	if srv.addNodeInfoStmt != nil {
-		if err := srv.addNodeInfoStmt.Close(); err != nil {
+	if srv.addNodeP2PInfoStmt != nil {
+		if err := srv.addNodeP2PInfoStmt.Close(); err != nil {
 			log.Error("Failed to close AddNodeInfo sql statement", "err", err)
 		} else {
 			log.Trace("Closed AddNodeInfo sql statement")
-		}
-	}
-	if srv.updateNodeInfoStmt != nil {
-		if err := srv.updateNodeInfoStmt.Close(); err != nil {
-			log.Error("Failed to close UpdateNodeInfo sql statement", "err", err)
-		} else {
-			log.Trace("Closed UpdateNodeInfo sql statement")
 		}
 	}
 	if srv.addNodeMetaInfoStmt != nil {
@@ -237,28 +246,48 @@ func (srv *Server) closeSqlStmts() {
 			log.Trace("Closed AddNodeMetaInfo sql statement")
 		}
 	}
-	if srv.GetRowIDStmt != nil {
-		if err := srv.GetRowIDStmt.Close(); err != nil {
-			log.Error("Failed to close GetRowID sql statement", "err", err)
-		} else {
-			log.Trace("Closed GetRowID sql statement")
-		}
-	}
 }
 
-func (srv *Server) loadKnownNodeInfos() {
-	rows, _ := srv.DB.Query(`
-		SELECT ni.id, ni.node_id, nmi.hash, ip, tcp_port, remote_port, 
+func (srv *Server) loadKnownNodeInfos() error {
+	rows, err := srv.DB.Query(`
+		SELECT nmi.node_id, nmi.hash, ip, tcp_port, remote_port, 
 			p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
 			protocol_version, network_id, first_received_td, last_received_td, best_hash, genesis_hash, 
 			first_status_at, last_status_at, dao_fork 
-		FROM (SELECT * 
-			  FROM node_info x INNER JOIN (SELECT node_id as nid, MAX(id) as max_id 
-										   FROM node_info 
-										   GROUP BY node_id
-										   ) max_ids ON x.id = max_ids.max_id
-			  ) ni INNER JOIN node_meta_info nmi ON ni.node_id=nmi.node_id
+		FROM node_meta_info AS nmi 
+			INNER JOIN 
+				(SELECT p2p.node_id, p2p.ip, p2p.tcp_port, p2p.remote_port, p2p.p2p_version, 
+						p2p.client_id, p2p.caps, p2p.listen_port, p2p.first_hello_at, p2p.last_hello_at, 
+						eth.protocol_version, eth.network_id, eth.first_received_td, eth.last_received_td, 
+						eth.best_hash, eth.genesis_hash, eth.first_status_at, eth.last_status_at, eth.dao_fork  
+				 FROM (SELECT * 
+				 	   FROM node_p2p_info AS x 
+				 	   		INNER JOIN 
+				 	   			(SELECT node_id AS nid, MAX(id) AS max_id 
+				 	   			 FROM node_p2p_info 
+				 	   			 GROUP BY node_id
+				 	   			 ) AS max_ids 
+				 	   			ON x.id = max_ids.max_id
+				 	   ) AS p2p 
+				 	LEFT JOIN 
+				 	  (SELECT * 
+					   FROM node_eth_info AS x 
+					   		INNER JOIN 
+					   			(SELECT node_id AS nid, MAX(id) AS max_id 
+							  	 FROM node_eth_info 
+							  	 GROUP BY node_id
+							  	 ) AS max_ids 
+								ON x.id = max_ids.max_id
+					   ) AS eth 
+						ON p2p.node_id = eth.node_id
+				 ) AS nodes
+					ON nmi.node_id = nodes.node_id
 	`)
+	if err != nil {
+		log.Error("Failed to execute initial query", "database", srv.MySQLName, "err", err)
+		return err
+	}
+	log.Trace("Executed initial query", "database", srv.MySQLName)
 	defer rows.Close()
 
 	type sqlObjects struct {
@@ -284,7 +313,6 @@ func (srv *Server) loadKnownNodeInfos() {
 
 	for rows.Next() {
 		var (
-			rowId      uint64
 			nodeid     string
 			hash       string
 			ip         string
@@ -292,7 +320,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			remotePort uint16
 			sqlObj     sqlObjects
 		)
-		err := rows.Scan(&rowId, &nodeid, &hash, &ip, &tcpPort, &remotePort,
+		err := rows.Scan(&nodeid, &hash, &ip, &tcpPort, &remotePort,
 			&sqlObj.p2pVersion, &sqlObj.clientId, &sqlObj.caps, &sqlObj.listenPort,
 			&sqlObj.firstHelloAt, &sqlObj.lastHelloAt, &sqlObj.protocolVersion, &sqlObj.networkId,
 			&sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash,
@@ -304,11 +332,10 @@ func (srv *Server) loadKnownNodeInfos() {
 		// convert hex to NodeID
 		id, err := discover.HexID(nodeid)
 		if err != nil {
-			log.Error("Failed to parse node_id value from db", "rowId", rowId, "id", nodeid, "err", err)
+			log.Error("Failed to parse node_id value from db", "id", nodeid, "err", err)
 			continue
 		}
 		nodeInfo := &Info{
-			RowId:         rowId,
 			Keccak256Hash: hash,
 			IP:            ip,
 			TCPPort:       tcpPort,
@@ -347,7 +374,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.firstReceivedTd.String
 			_, ok := firstReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Error("Failed to parse first_received_td value from db", "rowId", rowId, "value", s)
+				log.Error("Failed to parse first_received_td value from db", "value", s)
 			} else {
 				nodeInfo.FirstReceivedTd = NewTd(firstReceivedTd)
 			}
@@ -357,7 +384,7 @@ func (srv *Server) loadKnownNodeInfos() {
 			s := sqlObj.lastReceivedTd.String
 			_, ok := lastReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Error("Failed to parse last_received_td value from db", "rowId", rowId, "value", s)
+				log.Error("Failed to parse last_received_td value from db", "value", s)
 			} else {
 				nodeInfo.LastReceivedTd = NewTd(lastReceivedTd)
 			}
@@ -386,76 +413,46 @@ func (srv *Server) loadKnownNodeInfos() {
 		// add the node to the initial static node list
 		srv.addInitialStatic(id, nodeInfo)
 	}
+	return nil
 }
 
-func (srv *Server) prepareAddNodeInfoStmt() error {
+func (srv *Server) prepareAddNodeP2PInfoStmt() error {
 	pStmt, err := srv.DB.Prepare(`
-		INSERT INTO node_info 
+		INSERT INTO node_p2p_info 
 			(node_id, ip, tcp_port, remote_port, 
 			 p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, hello_count) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) 
+		ON DUPLICATE KEY UPDATE 
+			remote_port=VALUES(remote_port), 
+			last_hello_at=VALUES(last_hello_at), 
+			hello_count=hello_count+1
 	`)
 	if err != nil {
-		log.Error("Failed to prepare AddNodeInfo sql statement", "err", err)
+		log.Error("Failed to prepare AddNodeP2PInfo sql statement", "err", err)
 		return err
 	} else {
-		log.Trace("Prepared AddNodeInfo sql statement")
-		srv.addNodeInfoStmt = pStmt
+		log.Trace("Prepared AddNodeP2PInfo sql statement")
+		srv.addNodeP2PInfoStmt = pStmt
 	}
 	return nil
 }
 
-func (srv *Server) addNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
+func (srv *Server) addNodeP2PInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	// exit if no prepared statement
-	if srv.addNodeInfoStmt == nil {
-		log.Crit("No prepared statement for AddNodeInfo")
+	if srv.addNodeP2PInfoStmt == nil {
+		log.Crit("No prepared statement for AddNodeP2PInfo")
 		return
 	}
 
 	nodeid := newInfoWrapper.NodeId
 	newInfo := newInfoWrapper.Info
 	lastHelloAt := newInfo.LastHelloAt.Float64()
-	_, err := srv.addNodeInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
+	_, err := srv.addNodeP2PInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, lastHelloAt, lastHelloAt)
 	if err != nil {
-		log.Error("Failed to execute AddNodeInfo sql statement", "id", nodeid[:16], "err", err)
+		log.Error("Failed to execute AddNodeP2PInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Trace("Executed AddNodeInfo sql statement", "id", nodeid[:16])
-	}
-}
-
-func (srv *Server) prepareUpdateNodeInfoStmt() error {
-	pStmt, err := srv.DB.Prepare(`
-		UPDATE node_info 
-		SET remote_port=?, last_hello_at=?, hello_count=hello_count+1 
-		WHERE id=?
-	`)
-
-	if err != nil {
-		log.Error("Failed to prepare UpdateNodeInfo sql statement", "err", err)
-		return err
-	} else {
-		log.Trace("Prepared UpdateNodeInfo sql statement")
-		srv.updateNodeInfoStmt = pStmt
-	}
-	return nil
-}
-
-func (srv *Server) updateNodeInfo(newInfoWrapper *KnownNodeInfosWrapper) {
-	// exit if no prepared statement
-	if srv.updateNodeInfoStmt == nil {
-		log.Crit("No prepared statement for UpdateNodeInfo")
-		return
-	}
-
-	nodeid := newInfoWrapper.NodeId
-	newInfo := newInfoWrapper.Info
-	lastHelloAt := newInfo.LastHelloAt.Float64()
-	_, err := srv.updateNodeInfoStmt.Exec(newInfo.RemotePort, lastHelloAt, newInfo.RowId)
-	if err != nil {
-		log.Error("Failed to execute UpdateNodeInfo sql statement", "id", nodeid[:16], "err", err)
-	} else {
-		log.Trace("Executed UpdateNodeInfo sql statement", "id", nodeid[:16])
+		log.Trace("Executed AddNodeP2PInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -499,40 +496,6 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4, "err", err)
 	} else {
 		log.Trace("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4)
-	}
-}
-
-func (srv *Server) prepareGetRowID() error {
-	pStmt, err := srv.DB.Prepare(`
-		SELECT MAX(id) 
-		FROM node_info 
-		WHERE node_id=?
-	`)
-	if err != nil {
-		log.Error("Failed to prepare GetRowID sql statement", "err", err)
-		return err
-	} else {
-		log.Trace("Prepared GetRowID sql statement")
-		srv.GetRowIDStmt = pStmt
-	}
-	return nil
-}
-
-func (srv *Server) getRowID(nodeid string) uint64 {
-	// exit if no prepared statement
-	if srv.GetRowIDStmt == nil {
-		log.Crit("No prepared statement for GetRowID")
-		return 0
-	}
-
-	var rowId uint64
-	err := srv.GetRowIDStmt.QueryRow(nodeid).Scan(&rowId)
-	if err != nil {
-		log.Error("Failed to execute GetRowID sql statement", "id", nodeid[:16], "err", err)
-		return 0
-	} else {
-		log.Trace("Executed GetRowID sql statement", "id", nodeid[:16])
-		return rowId
 	}
 }
 

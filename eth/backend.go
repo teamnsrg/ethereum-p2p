@@ -389,8 +389,8 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 	// Set mysql db handle
 	s.protocolManager.db = srvr.DB
 
-	// Set prepared GetRowIDStmt
-	s.protocolManager.getRowIDStmt = srvr.GetRowIDStmt
+	// initiate string replacer
+	s.protocolManager.strReplacer = srvr.StrReplacer
 
 	// Set knownNodeInfos
 	s.protocolManager.knownNodeInfos = srvr.KnownNodeInfos

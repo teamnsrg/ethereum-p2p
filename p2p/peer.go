@@ -134,6 +134,11 @@ func (p *Peer) ID() discover.NodeID {
 	return p.rw.id
 }
 
+// Version returns the version of the p2p protocol used by the remote peer.
+func (p *Peer) Version() uint64 {
+	return p.rw.version
+}
+
 // Name returns the node name that the remote node advertised.
 func (p *Peer) Name() string {
 	return p.rw.name
@@ -143,6 +148,16 @@ func (p *Peer) Name() string {
 func (p *Peer) Caps() []Cap {
 	// TODO: maybe return copy
 	return p.rw.caps
+}
+
+// ListenPort returns the port number that the remote peer advertised.
+func (p *Peer) ListenPort() uint16 {
+	return p.rw.listenPort
+}
+
+// TCPPort returns the port number that the remote peer advertised through discovery.
+func (p *Peer) TCPPort() uint16 {
+	return p.rw.tcpPort
 }
 
 // RemoteAddr returns the remote address of the network connection.
