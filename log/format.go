@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	timeFormat     = "2006-01-02T15:04:05-0700"
-	termTimeFormat = "01-02|15:04:05"
-	floatFormat    = 'f'
-	termMsgJust    = 40
+	timeFormat         = "2006-01-02T15:04:05-0700"
+	nanoTermTimeFormat = "2006-01-02T15:04:05.999999999-0700"
+	floatFormat        = 'f'
+	termMsgJust        = 40
 )
 
 // locationTrims are trimmed for display to avoid unwieldy log lines.
@@ -105,6 +105,8 @@ func TerminalFormat(usecolor bool) Format {
 
 		b := &bytes.Buffer{}
 		lvl := r.Lvl.AlignedString()
+		unixTime := float64(r.Time.UnixNano()) / 1000000000
+
 		if atomic.LoadUint32(&locationEnabled) != 0 {
 			// Log origin printing was requested, format the location path and line number
 			location := fmt.Sprintf("%+v", r.Call)
@@ -117,19 +119,18 @@ func TerminalFormat(usecolor bool) Format {
 				align = len(location)
 				atomic.StoreUint32(&locationLength, uint32(align))
 			}
-			padding := strings.Repeat(" ", align-len(location))
 
 			// Assemble and print the log heading
 			if color > 0 {
-				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m[%s|%s]%s %s ", color, lvl, r.Time.Format(termTimeFormat), location, padding, r.Msg)
+				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m %s %f [%s] %s", color, lvl, r.Time.Format(nanoTermTimeFormat), unixTime, location, r.Msg)
 			} else {
-				fmt.Fprintf(b, "%s[%s|%s]%s %s ", lvl, r.Time.Format(termTimeFormat), location, padding, r.Msg)
+				fmt.Fprintf(b, "%s %s %f [%s] %s", lvl, r.Time.Format(nanoTermTimeFormat), unixTime, location, r.Msg)
 			}
 		} else {
 			if color > 0 {
-				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m[%s] %s ", color, lvl, r.Time.Format(termTimeFormat), r.Msg)
+				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m %s %f %s", color, lvl, r.Time.Format(nanoTermTimeFormat), unixTime, r.Msg)
 			} else {
-				fmt.Fprintf(b, "%s[%s] %s ", lvl, r.Time.Format(termTimeFormat), r.Msg)
+				fmt.Fprintf(b, "%s %s %f %s", lvl, r.Time.Format(nanoTermTimeFormat), unixTime, r.Msg)
 			}
 		}
 		// try to justify the log output for short messages

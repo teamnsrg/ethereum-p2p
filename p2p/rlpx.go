@@ -40,6 +40,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto/ecies"
 	"github.com/teamnsrg/go-ethereum/crypto/secp256k1"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -55,7 +56,7 @@ const (
 	authMsgLen  = sigLen + shaLen + pubLen + shaLen + 1
 	authRespLen = pubLen + shaLen + 1
 
-	eciesOverhead = 65 /* pubkey */ + 16 /* IV */ + 32 /* MAC */
+	eciesOverhead = 65 + 16 + 32 /* pubkey + IV + MAC */
 
 	encAuthMsgLen  = authMsgLen + eciesOverhead  // size of encrypted pre-EIP-8 initiator handshake
 	encAuthRespLen = authRespLen + eciesOverhead // size of encrypted pre-EIP-8 handshake reply
@@ -102,14 +103,14 @@ func (t *rlpx) WriteMsg(msg Msg) error {
 	return t.rw.WriteMsg(msg)
 }
 
-func (t *rlpx) close(err error) {
+func (t *rlpx) close(err error, peer discover.NodeID) {
 	t.wmu.Lock()
 	defer t.wmu.Unlock()
 	// Tell the remote end why we're disconnecting if possible.
 	if t.rw != nil {
 		if r, ok := err.(DiscReason); ok && r != DiscNetworkError {
 			t.fd.SetWriteDeadline(time.Now().Add(discWriteTimeout))
-			SendItems(t.rw, discMsg, r)
+			SendDEVp2p(t.rw, discMsg, r, peer)
 		}
 	}
 	t.fd.Close()
@@ -119,14 +120,14 @@ func (t *rlpx) close(err error) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (their *protoHandshake, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
-	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
-	if their, err = readProtocolHandshake(t.rw, our); err != nil {
+	go func() { werr <- SendDEVp2p(t.rw, handshakeMsg, our, peer) }()
+	if their, err = readProtocolHandshake(t.rw, peer); err != nil {
 		<-werr // make sure the write terminates too
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, err
 	return their, nil
 }
 
-func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, error) {
+func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
 		return nil, err
@@ -154,15 +155,26 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
+		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", peer)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
+		var emptyMsgObj []interface{}
+		if int(msg.Code) < len(devp2pCodeToString) {
+			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
+		} else {
+			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
+		}
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
+		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
 		return nil, err
 	}
+
+	log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", &hs, "size", int(msg.Size), "peer", hs.ID)
+
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity
 	}
