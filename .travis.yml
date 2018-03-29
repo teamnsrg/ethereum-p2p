@@ -36,8 +36,28 @@ matrix:
     - sudo chown root:$USER /etc/fuse.conf
     - go run build/ci.go install
     - go run build/ci.go test -coverage
+  - os: linux
+    dist: trusty
+    sudo: required
+    go: "1.10"
+    script:
+    - sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install fuse
+    - sudo modprobe fuse
+    - sudo chmod 666 /dev/fuse
+    - sudo chown root:$USER /etc/fuse.conf
+    - go run build/ci.go install
+    - go run build/ci.go test -coverage
   - os: osx
     go: 1.9.x
+    sudo: required
+    script:
+    - brew update
+    - brew install caskroom/cask/brew-cask
+    - brew cask install osxfuse
+    - go run build/ci.go install
+    - go run build/ci.go test -coverage
+  - os: osx
+    go: "1.10"
     sudo: required
     script:
     - brew update
@@ -48,7 +68,7 @@ matrix:
   - os: linux
     dist: trusty
     sudo: required
-    go: 1.9.x
+    go: "1.10"
     env:
     - lint
     script:
