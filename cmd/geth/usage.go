@@ -64,6 +64,20 @@ type flagGroup struct {
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
 	{
+		Name: "NODE FINDER",
+		Flags: []cli.Flag{
+			utils.MySQLFlag,
+			utils.BackupSQLFlag,
+			utils.ResetSQLFlag,
+			utils.MaxNumFileFlag,
+			utils.MaxDialFlag,
+			utils.MaxAcceptConnsFlag,
+			utils.NoMaxPeersFlag,
+			utils.DialFreqFlag,
+			utils.BlacklistFlag,
+		},
+	},
+	{
 		Name: "ETHEREUM",
 		Flags: []cli.Flag{
 			configFileFlag,

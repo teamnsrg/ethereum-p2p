@@ -28,6 +28,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 )
 
 func init() {
@@ -56,8 +57,8 @@ func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover
 	return c.id, nil
 }
 
-func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, error) {
-	return &protoHandshake{ID: c.id, Name: "test"}, nil
+func (c *testTransport) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error) {
+	return &protoHandshake{ID: c.id, Name: "test"}, nil, nil
 }
 
 func (c *testTransport) close(err error) {
@@ -83,6 +84,26 @@ func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	return server
 }
 
+func startTestConnectServer(listener net.Listener, t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
+	tcpAddr := listener.Addr().(*net.TCPAddr)
+	config := Config{
+		Name:        "test",
+		MaxPeers:    10,
+		ListenAddr:  "127.0.0.1:0",
+		PrivateKey:  newkey(),
+		StaticNodes: []*discover.Node{{ID: id, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)}},
+	}
+	server := &Server{
+		Config:       config,
+		newPeerHook:  pf,
+		newTransport: func(fd net.Conn) transport { return newTestTransport(id, fd) },
+	}
+	if err := server.Start(); err != nil {
+		t.Fatalf("Could not start server: %v", err)
+	}
+	return server
+}
+
 func TestServerListen(t *testing.T) {
 	// start the test server
 	connected := make(chan *Peer)
@@ -96,6 +117,8 @@ func TestServerListen(t *testing.T) {
 		}
 		connected <- p
 	})
+	srv.MaxDial = 16
+	srv.MaxAcceptConns = 50
 	defer close(connected)
 	defer srv.Stop()
 
@@ -141,13 +164,11 @@ func TestServerDial(t *testing.T) {
 	// start the server
 	connected := make(chan *Peer)
 	remid := randomID()
-	srv := startTestServer(t, remid, func(p *Peer) { connected <- p })
+	srv := startTestConnectServer(listener, t, remid, func(p *Peer) { connected <- p })
+	srv.MaxDial = 16
+	srv.MaxAcceptConns = 50
 	defer close(connected)
 	defer srv.Stop()
-
-	// tell the server to connect
-	tcpAddr := listener.Addr().(*net.TCPAddr)
-	srv.AddPeer(&discover.Node{ID: remid, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)})
 
 	select {
 	case conn := <-accepted:
@@ -207,6 +228,8 @@ func TestServerTaskScheduling(t *testing.T) {
 		ntab:    fakeTable{},
 		running: true,
 	}
+	srv.MaxDial = 16
+	srv.MaxAcceptConns = 50
 	srv.loopWG.Add(1)
 	go func() {
 		srv.run(tg)
@@ -250,11 +273,13 @@ func TestServerManyTasks(t *testing.T) {
 		done       = make(chan *testTask)
 		start, end = 0, 0
 	)
+	srv.MaxDial = 16
+	srv.MaxAcceptConns = 50
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
 		newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
-			start, end = end, end+maxActiveDialTasks+10
+			start, end = end, end+srv.MaxDial+10
 			if end > len(alltasks) {
 				end = len(alltasks)
 			}
@@ -295,12 +320,19 @@ type taskgen struct {
 func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return tg.newFunc(running, peers)
 }
+func (tg taskgen) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
+	return nil
+}
 func (tg taskgen) taskDone(t task, now time.Time) {
 	tg.doneFunc(t)
 }
 func (tg taskgen) addStatic(*discover.Node) {
 }
 func (tg taskgen) removeStatic(*discover.Node) {
+}
+func (tg taskgen) setBlacklist(blacklist *netutil.Netlist) {
+}
+func (tg taskgen) setDialFreq(f int) {
 }
 
 type testTask struct {
@@ -446,7 +478,8 @@ func TestServerSetupConn(t *testing.T) {
 }
 
 type setupTransport struct {
-	id              discover.NodeID
+	id discover.NodeID
+	*rlpx
 	encHandshakeErr error
 
 	phs               *protoHandshake
@@ -460,12 +493,12 @@ func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discove
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
 }
-func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, error) {
+func (c *setupTransport) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error) {
 	c.calls += "doProtoHandshake,"
 	if c.protoHandshakeErr != nil {
-		return nil, c.protoHandshakeErr
+		return nil, nil, c.protoHandshakeErr
 	}
-	return c.phs, nil
+	return c.phs, nil, nil
 }
 func (c *setupTransport) close(err error) {
 	c.calls += "close,"

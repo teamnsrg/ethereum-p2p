@@ -228,12 +228,22 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 	return p2p.Send(p.rw, GetReceiptsMsg, hashes)
 }
 
+// statusDataWrapper is the wrapper for statusData and unixTime
+type statusDataWrapper struct {
+	ReceivedAt *time.Time
+	Status     *statusData
+	ErrorCode  errCode
+}
+
+func (s *statusDataWrapper) isValidIncompatibleStatus() bool {
+	return s.ErrorCode == ErrGenesisBlockMismatch || s.ErrorCode == ErrNetworkIdMismatch || s.ErrorCode == ErrProtocolVersionMismatch
+}
+
 // Handshake executes the eth protocol handshake, negotiating version number,
 // network IDs, difficulties, head and genesis blocks.
-func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis common.Hash) error {
+func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis common.Hash, statusWrapper *statusDataWrapper) error {
 	// Send out own handshake in a new thread
 	errc := make(chan error, 2)
-	var status statusData // safe to read after two values have been received from errc
 
 	go func() {
 		errc <- p2p.Send(p.rw, StatusMsg, &statusData{
@@ -245,7 +255,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 		})
 	}()
 	go func() {
-		errc <- p.readStatus(network, &status, genesis)
+		errc <- p.readStatus(network, statusWrapper, genesis)
 	}()
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
@@ -259,11 +269,11 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 			return p2p.DiscReadTimeout
 		}
 	}
-	p.td, p.head = status.TD, status.CurrentBlock
+	p.td, p.head = statusWrapper.Status.TD, statusWrapper.Status.CurrentBlock
 	return nil
 }
 
-func (p *peer) readStatus(network uint64, status *statusData, genesis common.Hash) (err error) {
+func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, genesis common.Hash) (err error) {
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
 		return err
@@ -271,20 +281,28 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	if msg.Code != StatusMsg {
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
+	p.Log().Trace("<<"+ethCodeToString[msg.Code], "receivedAt", msg.ReceivedAt)
 	if msg.Size > ProtocolMaxMsgSize {
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
+	var status statusData
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
+	statusWrapper.ReceivedAt = &msg.ReceivedAt
+	statusWrapper.Status = &status
+
 	if status.GenesisBlock != genesis {
+		statusWrapper.ErrorCode = ErrGenesisBlockMismatch
 		return errResp(ErrGenesisBlockMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])
 	}
 	if status.NetworkId != network {
+		statusWrapper.ErrorCode = ErrNetworkIdMismatch
 		return errResp(ErrNetworkIdMismatch, "%d (!= %d)", status.NetworkId, network)
 	}
 	if int(status.ProtocolVersion) != p.version {
+		statusWrapper.ErrorCode = ErrProtocolVersionMismatch
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", status.ProtocolVersion, p.version)
 	}
 	return nil

@@ -1,0 +1,17 @@
+[client]
+default-character-set=utf8mb4
+  
+[mysql]
+default-character-set=utf8mb4
+  
+[mysqld]
+character-set-client-handshake = false #force encoding to uft8mb4
+character-set-server=utf8mb4
+collation-server=utf8mb4_general_ci
+innodb_autoinc_lock_mode = 0
+max_connections = 500
+max_user_connections = 0
+secure_file_priv="/backup"
+  
+[mysqld_safe]
+default-character-set=utf8mb4

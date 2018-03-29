@@ -110,6 +110,47 @@ func NewApp(gitCommit, usage string) *cli.App {
 // are the same for all commands.
 
 var (
+	// Node Finder settings
+	MySQLFlag = cli.StringFlag{
+		Name:  "mysql",
+		Usage: "Connects to the specified database and update node information (username:password@tcp(ip:port)/db)",
+	}
+	BackupSQLFlag = cli.BoolFlag{
+		Name:  "backupsql",
+		Usage: "Makes a backup of the current MySQL db tables",
+	}
+	ResetSQLFlag = cli.BoolFlag{
+		Name:  "resetsql",
+		Usage: "Makes a backup of the current MySQL db tables and resets them (if set, backupsql is automatically set)",
+	}
+	MaxNumFileFlag = cli.Uint64Flag{
+		Name:  "maxnumfile",
+		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
+		Value: 2048,
+	}
+	MaxDialFlag = cli.IntFlag{
+		Name:  "maxdial",
+		Usage: "Maximum number of concurrently dialing outbound connections",
+		Value: 16,
+	}
+	MaxAcceptConnsFlag = cli.IntFlag{
+		Name:  "maxacceptconns",
+		Usage: "Maximum number of concurrently handshaking inbound connections",
+		Value: 50,
+	}
+	NoMaxPeersFlag = cli.BoolFlag{
+		Name:  "nomaxpeers",
+		Usage: "Ignore/overwrite MaxPeers to allow unlimited number of peer connections",
+	}
+	DialFreqFlag = cli.IntFlag{
+		Name:  "dialfreq",
+		Usage: "Frequency of re-dialing static nodes (in seconds)",
+		Value: 30,
+	}
+	BlacklistFlag = cli.StringFlag{
+		Name:  "blacklist",
+		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -703,8 +744,8 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 
 // makeDatabaseHandles raises out the number of allowed file handles per process
 // for Geth and returns half of the allowance to assign to the database.
-func makeDatabaseHandles() int {
-	if err := raiseFdLimit(2048); err != nil {
+func makeDatabaseHandles(max uint64) int {
+	if err := raiseFdLimit(max); err != nil {
 		Fatalf("Failed to raise file descriptor allowance: %v", err)
 	}
 	limit, err := getFdLimit()
@@ -783,6 +824,28 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	if ctx.GlobalIsSet(MySQLFlag.Name) {
+		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)
+	}
+	if ctx.GlobalIsSet(BackupSQLFlag.Name) {
+		cfg.BackupSQL = true
+	}
+	if ctx.GlobalIsSet(ResetSQLFlag.Name) {
+		cfg.ResetSQL = true
+		cfg.BackupSQL = true
+	}
+	if ctx.GlobalIsSet(MaxDialFlag.Name) {
+		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)
+	}
+	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
+		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
+	}
+	if ctx.GlobalIsSet(NoMaxPeersFlag.Name) {
+		cfg.NoMaxPeers = true
+	}
+	if ctx.GlobalIsSet(DialFreqFlag.Name) {
+		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
+	}
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
 	}
@@ -809,6 +872,14 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 			Fatalf("Option %q: %v", NetrestrictFlag.Name, err)
 		}
 		cfg.NetRestrict = list
+	}
+
+	if blacklist := ctx.GlobalString(BlacklistFlag.Name); blacklist != "" {
+		list, err := netutil.ParseNetlist(blacklist)
+		if err != nil {
+			Fatalf("Option %q: %v", BlacklistFlag.Name, err)
+		}
+		cfg.Blacklist = list
 	}
 
 	if ctx.GlobalBool(DeveloperFlag.Name) {
@@ -959,7 +1030,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name)
 	}
-	cfg.DatabaseHandles = makeDatabaseHandles()
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		cfg.DatabaseHandles = makeDatabaseHandles(ctx.GlobalUint64(MaxNumFileFlag.Name))
+	} else {
+		cfg.DatabaseHandles = makeDatabaseHandles(2048)
+
+	}
 
 	if ctx.GlobalIsSet(MinerThreadsFlag.Name) {
 		cfg.MinerThreads = ctx.GlobalInt(MinerThreadsFlag.Name)
@@ -1083,9 +1159,13 @@ func SetupNetwork(ctx *cli.Context) {
 // MakeChainDatabase open an LevelDB using the flags passed to the client and will hard crash if it fails.
 func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	var (
-		cache   = ctx.GlobalInt(CacheFlag.Name)
-		handles = makeDatabaseHandles()
+		cache      = ctx.GlobalInt(CacheFlag.Name)
+		maxNumFile = uint64(2048)
 	)
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		maxNumFile = ctx.GlobalUint64(MaxNumFileFlag.Name)
+	}
+	handles := makeDatabaseHandles(maxNumFile)
 	name := "chaindata"
 	if ctx.GlobalBool(LightModeFlag.Name) {
 		name = "lightchaindata"

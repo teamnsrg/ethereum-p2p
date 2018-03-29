@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"container/list"
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -118,6 +119,10 @@ type (
 	}
 )
 
+func (n *rpcNode) String() string {
+	return fmt.Sprintf("ID:%v IP:%v TCPPort:%v UDPPort:%v", n.ID, n.IP, n.TCP, n.UDP)
+}
+
 func makeEndpoint(addr *net.UDPAddr, tcpPort uint16) rpcEndpoint {
 	ip := addr.IP.To4()
 	if ip == nil {
@@ -135,6 +140,10 @@ func (t *udp) nodeFromRPC(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
 	}
 	if t.netrestrict != nil && !t.netrestrict.Contains(rn.IP) {
 		return nil, errors.New("not contained in netrestrict whitelist")
+	}
+	if t.blacklist != nil && t.blacklist.Contains(rn.IP) {
+		log.Debug("Node ignored (blacklisted)", "addr", rn.IP.String(), "transport", "tcp")
+		return nil, errors.New("contained in blacklist")
 	}
 	n := NewNode(rn.ID, rn.IP, rn.UDP, rn.TCP)
 	err := n.validateComplete()
@@ -159,6 +168,10 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
+	sqldb           *sql.DB
+	addNeighborStmt *sql.Stmt
+	blacklist       *netutil.Netlist
+
 	conn        conn
 	netrestrict *netutil.Netlist
 	priv        *ecdsa.PrivateKey
@@ -211,7 +224,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, err
@@ -220,7 +233,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	if err != nil {
 		return nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict)
+	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, db)
 	if err != nil {
 		return nil, err
 	}
@@ -228,11 +241,13 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	return tab, nil
 }
 
-func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist) (*Table, *udp, error) {
+func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, *udp, error) {
 	udp := &udp{
+		sqldb:       db,
 		conn:        c,
 		priv:        priv,
 		netrestrict: netrestrict,
+		blacklist:   blacklist,
 		closing:     make(chan struct{}),
 		gotreply:    make(chan reply),
 		addpending:  make(chan *pending),
@@ -255,6 +270,13 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 	}
 	udp.Table = tab
 
+	// prepare sql statement
+	if udp.sqldb != nil {
+		if err := udp.prepareAddNeighborStmt(); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	go udp.loop()
 	go udp.readLoop()
 	return udp.Table, udp, nil
@@ -263,6 +285,9 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 func (t *udp) close() {
 	close(t.closing)
 	t.conn.Close()
+
+	// close prepared sql statements
+	t.closeSqlStmts()
 	// TODO: wait for the loops to end.
 }
 
@@ -294,7 +319,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 			nreceived++
 			n, err := t.nodeFromRPC(toaddr, rn)
 			if err != nil {
-				log.Trace("Invalid neighbor node received", "ip", rn.IP, "addr", toaddr, "err", err)
+				log.Trace("Invalid neighbor node received", "neighborIp", rn.IP, "senderIp", toaddr, "err", err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -465,7 +490,6 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Trace(">> "+req.name(), "addr", toaddr, "err", err)
 	return err
 }
 
@@ -520,7 +544,16 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		return err
 	}
 	err = packet.handle(t, from, fromID, hash)
-	log.Trace("<< "+packet.name(), "addr", from, "err", err)
+	unixTime := float64(time.Now().UnixNano()) / 1000000000
+	// if NEIGHBORS packet, add the node address info to the sql database
+	if packet.name() == "RLPX_NEIGHBORS" {
+		for _, node := range packet.(*neighbors).Nodes {
+			if t.sqldb != nil {
+				t.addNeighbor(node, unixTime)
+			}
+			log.Info("[NEIGHBOR]", "receivedAt", unixTime, "fromId", fromID.String(), "node", &node)
+		}
+	}
 	return err
 }
 
@@ -571,7 +604,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 	return nil
 }
 
-func (req *ping) name() string { return "PING/v4" }
+func (req *ping) name() string { return "RLPX_PING" }
 
 func (req *pong) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) error {
 	if expired(req.Expiration) {
@@ -583,7 +616,7 @@ func (req *pong) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 	return nil
 }
 
-func (req *pong) name() string { return "PONG/v4" }
+func (req *pong) name() string { return "RLPX_PONG" }
 
 func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) error {
 	if expired(req.Expiration) {
@@ -620,7 +653,7 @@ func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte
 	return nil
 }
 
-func (req *findnode) name() string { return "FINDNODE/v4" }
+func (req *findnode) name() string { return "RLPX_FINDNODE" }
 
 func (req *neighbors) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) error {
 	if expired(req.Expiration) {
@@ -632,7 +665,7 @@ func (req *neighbors) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byt
 	return nil
 }
 
-func (req *neighbors) name() string { return "NEIGHBORS/v4" }
+func (req *neighbors) name() string { return "RLPX_NEIGHBORS" }
 
 func expired(ts uint64) bool {
 	return time.Unix(int64(ts), 0).Before(time.Now())

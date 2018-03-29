@@ -51,6 +51,15 @@ const (
 	peersMsg     = 0x05
 )
 
+var devp2pCodeToString = map[uint64]string{
+	handshakeMsg: "DEVP2P_HELLO",
+	discMsg:      "DEVP2P_DISC",
+	pingMsg:      "DEVP2P_PING",
+	pongMsg:      "DEVP2P_PONG",
+	getPeersMsg:  "DEVP2P_GET_PEERS",
+	peersMsg:     "DEVP2P_PEERS",
+}
+
 // protoHandshake is the RLP structure of the protocol handshake.
 type protoHandshake struct {
 	Version    uint64
@@ -174,6 +183,14 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
+func (p *Peer) IsInbound() bool {
+	return p.rw.isInbound()
+}
+
+func (p *Peer) ConnFlags() connFlag {
+	return p.rw.flags
+}
+
 func (p *Peer) Log() log.Logger {
 	return p.log
 }
@@ -262,6 +279,9 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
+	if msgStr, ok := devp2pCodeToString[msg.Code]; ok {
+		p.log.Trace("<<"+msgStr, "receivedAt", msg.ReceivedAt)
+	}
 	switch {
 	case msg.Code == pingMsg:
 		msg.Discard()
@@ -271,6 +291,10 @@ func (p *Peer) handle(msg Msg) error {
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
+		if reason[0] == DiscTooManyPeers {
+			nodeid := p.ID().String()
+			log.Info("[DISC4]", "receivedAt", msg.ReceivedAt, "id", nodeid, "conn", p.ConnFlags())
+		}
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages

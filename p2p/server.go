@@ -19,9 +19,11 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,15 +38,11 @@ import (
 )
 
 const (
+	redialCheckInterval = 60 * time.Second
+
 	defaultDialTimeout      = 15 * time.Second
 	refreshPeersInterval    = 30 * time.Second
 	staticPeerCheckInterval = 15 * time.Second
-
-	// Maximum number of concurrently handshaking inbound connections.
-	maxAcceptConns = 50
-
-	// Maximum number of concurrently dialing outbound connections.
-	maxActiveDialTasks = 16
 
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
@@ -58,6 +56,31 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MySQLName is the MySQL node database connection information
+	MySQLName string
+
+	// BackupSQL makes a backup of the current MySQL db tables.
+	BackupSQL bool
+
+	// ResetSQL makes a backup of the current MySQL db tables and resets them.
+	// If set true, BackupSQL should be set true as well.
+	ResetSQL bool
+
+	// MaxDial is the maximum number of concurrently dialing outbound connections.
+	MaxDial int
+
+	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
+	MaxAcceptConns int
+
+	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
+	NoMaxPeers bool
+
+	// DialFreq is the frequency of re-dialing static nodes (in seconds).
+	DialFreq int
+
+	// Blacklist is the list of IP networks that we should not connect to
+	Blacklist *netutil.Netlist `toml:",omitempty"`
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -143,6 +166,14 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
+	addNodeInfoStmt     *sql.Stmt
+	updateNodeInfoStmt  *sql.Stmt
+	addNodeMetaInfoStmt *sql.Stmt
+	GetRowIDStmt        *sql.Stmt
+	KnownNodeInfos      *knownNodeInfos // information on known nodes
+	DB                  *sql.DB         // MySQL database handle
+	strReplacer         *strings.Replacer
+
 	// Config fields may not be modified while the server is running.
 	Config
 
@@ -206,7 +237,7 @@ type conn struct {
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -248,6 +279,13 @@ func (f connFlag) String() string {
 
 func (c *conn) is(f connFlag) bool {
 	return c.flags&f != 0
+}
+
+func (c *conn) isInbound() bool {
+	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+		return true
+	}
+	return false
 }
 
 // Peers returns all connected peers.
@@ -348,6 +386,8 @@ func (srv *Server) Stop() {
 	}
 	close(srv.quit)
 	srv.loopWG.Wait()
+
+	srv.CloseSql()
 }
 
 // Start starts running the server.
@@ -358,6 +398,24 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
+
+	// add bootnodes to static
+	srv.StaticNodes = append(srv.StaticNodes, srv.BootstrapNodes...)
+
+	srv.KnownNodeInfos = &knownNodeInfos{infos: make(map[discover.NodeID]*Info)}
+
+	// initiate sql connection and prepare statements
+	if err := srv.initSql(); err != nil {
+		return err
+	}
+
+	// initiate string replacer
+	srv.strReplacer = strings.NewReplacer(
+		"|", "",
+		" ", "",
+		"'", "",
+		"\"", "")
+
 	srv.running = true
 	log.Info("Starting P2P networking")
 
@@ -382,7 +440,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict)
+		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.DB)
 		if err != nil {
 			return err
 		}
@@ -404,10 +462,13 @@ func (srv *Server) Start() (err error) {
 	}
 
 	dynPeers := (srv.MaxPeers + 1) / 2
+
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
-	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer := newDialState(srv.StaticNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer.setBlacklist(srv.Blacklist)
+	dialer.setDialFreq(srv.DialFreq)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -454,19 +515,23 @@ func (srv *Server) startListening() error {
 
 type dialer interface {
 	newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task
+	newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
+	setBlacklist(*netutil.Netlist)
+	setDialFreq(int)
 }
 
 func (srv *Server) run(dialstate dialer) {
 	defer srv.loopWG.Done()
 	var (
-		peers        = make(map[discover.NodeID]*Peer)
-		trusted      = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
-		taskdone     = make(chan task, maxActiveDialTasks)
-		runningTasks []task
-		queuedTasks  []task // tasks that can't run yet
+		peers              = make(map[discover.NodeID]*Peer)
+		trusted            = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
+		taskdone           = make(chan task, srv.MaxDial)
+		staticdialtaskdone = make(chan task)
+		runningTasks       []task
+		queuedTasks        []task // tasks that can't run yet
 	)
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup and cannot be
@@ -487,7 +552,7 @@ func (srv *Server) run(dialstate dialer) {
 	// starts until max number of active tasks is satisfied
 	startTasks := func(ts []task) (rest []task) {
 		i := 0
-		for ; len(runningTasks) < maxActiveDialTasks && i < len(ts); i++ {
+		for ; len(runningTasks) < srv.MaxDial && i < len(ts); i++ {
 			t := ts[i]
 			log.Trace("New dial task", "task", t)
 			go func() { t.Do(srv); taskdone <- t }()
@@ -499,11 +564,24 @@ func (srv *Server) run(dialstate dialer) {
 		// Start from queue first.
 		queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
 		// Query dialer for new tasks and start as many as possible now.
-		if len(runningTasks) < maxActiveDialTasks {
+		if len(runningTasks) < srv.MaxDial {
 			nt := dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())
 			queuedTasks = append(queuedTasks, startTasks(nt)...)
 		}
 	}
+	scheduleRedialTasks := func() {
+		// Query dialer for new static tasks and start all
+		for _, t := range dialstate.newRedialTasks(peers, time.Now()) {
+			log.Trace("New dial task", "task", t)
+			go func(t task) { t.Do(srv); staticdialtaskdone <- t }(t)
+		}
+	}
+
+	// start redial check timer
+	forceRedial := time.NewTicker(redialCheckInterval)
+	defer forceRedial.Stop()
+	// initial static dials
+	scheduleRedialTasks()
 
 running:
 	for {
@@ -513,6 +591,8 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
+		case <-forceRedial.C:
+			scheduleRedialTasks()
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
@@ -539,6 +619,11 @@ running:
 			log.Trace("Dial task done", "task", t)
 			dialstate.taskDone(t, time.Now())
 			delTask(t)
+		case t := <-staticdialtaskdone:
+			// A redial task got done. Tell dialstate about it so it
+			// can update its state
+			log.Trace("Dial task done", "task", t)
+			dialstate.taskDone(t, time.Now())
 		case c := <-srv.posthandshake:
 			// A connection has passed the encryption handshake so
 			// the remote identity is known (but hasn't been verified yet).
@@ -620,7 +705,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	case !c.is(trustedConn|staticDialedConn) && !srv.NoMaxPeers && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case peers[c.id] != nil:
 		return DiscAlreadyConnected
@@ -644,7 +729,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := maxAcceptConns
+	tokens := srv.MaxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}
@@ -683,6 +768,16 @@ func (srv *Server) listenLoop() {
 			}
 		}
 
+		// Reject connections that match Blacklist.
+		if srv.Blacklist != nil {
+			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
+				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
+				fd.Close()
+				slots <- struct{}{}
+				continue
+			}
+		}
+
 		fd = newMeteredConn(fd, true)
 		log.Trace("Accepted connection", "addr", fd.RemoteAddr())
 
@@ -715,8 +810,8 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(err)
 		return
 	}
-	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
+	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	if dialDest != nil && c.id != dialDest.ID {
 		c.close(DiscUnexpectedIdentity)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
@@ -728,9 +823,19 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
+		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+			nodeid := c.id.String()
+			var dial, accept bool
+			if srv.DB != nil {
+				var nodeInfo *Info
+				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
+				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+			}
+			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", c.flags)
+		}
 		c.close(err)
 		return
 	}
@@ -739,6 +844,10 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(DiscUnexpectedIdentity)
 		return
 	}
+
+	// update node information
+	srv.storeNodeInfo(c, receivedAt, phs)
+
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)

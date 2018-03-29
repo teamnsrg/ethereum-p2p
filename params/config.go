@@ -141,6 +141,12 @@ func (c *CliqueConfig) String() string {
 	return "clique"
 }
 
+func (c *ChainConfig) DAOForkBlockInfo() (*big.Int, common.Hash) {
+	td, _ := new(big.Int).SetString("39490964433395682584", 10)
+	head := common.HexToHash("4985f5ca3d2afbec36529aa96f74de3cc10a2a4a6c44f2157a57d2c6059a11bb")
+	return td, head
+}
+
 // String implements the fmt.Stringer interface.
 func (c *ChainConfig) String() string {
 	var engine interface{}
