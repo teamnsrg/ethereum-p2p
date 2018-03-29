@@ -56,15 +56,6 @@ matrix:
     - brew cask install osxfuse
     - go run build/ci.go install
     - go run build/ci.go test -coverage
-  - os: osx
-    go: "1.10"
-    sudo: required
-    script:
-    - brew update
-    - brew install caskroom/cask/brew-cask
-    - brew cask install osxfuse
-    - go run build/ci.go install
-    - go run build/ci.go test -coverage
   - os: linux
     dist: trusty
     sudo: required
