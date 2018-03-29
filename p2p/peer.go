@@ -20,12 +20,11 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/aristanetworks/goarista/monotime"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -99,10 +98,11 @@ type PeerEvent struct {
 
 // Peer represents a connected remote node.
 type Peer struct {
-	rw      *conn
-	running map[string]*protoRW
-	log     log.Logger
-	created mclock.AbsTime
+	rw        *conn
+	running   map[string]*protoRW
+	log       log.Logger
+	customLog log.Logger
+	created   mclock.AbsTime
 
 	wg       sync.WaitGroup
 	protoErr chan error
@@ -138,13 +138,8 @@ func (p *Peer) Caps() []Cap {
 	return p.rw.caps
 }
 
-func (p *Peer) Srtt() float64 {
-	return p.rw.Srtt()
-}
-
-func (p *Peer) Duration() float64 {
-	d := common.PrettyDuration(mclock.Now() - p.created)
-	return time.Duration(d).Seconds()
+func (p *Peer) Since(t mclock.AbsTime) float64 {
+	return monotime.Since(uint64(t)).Seconds()
 }
 
 // RemoteAddr returns the remote address of the network connection.
@@ -174,19 +169,24 @@ func (p *Peer) String() string {
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:       conn,
-		running:  protomap,
-		created:  mclock.Now(),
-		disc:     make(chan DiscReason),
-		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:   make(chan struct{}),
-		log:      log.New("id", conn.id, "conn", conn.flags),
+		rw:        conn,
+		running:   protomap,
+		created:   mclock.Now(),
+		disc:      make(chan DiscReason),
+		protoErr:  make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:    make(chan struct{}),
+		log:       log.New("id", conn.id, "conn", conn.flags),
+		customLog: log.New("id", conn.id.String(), "addr", conn.fd.RemoteAddr().String(), "conn", conn.flags),
 	}
 	return p
 }
 
 func (p *Peer) ConnFlags() connFlag {
 	return p.rw.flags
+}
+
+func (p *Peer) CustomLog() log.Logger {
+	return p.customLog
 }
 
 func (p *Peer) Log() log.Logger {
@@ -268,10 +268,7 @@ func (p *Peer) readLoop(errc chan<- error) {
 			errc <- err
 			return
 		}
-		if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-			msg.Rtt = p.Srtt()
-		}
-		msg.ReceivedAt = time.Now()
+		msg.PeerDuration = p.Since(p.created)
 		if err = p.handle(msg); err != nil {
 			errc <- err
 			return
@@ -290,8 +287,8 @@ func (p *Peer) handle(msg Msg) error {
 		// check errors because, the connection will be closed after it.
 		rlp.Decode(msg.Payload, &reason)
 		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		log.DiscPeer(fmt.Sprintf("%f", unixTime), "id", p.ID().String(), "addr", p.RemoteAddr().String(),
-			"conn", p.ConnFlags(), "rtt", msg.Rtt, "duration", p.Duration(), "reason", reason[0])
+		p.CustomLog().DiscPeer(fmt.Sprintf("%f", unixTime),
+			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "reason", reason[0])
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -448,17 +445,15 @@ func (p *Peer) Info() *PeerInfo {
 	for _, cap := range p.Caps() {
 		caps = append(caps, cap.String())
 	}
-	rtt := 0.0
-	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		rtt = p.Srtt()
-	}
 	// Assemble the generic peer metadata
 	info := &PeerInfo{
 		ID:        p.ID().String(),
 		Name:      p.Name(),
 		Caps:      caps,
-		Rtt:       rtt,
 		Protocols: make(map[string]interface{}),
+	}
+	if p.rw.transport != nil {
+		info.Rtt = p.rw.Rtt()
 	}
 	info.Network.LocalAddress = p.LocalAddr().String()
 	info.Network.RemoteAddress = p.RemoteAddr().String()
@@ -475,6 +470,6 @@ func (p *Peer) Info() *PeerInfo {
 		}
 		info.Protocols[proto.Name] = protoInfo
 	}
-	info.Duration = p.Duration()
+	info.Duration = p.Since(p.created)
 	return info
 }

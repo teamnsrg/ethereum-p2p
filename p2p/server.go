@@ -35,7 +35,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/discv5"
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
-	"runtime"
 )
 
 const (
@@ -217,12 +216,14 @@ type conn struct {
 	id    discover.NodeID // valid after the encryption handshake
 	caps  []Cap           // valid after the protocol handshake
 	name  string          // valid after the protocol handshake
+	rtt   float64         // most recent rtt recorded when receiving messages
 }
 
 type transport interface {
+	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error)
+	doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -780,16 +781,12 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, msg, err := c.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
-			unixTime := float64(receivedAt.UnixNano()) / 1000000000
-			rtt := 0.0
-			if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-				rtt = c.Srtt()
-			}
-			log.DiscProto(fmt.Sprintf("%f", unixTime), "id", c.id.String(), "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "rtt", rtt, "reason", r)
+			unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+			clog.DiscProto(fmt.Sprintf("%f", unixTime), "rtt", msg.PeerRtt, "reason", r)
 		}
 		c.close(err)
 		return

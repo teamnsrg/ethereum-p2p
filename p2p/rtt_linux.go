@@ -11,16 +11,16 @@ import (
 )
 
 // Srtt in seconds (originally microseconds)
-func (c *conn) Srtt() float64 {
-	tcpInfo := c.GetTCPInfo()
+func (rw *rlpxFrameRW) updateRtt() {
+	tcpInfo := rw.GetTCPInfo()
 	if tcpInfo == nil {
-		return 0.0
+		return
 	}
-	return float64(tcpInfo.Rtt) / 1000000
+	rw.rtt = float64(tcpInfo.Rtt) / 1000000
 }
 
-func (c *conn) GetTCPInfo() *tcpinfo.TCPInfo {
-	tcpConn, ok := c.fd.(*net.TCPConn)
+func (rw *rlpxFrameRW) GetTCPInfo() *tcpinfo.TCPInfo {
+	tcpConn, ok := rw.conn.(*net.TCPConn)
 	if !ok {
 		return nil
 	}

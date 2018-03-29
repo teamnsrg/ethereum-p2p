@@ -53,12 +53,16 @@ func newTestTransport(id discover.NodeID, fd net.Conn) transport {
 	return &testTransport{id: id, rlpx: wrapped}
 }
 
+func (c *testTransport) Rtt() float64 {
+	return 0.0
+}
+
 func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	return c.id, nil
 }
 
-func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error) {
-	return &protoHandshake{ID: c.id, Name: "test"}, nil, nil
+func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error) {
+	return &protoHandshake{ID: c.id, Name: "test"}, Msg{}, nil
 }
 
 func (c *testTransport) close(err error) {
@@ -470,16 +474,20 @@ type setupTransport struct {
 	closeErr error
 }
 
+func (c *setupTransport) Rtt() float64 {
+	return 0.0
+}
+
 func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
 }
-func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error) {
+func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error) {
 	c.calls += "doProtoHandshake,"
 	if c.protoHandshakeErr != nil {
-		return nil, nil, c.protoHandshakeErr
+		return nil, Msg{}, c.protoHandshakeErr
 	}
-	return c.phs, nil, nil
+	return c.phs, Msg{}, nil
 }
 func (c *setupTransport) close(err error) {
 	c.calls += "close,"

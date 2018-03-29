@@ -591,15 +591,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&announces); err != nil {
 			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
-		pid := p.ID().String()
+
 		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		rtt := msg.Rtt
-		duration := p.Duration()
+
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
-			log.NewBlockHashesRx(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-				"conn", p.ConnFlags(), "rtt", rtt, "duration", duration,
+			// log the hash of the block
+			p.CustomLog().NewBlockHashesRx(fmt.Sprintf("%f", unixTime), "rtt", msg.PeerRtt, "duration", msg.PeerDuration,
 				"blockHash", block.Hash.String()[2:], "blockNumber", block.Number)
+
 			p.MarkBlock(block.Hash)
 		}
 		// Schedule all the unknown hashes for retrieval
@@ -619,23 +619,23 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&request); err != nil {
 			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
-		pid := p.ID().String()
+
 		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		rtt := msg.Rtt
-		duration := p.Duration()
 		blockHash := request.Block.Hash()
-		// if previously unknown tx, log the entire tx-data
+
+		// if previously unknown block, log the entire block-data
 		pm.knownBlocks.Lock()
 		if _, ok := pm.knownBlocks.known[blockHash]; !ok {
 			pm.knownBlocks.known[blockHash] = struct{}{}
-			log.NewBlockData(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-				"conn", p.ConnFlags(), "rtt", rtt, "duration", duration, "block", request.Block.LogString())
+			p.CustomLog().NewBlockData(fmt.Sprintf("%f", unixTime),
+				"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "block", request.Block.LogString())
 		}
 		pm.knownBlocks.Unlock()
-		blockHashStr := blockHash.String()[2:]
-		log.NewBlockRx(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-			"conn", p.ConnFlags(), "rtt", rtt, "duration", duration,
-			"blockHash", blockHashStr, "blockNumber", request.Block.Number().String())
+
+		// log the hash and number of the block
+		p.CustomLog().NewBlockRx(fmt.Sprintf("%f", unixTime),
+			"rtt", msg.PeerRtt, "duration", msg.PeerDuration,
+			"blockHash", blockHash.String()[2:], "blockNumber", request.Block.Number().String())
 
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
@@ -669,10 +669,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&txs); err != nil {
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		pid := p.ID().String()
+
 		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		rtt := msg.Rtt
-		duration := p.Duration()
+
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
@@ -680,16 +679,19 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				continue
 			}
 			txHash := tx.Hash()
+
 			// if previously unknown tx, log the entire tx-data
 			pm.knownTxs.Lock()
 			if _, ok := pm.knownTxs.known[txHash]; !ok {
 				pm.knownTxs.known[txHash] = struct{}{}
-				log.TxData(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-					"conn", p.ConnFlags(), "rtt", rtt, "duration", duration, "tx", tx.LogString())
+				p.CustomLog().TxData(fmt.Sprintf("%f", unixTime),
+					"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "tx", tx.LogString())
 			}
 			pm.knownTxs.Unlock()
-			log.TxRx(fmt.Sprintf("%f", unixTime), "id", pid, "addr", p.RemoteAddr().String(),
-				"conn", p.ConnFlags(), "rtt", rtt, "duration", duration, "txHash", txHash.String()[2:])
+
+			// log the hash of the tx
+			p.CustomLog().TxRx(fmt.Sprintf("%f", unixTime),
+				"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "txHash", txHash.String()[2:])
 		}
 
 	default:
