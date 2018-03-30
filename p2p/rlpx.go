@@ -110,7 +110,7 @@ func (t *rlpx) close(err error, peer discover.NodeID) {
 	if t.rw != nil {
 		if r, ok := err.(DiscReason); ok && r != DiscNetworkError {
 			t.fd.SetWriteDeadline(time.Now().Add(discWriteTimeout))
-			SendDEVp2p(t.rw, discMsg, r, peer)
+			SendItems(t.rw, discMsg, r)
 		}
 	}
 	t.fd.Close()

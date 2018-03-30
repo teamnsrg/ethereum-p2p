@@ -275,7 +275,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendDEVp2p(p.rw, pingMsg, make([]interface{}, 0), p.ID()); err != nil {
+			if err := SendItems(p.rw, pingMsg, make([]interface{}, 0)); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -308,7 +308,7 @@ func (p *Peer) handle(msg Msg) error {
 	case msg.Code == pingMsg:
 		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
-		go SendDEVp2p(p.rw, pongMsg, make([]interface{}, 0), p.ID())
+		go SendItems(p.rw, pongMsg, make([]interface{}, 0))
 	case msg.Code == pongMsg:
 		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
