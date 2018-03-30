@@ -125,12 +125,16 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...dis
 		peer = peers[0]
 	}
 
-	msgType := ethCodeToString[msgcode]
-	if _, ok := dataExcludedMsgs[msgcode]; ok {
-		data = "<OMITTED>"
+	msgType, ok := ethCodeToString[msgcode]
+	if !ok {
+		msgType = fmt.Sprintf("ETH_UNKNOWN_%v", msgcode)
+	}
+	obj := data
+	if obj, ok = dataExcludedMsgs[msgcode]; ok {
+		obj = "<OMITTED>"
 	}
 
-	log.Proto(">>"+msgType, "obj", data, "size", int(size), "peer", peer)
+	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
@@ -146,11 +150,18 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 		peer = peers[0]
 	}
 
-	msgType := devp2pCodeToString[msgcode]
-	if msgcode == discMsg {
-		data = discReasonToString[data.(DiscReason)]
+	msgType, ok := devp2pCodeToString[msgcode]
+	if !ok {
+		msgType = fmt.Sprintf("DEVP2P_UNKNOWN_%v", msgcode)
 	}
-	log.Proto(">>"+msgType, "obj", data, "size", int(size), "peer", peer)
+
+	obj := data
+	if d, ok := data.([]DiscReason); ok && msgcode == discMsg {
+		if len(d) > 0 {
+			obj = discReasonToString[d[0]]
+		}
+	}
+	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 

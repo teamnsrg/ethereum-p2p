@@ -53,7 +53,7 @@ const (
 	peersMsg     = 0x05
 )
 
-var devp2pCodeToString = [...]string{
+var devp2pCodeToString = map[uint64]string{
 	handshakeMsg: "DEVP2P_HELLO",
 	discMsg:      "DEVP2P_DISC",
 	pingMsg:      "DEVP2P_PING",
@@ -62,7 +62,7 @@ var devp2pCodeToString = [...]string{
 	peersMsg:     "DEVP2P_PEERS",
 }
 
-var ethCodeToString = [...]string{
+var ethCodeToString = map[uint64]string{
 	// Protocol messages belonging to eth/62
 	0x00: "ETH_STATUS",
 	0x01: "ETH_NEW_BLOCK_HASHES",
