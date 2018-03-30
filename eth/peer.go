@@ -136,7 +136,7 @@ func (p *peer) SendTransactions(txs types.Transactions) error {
 //	p.Log().Info(">> ETH_TX", "tx", txs, "peer", p.ID())
 	for _, tx := range txs {
 		p.knownTxs.Add(tx.Hash())
-		p.Log().Info(">>ETH_TX", "tx", tx.Hash(), "peer", p.ID())
+		p.Log().Warn(">>ETH_TX", "tx", tx.Hash(), "peer", p.ID(), "SentAt", float64(time.Now().UnixNano())/1000000000)
 	}
 	return p2p.Send(p.rw, TxMsg, txs)
 }
