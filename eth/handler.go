@@ -220,13 +220,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
 		// and if sql database handle is available, update node information
 		if statusWrapper.isValidIncompatibleStatus() {
-			pm.storeEthNodeInfo(p, &statusWrapper)
+			pm.storeNodeEthInfo(p, &statusWrapper)
 		}
 		return err
 	}
 
 	// update node information
-	pm.storeEthNodeInfo(p, &statusWrapper)
+	pm.storeNodeEthInfo(p, &statusWrapper)
 
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
 		rw.Init(p.version)
@@ -274,14 +274,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	if err != nil {
 		return err
 	}
+	// log received eth messages
+	/*
+		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+		msgStr, ok := ethCodeToString[msg.Code]
+		if !ok {
+			msgStr = "ETH_UNKNOWN"
+		}
+		p.CustomLog().Type(fmt.Sprintf("%f", unixTime),
+			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "type", "<<"+msgStr, "size", msg.Size)
+	*/
 	if msg.Size > ProtocolMaxMsgSize {
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	defer msg.Discard()
 
-	if msgStr, ok := ethCodeToString[msg.Code]; ok {
-		p.Log().Trace("<<"+msgStr, "receivedAt", msg.ReceivedAt)
-	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
@@ -292,9 +299,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// update node information
-		pm.storeEthNodeInfo(p, &statusDataWrapper{
-			ReceivedAt: &msg.ReceivedAt,
-			Status:     &status,
+		pm.storeNodeEthInfo(p, &statusDataWrapper{
+			ReceivedAt:   &msg.ReceivedAt,
+			Status:       &status,
+			PeerRtt:      msg.PeerRtt,
+			PeerDuration: msg.PeerDuration,
 		})
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
@@ -367,11 +376,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				// Validate the header and either drop the peer or continue
 				if err := misc.VerifyDAOHeaderExtraData(pm.chainconfig, headers[0]); err != nil {
 					p.Log().Debug("Verified to be on the other side of the DAO fork, dropping")
-					pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, -1)
+					pm.storeDAOForkSupportInfo(p, &msg, -1)
 					return err
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
-				pm.storeDAOForkSupportInfo(p, msg.ReceivedAt, 1)
+				pm.storeDAOForkSupportInfo(p, &msg, 1)
 				return p2p.DiscQuitting
 			}
 		}

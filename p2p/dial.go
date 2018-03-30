@@ -140,12 +140,20 @@ func newDialState(static []*discover.Node, ntab discoverTable, maxdyn int, netre
 	return s
 }
 
-func (s *dialstate) setBlacklist(blacklist *netutil.Netlist) {
-	s.blacklist = blacklist
+func (s *dialstate) GetDialFreq() time.Duration {
+	return s.dialFreq
 }
 
-func (s *dialstate) setDialFreq(f int) {
+func (s *dialstate) SetDialFreq(f int) {
 	s.dialFreq = time.Duration(f) * time.Second
+}
+
+func (s *dialstate) GetBlacklist() *netutil.Netlist {
+	return s.blacklist
+}
+
+func (s *dialstate) SetBlacklist(blacklist *netutil.Netlist) {
+	s.blacklist = blacklist
 }
 
 func (s *dialstate) addStatic(n *discover.Node) {

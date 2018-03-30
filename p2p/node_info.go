@@ -255,9 +255,9 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	return newNodeInfo, dial, accept
 }
 
-func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandshake) {
+func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	// node address currentInfo
-	newInfo, dial, accept := srv.getNodeAddress(c, receivedAt)
+	newInfo, dial, accept := srv.getNodeAddress(c, &msg.ReceivedAt)
 	id := hs.ID
 	nodeid := id.String()
 	if srv.DB != nil {
@@ -317,7 +317,9 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	if srv.DB != nil {
 		srv.addNodeP2PInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
 	}
-	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "info", newInfo.P2PSummary())
+	log.Hello(fmt.Sprintf("%f", newInfo.LastHelloAt.Float64()),
+		"id", nodeid, "addr", c.fd.RemoteAddr(), "conn", c.flags, "rtt", msg.PeerRtt,
+		"info", newInfo.P2PSummary())
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {

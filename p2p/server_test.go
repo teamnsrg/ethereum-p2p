@@ -53,12 +53,16 @@ func newTestTransport(id discover.NodeID, fd net.Conn) transport {
 	return &testTransport{id: id, rlpx: wrapped}
 }
 
+func (c *testTransport) Rtt() float64 {
+	return 0.0
+}
+
 func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	return c.id, nil
 }
 
-func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error) {
-	return &protoHandshake{ID: c.id, Name: "test"}, nil, nil
+func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error) {
+	return &protoHandshake{ID: c.id, Name: "test"}, Msg{}, nil
 }
 
 func (c *testTransport) close(err error) {
@@ -169,6 +173,10 @@ func TestServerDial(t *testing.T) {
 	srv.MaxAcceptConns = 50
 	defer close(connected)
 	defer srv.Stop()
+
+	// tell the server to connect
+	tcpAddr := listener.Addr().(*net.TCPAddr)
+	srv.AddPeer(&discover.Node{ID: remid, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)})
 
 	select {
 	case conn := <-accepted:
@@ -330,9 +338,15 @@ func (tg taskgen) addStatic(*discover.Node) {
 }
 func (tg taskgen) removeStatic(*discover.Node) {
 }
-func (tg taskgen) setBlacklist(blacklist *netutil.Netlist) {
+func (tg taskgen) GetDialFreq() time.Duration {
+	return 0
 }
-func (tg taskgen) setDialFreq(f int) {
+func (tg taskgen) SetDialFreq(f int) {
+}
+func (tg taskgen) GetBlacklist() *netutil.Netlist {
+	return nil
+}
+func (tg taskgen) SetBlacklist(blacklist *netutil.Netlist) {
 }
 
 type testTask struct {
@@ -493,12 +507,12 @@ func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discove
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
 }
-func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error) {
+func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error) {
 	c.calls += "doProtoHandshake,"
 	if c.protoHandshakeErr != nil {
-		return nil, nil, c.protoHandshakeErr
+		return nil, Msg{}, c.protoHandshakeErr
 	}
-	return c.phs, nil, nil
+	return c.phs, Msg{}, nil
 }
 func (c *setupTransport) close(err error) {
 	c.calls += "close,"

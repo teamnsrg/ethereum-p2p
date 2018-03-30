@@ -66,15 +66,16 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "NODE FINDER",
 		Flags: []cli.Flag{
+			utils.MaxDialFlag,
+			utils.NoMaxPeersFlag,
+			utils.MaxAcceptConnsFlag,
+			utils.MaxNumFileFlag,
+			utils.BlacklistFlag,
+			utils.DialFreqFlag,
 			utils.MySQLFlag,
 			utils.BackupSQLFlag,
 			utils.ResetSQLFlag,
-			utils.MaxNumFileFlag,
-			utils.MaxDialFlag,
-			utils.MaxAcceptConnsFlag,
-			utils.NoMaxPeersFlag,
-			utils.DialFreqFlag,
-			utils.BlacklistFlag,
+			utils.LogToFileFlag,
 		},
 	},
 	{

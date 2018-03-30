@@ -25,8 +25,10 @@ import (
 	"github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rpc"
 )
 
@@ -40,6 +42,67 @@ type PrivateAdminAPI struct {
 // of the node itself.
 func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 	return &PrivateAdminAPI{node: node}
+}
+
+func (api *PrivateAdminAPI) Logrotate() error {
+	var (
+		datadir = api.node.DataDir()
+		glogger = log.Root().GetGlogger()
+	)
+	if api.node.config.LogToFile {
+		glogger.SetHandler(log.Must.FileHandler(datadir+"/node-finder.log", log.TerminalFormat(false)))
+		log.Root().SetHandler(log.MultiHandler(
+			// default logging for any lvl <= verbosity
+			glogger,
+			// lvl specific logging
+			// log.LvlMatchFilterFileHandler(log.LvlType, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
+		))
+	}
+	return nil
+}
+
+func (api *PrivateAdminAPI) DialFreq() (int, error) {
+	return int(api.node.Server().GetDialstate().GetDialFreq().Seconds()), nil
+}
+
+func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
+	server := api.node.Server()
+	server.DialFreq = dialFreq
+	server.GetDialstate().SetDialFreq(dialFreq)
+	return nil
+}
+
+func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
+	blacklist := api.node.Server().GetDialstate().GetBlacklist()
+	if blacklist != nil {
+		return blacklist.MarshalTOML(), nil
+	}
+	return []string{}, nil
+}
+
+func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
+	server := api.node.Server()
+	if server.Blacklist == nil {
+		if list, err := netutil.ParseNetlist(cidrs); err != nil {
+			return err
+		} else {
+			server.Blacklist = list
+			server.GetDialstate().SetBlacklist(list)
+		}
+	} else {
+		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
+		masks := strings.Split(ws.Replace(cidrs), ",")
+		for _, mask := range masks {
+			server.Blacklist.AddNonDuplicate(mask)
+		}
+	}
+	return nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new
