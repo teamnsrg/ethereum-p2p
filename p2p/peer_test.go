@@ -103,10 +103,10 @@ func TestPeerProtoEncodeMsg(t *testing.T) {
 		Name:   "a",
 		Length: 2,
 		Run: func(peer *Peer, rw MsgReadWriter) error {
-			if err := SendItems(rw, 2); err == nil {
+			if err := SendItems(peer.ID(), rw, 2); err == nil {
 				t.Error("expected error for out-of-range msg code, got nil")
 			}
-			if err := SendItems(rw, 1, "foo", "bar"); err != nil {
+			if err := SendItems(peer.ID(), rw, 1, "foo", "bar"); err != nil {
 				t.Errorf("write error: %v", err)
 			}
 			return nil
@@ -121,9 +121,9 @@ func TestPeerProtoEncodeMsg(t *testing.T) {
 }
 
 func TestPeerPing(t *testing.T) {
-	closer, rw, _, _ := testPeer(nil)
+	closer, rw, p, _ := testPeer(nil)
 	defer closer()
-	if err := SendItems(rw, pingMsg); err != nil {
+	if err := SendItems(p.ID(), rw, pingMsg); err != nil {
 		t.Fatal(err)
 	}
 	if err := ExpectMsg(rw, pongMsg, nil); err != nil {
@@ -132,9 +132,9 @@ func TestPeerPing(t *testing.T) {
 }
 
 func TestPeerDisconnect(t *testing.T) {
-	closer, rw, _, disc := testPeer(nil)
+	closer, rw, p, disc := testPeer(nil)
 	defer closer()
-	if err := SendItems(rw, discMsg, DiscQuitting); err != nil {
+	if err := SendItems(p.ID(), rw, discMsg, DiscQuitting); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -169,8 +169,8 @@ func TestPeerDisconnectRace(t *testing.T) {
 		})
 
 		// Simulate incoming messages.
-		go SendItems(rw, baseProtocolLength+1)
-		go SendItems(rw, baseProtocolLength+2)
+		go SendItems(p.ID(), rw, baseProtocolLength+1)
+		go SendItems(p.ID(), rw, baseProtocolLength+2)
 		// Close the network connection.
 		go closer()
 		// Make protocol "closereq" return.
@@ -183,7 +183,7 @@ func TestPeerDisconnectRace(t *testing.T) {
 		}
 		// In some cases, simulate remote requesting a disconnect.
 		if maybe() {
-			go SendItems(rw, discMsg, DiscQuitting)
+			go SendItems(p.ID(), rw, discMsg, DiscQuitting)
 		}
 
 		select {

@@ -168,14 +168,14 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 // SendItems writes an RLP with the given code and data elements.
 // For a call such as:
 //
-//    SendItems(w, code, e1, e2, e3)
+//    SendItems(id, w, code, e1, e2, e3)
 //
 // the message payload will be an RLP list containing the items:
 //
 //    [e1, e2, e3]
 //
-func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return SendDEVp2p(w, msgcode, elems)
+func SendItems(id discover.NodeID, w MsgWriter, msgcode uint64, elems ...interface{}) error {
+	return SendDEVp2p(w, msgcode, elems, id)
 }
 
 // netWrapper wraps a MsgReadWriter with locks around
