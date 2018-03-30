@@ -209,7 +209,7 @@ func testGetBlockHeaders(t *testing.T, protocol int) {
 			headers = append(headers, pm.blockchain.GetBlockByHash(hash).Header())
 		}
 		// Send the hash request and verify the response
-		p2p.Send(peer.app, 0x03, tt.query)
+		p2p.SendEthSubproto(peer.app, 0x03, tt.query)
 		if err := p2p.ExpectMsg(peer.app, 0x04, headers); err != nil {
 			t.Errorf("test %d: headers mismatch: %v", i, err)
 		}
@@ -218,7 +218,7 @@ func testGetBlockHeaders(t *testing.T, protocol int) {
 			if origin := pm.blockchain.GetBlockByNumber(tt.query.Origin.Number); origin != nil {
 				tt.query.Origin.Hash, tt.query.Origin.Number = origin.Hash(), 0
 
-				p2p.Send(peer.app, 0x03, tt.query)
+				p2p.SendEthSubproto(peer.app, 0x03, tt.query)
 				if err := p2p.ExpectMsg(peer.app, 0x04, headers); err != nil {
 					t.Errorf("test %d: headers mismatch: %v", i, err)
 				}
@@ -292,7 +292,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 			}
 		}
 		// Send the hash request and verify the response
-		p2p.Send(peer.app, 0x05, hashes)
+		p2p.SendEthSubproto(peer.app, 0x05, hashes)
 		if err := p2p.ExpectMsg(peer.app, 0x06, bodies); err != nil {
 			t.Errorf("test %d: bodies mismatch: %v", i, err)
 		}
@@ -350,7 +350,7 @@ func testGetNodeData(t *testing.T, protocol int) {
 			hashes = append(hashes, common.BytesToHash(key))
 		}
 	}
-	p2p.Send(peer.app, 0x0d, hashes)
+	p2p.SendEthSubproto(peer.app, 0x0d, hashes)
 	msg, err := peer.app.ReadMsg()
 	if err != nil {
 		t.Fatalf("failed to read node data response: %v", err)
@@ -444,7 +444,7 @@ func testGetReceipt(t *testing.T, protocol int) {
 		receipts = append(receipts, core.GetBlockReceipts(pm.chaindb, block.Hash(), block.NumberU64()))
 	}
 	// Send the hash request and verify the response
-	p2p.Send(peer.app, 0x0f, hashes)
+	p2p.SendEthSubproto(peer.app, 0x0f, hashes)
 	if err := p2p.ExpectMsg(peer.app, 0x10, receipts); err != nil {
 		t.Errorf("receipts mismatch: %v", err)
 	}
@@ -503,7 +503,7 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 				block.SetExtra(params.DAOForkBlockExtra)
 			}
 		})
-		if err := p2p.Send(peer.app, BlockHeadersMsg, []*types.Header{blocks[0].Header()}); err != nil {
+		if err := p2p.SendEthSubproto(peer.app, BlockHeadersMsg, []*types.Header{blocks[0].Header()}); err != nil {
 			t.Fatalf("failed to answer challenge: %v", err)
 		}
 		time.Sleep(100 * time.Millisecond) // Sleep to avoid the verification racing with the drops

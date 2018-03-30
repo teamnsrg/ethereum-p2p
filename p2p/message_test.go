@@ -30,8 +30,8 @@ import (
 func ExampleMsgPipe() {
 	rw1, rw2 := MsgPipe()
 	go func() {
-		Send(rw1, 8, [][]byte{{0, 0}})
-		Send(rw1, 5, [][]byte{{1, 1}})
+		SendDEVp2p(rw1, 8, [][]byte{{0, 0}})
+		SendDEVp2p(rw1, 5, [][]byte{{1, 1}})
 		rw1.Close()
 	}()
 

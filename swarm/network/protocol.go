@@ -316,7 +316,7 @@ func (self *bzz) handleStatus() (err error) {
 		},
 	}
 
-	err = p2p.Send(self.rw, statusMsg, handshake)
+	err = p2p.SendDEVp2p(self.rw, statusMsg, handshake)
 	if err != nil {
 		return err
 	}
@@ -502,7 +502,7 @@ func (self *bzz) send(msg uint64, data interface{}) error {
 		return fmt.Errorf("network write blocked")
 	}
 	log.Trace(fmt.Sprintf("-> %v: %v (%T) to %v", msg, data, data, self))
-	err := p2p.Send(self.rw, msg, data)
+	err := p2p.SendDEVp2p(self.rw, msg, data)
 	if err != nil {
 		self.Drop()
 	}
