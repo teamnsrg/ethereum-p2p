@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"io"
 	"runtime"
 	"strings"
@@ -55,7 +56,7 @@ loop:
 		rw1, rw2 := MsgPipe()
 		done := make(chan struct{})
 		go func() {
-			if err := SendItems(rw1, 1); err == nil {
+			if err := SendItems(discover.NodeID{}, rw1, 1); err == nil {
 				t.Error("EncodeMsg returned nil error")
 			} else if err != ErrPipeClosed {
 				t.Errorf("EncodeMsg returned wrong error: got %v, want %v", err, ErrPipeClosed)

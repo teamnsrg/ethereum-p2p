@@ -206,7 +206,7 @@ type conn struct {
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake, id discover.NodeID) (*protoHandshake, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -214,7 +214,7 @@ type transport interface {
 	// transports must provide Close because we use MsgPipe in some of
 	// the tests. Closing the actual network connection doesn't do
 	// anything in those tests because NsgPipe doesn't use it.
-	close(err error, peer discover.NodeID)
+	close(err error, id discover.NodeID)
 }
 
 func (c *conn) String() string {
