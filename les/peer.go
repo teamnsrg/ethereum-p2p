@@ -152,7 +152,7 @@ func sendRequest(w p2p.MsgWriter, msgcode, reqID, cost uint64, data interface{})
 		ReqID uint64
 		Data  interface{}
 	}
-	return p2p.Send(w, msgcode, req{reqID, data})
+	return p2p.SendDEVp2p(w, msgcode, req{reqID, data})
 }
 
 func sendResponse(w p2p.MsgWriter, msgcode, reqID, bv uint64, data interface{}) error {
@@ -160,7 +160,7 @@ func sendResponse(w p2p.MsgWriter, msgcode, reqID, bv uint64, data interface{}) 
 		ReqID, BV uint64
 		Data      interface{}
 	}
-	return p2p.Send(w, msgcode, resp{reqID, bv, data})
+	return p2p.SendDEVp2p(w, msgcode, resp{reqID, bv, data})
 }
 
 func (p *peer) GetRequestCost(msgcode uint64, amount int) uint64 {
@@ -185,7 +185,7 @@ func (p *peer) HasBlock(hash common.Hash, number uint64) bool {
 // SendAnnounce announces the availability of a number of blocks through
 // a hash notification.
 func (p *peer) SendAnnounce(request announceData) error {
-	return p2p.Send(p.rw, AnnounceMsg, request)
+	return p2p.SendDEVp2p(p.rw, AnnounceMsg, request)
 }
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
@@ -317,7 +317,7 @@ func (p *peer) SendTxs(reqID, cost uint64, txs types.Transactions) error {
 	p.Log().Debug("Fetching batch of transactions", "count", len(txs))
 	switch p.version {
 	case lpv1:
-		return p2p.Send(p.rw, SendTxMsg, txs) // old message format does not include reqID
+		return p2p.SendDEVp2p(p.rw, SendTxMsg, txs) // old message format does not include reqID
 	case lpv2:
 		return sendRequest(p.rw, SendTxV2Msg, reqID, cost, txs)
 	default:
@@ -368,7 +368,7 @@ func (p *peer) sendReceiveHandshake(sendList keyValueList) (keyValueList, error)
 	// Send out own handshake in a new thread
 	errc := make(chan error, 1)
 	go func() {
-		errc <- p2p.Send(p.rw, StatusMsg, sendList)
+		errc <- p2p.SendDEVp2p(p.rw, StatusMsg, sendList)
 	}()
 	// In the mean time retrieve the remote status message
 	msg, err := p.rw.ReadMsg()
