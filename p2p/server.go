@@ -705,51 +705,50 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	running := srv.running
 	srv.lock.Unlock()
 	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
-	connInfoCtx := []interface{}{
-		"addr", c.fd.RemoteAddr().String(),
-		"conn", c.flags.String(),
-	}
 	if !running {
-		c.close(errServerStopped, connInfoCtx...)
+		c.close(errServerStopped)
 		return
 	}
 	// Run the encryption handshake.
 	var err error
 	if c.id, err = c.doEncHandshake(srv.PrivateKey, dialDest); err != nil {
 		log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
-		c.close(err, connInfoCtx...)
+		c.close(err)
 		return
 	}
-	connInfoCtx = append([]interface{}{"id", c.id.String()}, connInfoCtx...)
-	c.connInfoCtx = connInfoCtx
+	c.connInfoCtx = []interface{}{
+		"id", c.id.String(),
+		"addr", c.fd.RemoteAddr().String(),
+		"conn", c.flags.String(),
+	}
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
-		c.close(DiscUnexpectedIdentity, connInfoCtx...)
+		c.close(DiscUnexpectedIdentity, c.connInfoCtx...)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
 		return
 	}
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
-		c.close(err, connInfoCtx...)
+		c.close(err, c.connInfoCtx...)
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake, connInfoCtx...)
+	phs, err := c.doProtoHandshake(srv.ourHandshake, c.connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		c.close(err, connInfoCtx...)
+		c.close(err, c.connInfoCtx...)
 		return
 	}
 	if phs.ID != c.id {
 		clog.Trace("Wrong devp2p handshake identity", "err", phs.ID)
-		c.close(DiscUnexpectedIdentity, connInfoCtx...)
+		c.close(DiscUnexpectedIdentity, c.connInfoCtx...)
 		return
 	}
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
-		c.close(err, connInfoCtx...)
+		c.close(err, c.connInfoCtx...)
 		return
 	}
 	// If the checks completed successfully, runPeer has now been
