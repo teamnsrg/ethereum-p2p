@@ -156,9 +156,9 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 	}
 
 	obj := data
-	if d, ok := data.([]DiscReason); ok && msgcode == discMsg {
-		if len(d) > 0 {
-			obj = discReasonToString[d[0]]
+	if dataArr, ok := data.([]interface{}); ok && len(dataArr) > 0 {
+		if d, ok := dataArr[0].(DiscReason); ok && msgcode == discMsg {
+			obj = discReasonToString[d]
 		}
 	}
 	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
