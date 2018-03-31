@@ -18,6 +18,7 @@ package p2p
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
@@ -51,7 +51,7 @@ type Msg struct {
 func (msg *Msg) GoString() string {
 	j, err := json.Marshal(msg)
 	if err != nil {
-		log.Crit(err.Error())
+		return "<" + err.Error() + ">"
 	}
 	return string(j)
 }
@@ -113,46 +113,39 @@ var dataExcludedMsgs = map[uint64]struct{}{
 	0x10: empty, //Receipts
 }
 
-func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
+func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...interface{}) error {
 	size, r, err := rlp.EncodeToReader(data)
 
 	if err != nil {
 		return err
 	}
 
-	var peer discover.NodeID
-	if len(peers) == 1 {
-		peer = peers[0]
-	}
-
+	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	currentTime := time.Now()
 	msgType, ok := ethCodeToString[msgcode]
 	if !ok {
-		msgType = fmt.Sprintf("ETH_UNKNOWN_%v", msgcode)
+		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
 	obj := data
 	if obj, ok = dataExcludedMsgs[msgcode]; ok {
 		obj = "<OMITTED>"
 	}
-
-	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
-	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	log.Proto(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
+	return err
 }
 
-func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover.NodeID) error {
+func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...interface{}) error {
 	size, r, err := rlp.EncodeToReader(data)
 
 	if err != nil {
 		return err
 	}
 
-	var peer discover.NodeID
-	if len(peers) == 1 {
-		peer = peers[0]
-	}
-
+	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	currentTime := time.Now()
 	msgType, ok := devp2pCodeToString[msgcode]
 	if !ok {
-		msgType = fmt.Sprintf("DEVP2P_UNKNOWN_%v", msgcode)
+		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
 
 	obj := data
@@ -161,21 +154,22 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 			obj = discReasonToString[d]
 		}
 	}
-	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
-	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+
+	log.Proto(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
+	return err
 }
 
 // SendItems writes an RLP with the given code and data elements.
 // For a call such as:
 //
-//    SendItems(id, w, code, e1, e2, e3)
+//    SendItems(w, code, [connInfoCtx...], e1, e2, e3)
 //
 // the message payload will be an RLP list containing the items:
 //
 //    [e1, e2, e3]
 //
-func SendItems(id discover.NodeID, w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return SendDEVp2p(w, msgcode, elems, id)
+func SendItems(w MsgWriter, msgcode uint64, connInfoCtx []interface{}, elems ...interface{}) error {
+	return SendDEVp2p(w, msgcode, elems, connInfoCtx...)
 }
 
 // netWrapper wraps a MsgReadWriter with locks around
@@ -368,7 +362,6 @@ func (self *msgEventer) ReadMsg() (Msg, error) {
 	if err != nil {
 		return msg, err
 	}
-
 	self.feed.Send(&PeerEvent{
 		Type:     PeerEventTypeMsgRecv,
 		Peer:     self.peerID,

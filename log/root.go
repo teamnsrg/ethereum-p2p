@@ -1,7 +1,9 @@
 package log
 
 import (
+	"fmt"
 	"os"
+	"time"
 )
 
 var (
@@ -54,12 +56,18 @@ func Error(msg string, ctx ...interface{}) {
 	root.write(msg, LvlError, ctx)
 }
 
-func Proto(msg string, ctx ...interface{}) {
-	root.write(msg+CtxToString(ctx), LvlCrit, nil)
-}
-
 // Crit is a convenient alias for Root().Crit
 func Crit(msg string, ctx ...interface{}) {
 	root.write(msg, LvlCrit, ctx)
 	os.Exit(1)
+}
+
+func Proto(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	ctx := []interface{}{
+		"size", size,
+		"data", data,
+		"err", err,
+	}
+	ctx = append(ctx, connInfoCtx...)
+	root.write(fmt.Sprintf("%f|%s", float64(t.UnixNano())/1000000000, msgType), LvlCrit, ctx)
 }

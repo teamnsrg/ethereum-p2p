@@ -25,6 +25,7 @@ import (
 
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/rlp"
 	"gopkg.in/fatih/set.v0"
@@ -136,7 +137,7 @@ func (p *peer) SendTransactions(txs types.Transactions) error {
 	for _, tx := range txs {
 		p.knownTxs.Add(tx.Hash())
 	}
-	return p2p.SendEthSubproto(p.rw, TxMsg, txs, p.ID())
+	return p2p.SendEthSubproto(p.rw, TxMsg, txs, p.ConnInfoCtx()...)
 }
 
 // SendNewBlockHashes announces the availability of a number of blocks through
@@ -150,82 +151,82 @@ func (p *peer) SendNewBlockHashes(hashes []common.Hash, numbers []uint64) error 
 		request[i].Hash = hashes[i]
 		request[i].Number = numbers[i]
 	}
-	return p2p.SendEthSubproto(p.rw, NewBlockHashesMsg, request, p.ID())
+	return p2p.SendEthSubproto(p.rw, NewBlockHashesMsg, request, p.ConnInfoCtx()...)
 }
 
 // SendNewBlock propagates an entire block to a remote peer.
 func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
 	p.knownBlocks.Add(block.Hash())
-	return p2p.SendEthSubproto(p.rw, NewBlockMsg, []interface{}{block, td}, p.ID())
+	return p2p.SendEthSubproto(p.rw, NewBlockMsg, []interface{}{block, td}, p.ConnInfoCtx()...)
 }
 
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []*types.Header) error {
-	return p2p.SendEthSubproto(p.rw, BlockHeadersMsg, headers, p.ID())
+	return p2p.SendEthSubproto(p.rw, BlockHeadersMsg, headers, p.ConnInfoCtx()...)
 }
 
 // SendBlockBodies sends a batch of block contents to the remote peer.
 func (p *peer) SendBlockBodies(bodies []*blockBody) error {
-	return p2p.SendEthSubproto(p.rw, BlockBodiesMsg, blockBodiesData(bodies), p.ID())
+	return p2p.SendEthSubproto(p.rw, BlockBodiesMsg, blockBodiesData(bodies), p.ConnInfoCtx()...)
 }
 
 // SendBlockBodiesRLP sends a batch of block contents to the remote peer from
 // an already RLP encoded format.
 func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
-	return p2p.SendEthSubproto(p.rw, BlockBodiesMsg, bodies, p.ID())
+	return p2p.SendEthSubproto(p.rw, BlockBodiesMsg, bodies, p.ConnInfoCtx()...)
 }
 
 // SendNodeDataRLP sends a batch of arbitrary internal data, corresponding to the
 // hashes requested.
 func (p *peer) SendNodeData(data [][]byte) error {
-	return p2p.SendEthSubproto(p.rw, NodeDataMsg, data, p.ID())
+	return p2p.SendEthSubproto(p.rw, NodeDataMsg, data, p.ConnInfoCtx()...)
 }
 
 // SendReceiptsRLP sends a batch of transaction receipts, corresponding to the
 // ones requested from an already RLP encoded format.
 func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
-	return p2p.SendEthSubproto(p.rw, ReceiptsMsg, receipts, p.ID())
+	return p2p.SendEthSubproto(p.rw, ReceiptsMsg, receipts, p.ConnInfoCtx()...)
 }
 
 // RequestOneHeader is a wrapper around the header query functions to fetch a
 // single header. It is used solely by the fetcher.
 func (p *peer) RequestOneHeader(hash common.Hash) error {
 	p.Log().Debug("Fetching single header", "hash", hash)
-	return p2p.SendEthSubproto(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: hash}, Amount: uint64(1), Skip: uint64(0), Reverse: false}, p.ID())
+	return p2p.SendEthSubproto(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: hash}, Amount: uint64(1), Skip: uint64(0), Reverse: false}, p.ConnInfoCtx()...)
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
 // specified header query, based on the hash of an origin block.
 func (p *peer) RequestHeadersByHash(origin common.Hash, amount int, skip int, reverse bool) error {
 	p.Log().Debug("Fetching batch of headers", "count", amount, "fromhash", origin, "skip", skip, "reverse", reverse)
-	return p2p.SendEthSubproto(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse}, p.ID())
+	return p2p.SendEthSubproto(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse}, p.ConnInfoCtx()...)
 }
 
 // RequestHeadersByNumber fetches a batch of blocks' headers corresponding to the
 // specified header query, based on the number of an origin block.
 func (p *peer) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool) error {
 	p.Log().Debug("Fetching batch of headers", "count", amount, "fromnum", origin, "skip", skip, "reverse", reverse)
-	return p2p.SendEthSubproto(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Number: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse}, p.ID())
+	return p2p.SendEthSubproto(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Number: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse}, p.ConnInfoCtx()...)
 }
 
 // RequestBodies fetches a batch of blocks' bodies corresponding to the hashes
 // specified.
 func (p *peer) RequestBodies(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of block bodies", "count", len(hashes))
-	return p2p.SendEthSubproto(p.rw, GetBlockBodiesMsg, hashes, p.ID())
+	return p2p.SendEthSubproto(p.rw, GetBlockBodiesMsg, hashes, p.ConnInfoCtx()...)
 }
 
 // RequestNodeData fetches a batch of arbitrary data from a node's known state
 // data, corresponding to the specified hashes.
 func (p *peer) RequestNodeData(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of state data", "count", len(hashes))
-	return p2p.SendEthSubproto(p.rw, GetNodeDataMsg, hashes, p.ID())
+	return p2p.SendEthSubproto(p.rw, GetNodeDataMsg, hashes, p.ConnInfoCtx()...)
 }
 
 // RequestReceipts fetches a batch of transaction receipts from a remote node.
 func (p *peer) RequestReceipts(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of receipts", "count", len(hashes))
-	return p2p.SendEthSubproto(p.rw, GetReceiptsMsg, hashes, p.ID())
+	return p2p.SendEthSubproto(p.rw, GetReceiptsMsg, hashes, p.ConnInfoCtx()...)
 }
 
 // Handshake executes the eth protocol handshake, negotiating version number,
@@ -234,7 +235,6 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 	// Send out own handshake in a new thread
 	errc := make(chan error, 2)
 	var status statusData // safe to read after two values have been received from errc
-
 	go func() {
 		errc <- p2p.SendEthSubproto(p.rw, StatusMsg, &statusData{
 			ProtocolVersion: uint32(p.version),
@@ -242,7 +242,7 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 			TD:              td,
 			CurrentBlock:    head,
 			GenesisBlock:    genesis,
-		}, p.ID())
+		}, p.ConnInfoCtx()...)
 	}()
 	go func() {
 		errc <- p.readStatus(network, &status, genesis)
@@ -268,21 +268,22 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	if err != nil {
 		return err
 	}
+	connInfoCtx := p.ConnInfoCtx()
 	if msg.Code != StatusMsg {
-		p.Log().Proto("<<UNEXPECTED_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
 	if msg.Size > ProtocolMaxMsgSize {
-		p.Log().Proto("<<TOOLARGE_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto(msg.ReceivedAt, connInfoCtx, "<<TOOLARGE_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
-		p.Log().Proto("<<FAIL_"+ethCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+		log.Proto(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
 
-	p.Log().Proto("<<"+ethCodeToString[msg.Code], "obj", status, "size", int(msg.Size), "peer", p.ID())
+	log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), status, nil)
 
 	if status.GenesisBlock != genesis {
 		return errResp(ErrGenesisBlockMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])

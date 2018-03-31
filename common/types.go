@@ -26,7 +26,6 @@ import (
 	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
-	"github.com/teamnsrg/go-ethereum/log"
 )
 
 const (
@@ -249,7 +248,7 @@ func (a UnprefixedAddress) MarshalText() ([]byte, error) {
 func MarshalObj(obj interface{}) string {
 	j, err := json.Marshal(obj)
 	if err != nil {
-		log.Proto(err.Error())
+		return "<" + err.Error() + ">"
 	}
 	return string(j)
 }

@@ -196,17 +196,18 @@ const (
 type conn struct {
 	fd net.Conn
 	transport
-	flags connFlag
-	cont  chan error      // The run loop uses cont to signal errors to SetupConn.
-	id    discover.NodeID // valid after the encryption handshake
-	caps  []Cap           // valid after the protocol handshake
-	name  string          // valid after the protocol handshake
+	flags       connFlag
+	cont        chan error      // The run loop uses cont to signal errors to SetupConn.
+	id          discover.NodeID // valid after the encryption handshake
+	caps        []Cap           // valid after the protocol handshake
+	name        string          // valid after the protocol handshake
+	connInfoCtx []interface{}
 }
 
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake, id discover.NodeID) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -214,7 +215,7 @@ type transport interface {
 	// transports must provide Close because we use MsgPipe in some of
 	// the tests. Closing the actual network connection doesn't do
 	// anything in those tests because NsgPipe doesn't use it.
-	close(err error, id discover.NodeID)
+	close(err error, connInfoCtx ...interface{})
 }
 
 func (c *conn) String() string {
@@ -565,7 +566,7 @@ running:
 					p.events = &srv.peerFeed
 				}
 				name := truncateName(c.name)
-				log.Proto("Adding p2p peer", "id", c.id, "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
+				log.Debug("Adding p2p peer", "id", c.id, "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
 				peers[c.id] = p
 				go srv.runPeer(p)
 			}
@@ -580,7 +581,7 @@ running:
 		case pd := <-srv.delpeer:
 			// A peer disconnected.
 			d := common.PrettyDuration(mclock.Now() - pd.created)
-			pd.log.Proto("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
+			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
 		}
 	}
@@ -704,45 +705,51 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	running := srv.running
 	srv.lock.Unlock()
 	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
+	connInfoCtx := []interface{}{
+		"addr", c.fd.RemoteAddr().String(),
+		"conn", c.flags.String(),
+	}
 	if !running {
-		c.close(errServerStopped, discover.NodeID{})
+		c.close(errServerStopped, connInfoCtx...)
 		return
 	}
 	// Run the encryption handshake.
 	var err error
 	if c.id, err = c.doEncHandshake(srv.PrivateKey, dialDest); err != nil {
 		log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
-		c.close(err, c.id)
+		c.close(err, connInfoCtx...)
 		return
 	}
-	// For dialed connections, check that the remote public key matches.
+	connInfoCtx = append([]interface{}{"id", c.id.String()}, connInfoCtx...)
+	c.connInfoCtx = connInfoCtx
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
+	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
-		c.close(DiscUnexpectedIdentity, c.id)
+		c.close(DiscUnexpectedIdentity, connInfoCtx...)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
 		return
 	}
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
-		c.close(err, c.id)
+		c.close(err, connInfoCtx...)
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake, c.id)
+	phs, err := c.doProtoHandshake(srv.ourHandshake, connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		c.close(err, c.id)
+		c.close(err, connInfoCtx...)
 		return
 	}
 	if phs.ID != c.id {
 		clog.Trace("Wrong devp2p handshake identity", "err", phs.ID)
-		c.close(DiscUnexpectedIdentity, c.id)
+		c.close(DiscUnexpectedIdentity, connInfoCtx...)
 		return
 	}
 	c.caps, c.name = phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
-		c.close(err, c.id)
+		c.close(err, connInfoCtx...)
 		return
 	}
 	// If the checks completed successfully, runPeer has now been

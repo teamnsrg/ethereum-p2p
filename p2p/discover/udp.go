@@ -482,7 +482,12 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) err
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Proto(">>"+req.name(), "to", toaddr.String(), "size", len(packet), "err", err, "obj", req, "peer", peer)
+	currentTime := time.Now()
+	connInfoCtx := []interface{}{
+		"id", peer.String(),
+		"addr", toaddr.String(),
+	}
+	log.Proto(currentTime, connInfoCtx, ">>"+req.name(), len(packet), req, err)
 	return err
 }
 
@@ -536,8 +541,13 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		log.Debug("Bad discv4 packet", "addr", from, "err", err)
 		return err
 	}
+	currentTime := time.Now()
+	connInfoCtx := []interface{}{
+		"id", fromID.String(),
+		"addr", from.String(),
+	}
+	log.Proto(currentTime, connInfoCtx, "<<"+packet.name(), len(buf), packet, err)
 	err = packet.handle(t, from, fromID, hash)
-	log.Proto("<<"+packet.name(), "from", from.String(), "size", len(buf), "err", err, "obj", packet, "peer", fromID)
 	return err
 }
 

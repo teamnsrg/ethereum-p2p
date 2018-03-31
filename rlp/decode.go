@@ -22,11 +22,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/teamnsrg/go-ethereum/common"
 	"io"
 	"math/big"
 	"reflect"
 	"strings"
+
+	"github.com/teamnsrg/go-ethereum/common"
 )
 
 var (
