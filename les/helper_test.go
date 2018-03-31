@@ -292,7 +292,7 @@ func (p *testPeer) handshake(t *testing.T, td *big.Int, head common.Hash, headNu
 	if err := p2p.ExpectMsg(p.app, StatusMsg, expList); err != nil {
 		t.Fatalf("status recv: %v", err)
 	}
-	if err := p2p.Send(p.app, StatusMsg, sendList); err != nil {
+	if err := p2p.SendDEVp2p(p.app, StatusMsg, sendList); err != nil {
 		t.Fatalf("status send: %v", err)
 	}
 

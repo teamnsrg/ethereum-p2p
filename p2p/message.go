@@ -99,17 +99,6 @@ type MsgReadWriter interface {
 	MsgWriter
 }
 
-// Send writes an RLP-encoded message with the given code.
-// data should encode as an RLP list.
-func Send(w MsgWriter, msgcode uint64, data interface{}) error {
-	size, r, err := rlp.EncodeToReader(data)
-
-	if err != nil {
-		return err
-	}
-	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
-}
-
 var empty struct{}
 var dataExcludedMsgs = map[uint64]struct{}{
 	0x02: empty, //TxMsg
@@ -136,12 +125,16 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, peers ...dis
 		peer = peers[0]
 	}
 
-	msgType := ethCodeToString[msgcode]
-	if _, ok := dataExcludedMsgs[msgcode]; ok {
-		data = "<OMITTED>"
+	msgType, ok := ethCodeToString[msgcode]
+	if !ok {
+		msgType = fmt.Sprintf("ETH_UNKNOWN_%v", msgcode)
+	}
+	obj := data
+	if obj, ok = dataExcludedMsgs[msgcode]; ok {
+		obj = "<OMITTED>"
 	}
 
-	log.Proto(">>"+msgType, "obj", data, "size", int(size), "peer", peer)
+	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
@@ -157,25 +150,32 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, peers ...discover
 		peer = peers[0]
 	}
 
-	msgType := devp2pCodeToString[msgcode]
-	if msgcode == discMsg {
-		data = discReasonToString[data.(DiscReason)]
+	msgType, ok := devp2pCodeToString[msgcode]
+	if !ok {
+		msgType = fmt.Sprintf("DEVP2P_UNKNOWN_%v", msgcode)
 	}
-	log.Proto(">>"+msgType, "obj", data, "size", int(size), "peer", peer)
+
+	obj := data
+	if dataArr, ok := data.([]interface{}); ok && len(dataArr) > 0 {
+		if d, ok := dataArr[0].(DiscReason); ok && msgcode == discMsg {
+			obj = discReasonToString[d]
+		}
+	}
+	log.Proto(">>"+msgType, "obj", obj, "size", size, "peer", peer)
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
 // SendItems writes an RLP with the given code and data elements.
 // For a call such as:
 //
-//    SendItems(w, code, e1, e2, e3)
+//    SendItems(id, w, code, e1, e2, e3)
 //
 // the message payload will be an RLP list containing the items:
 //
 //    [e1, e2, e3]
 //
-func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return SendDEVp2p(w, msgcode, elems)
+func SendItems(id discover.NodeID, w MsgWriter, msgcode uint64, elems ...interface{}) error {
+	return SendDEVp2p(w, msgcode, elems, id)
 }
 
 // netWrapper wraps a MsgReadWriter with locks around

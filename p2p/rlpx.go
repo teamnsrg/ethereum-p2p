@@ -103,14 +103,14 @@ func (t *rlpx) WriteMsg(msg Msg) error {
 	return t.rw.WriteMsg(msg)
 }
 
-func (t *rlpx) close(err error, peer discover.NodeID) {
+func (t *rlpx) close(err error, id discover.NodeID) {
 	t.wmu.Lock()
 	defer t.wmu.Unlock()
 	// Tell the remote end why we're disconnecting if possible.
 	if t.rw != nil {
 		if r, ok := err.(DiscReason); ok && r != DiscNetworkError {
 			t.fd.SetWriteDeadline(time.Now().Add(discWriteTimeout))
-			SendDEVp2p(t.rw, discMsg, r, peer)
+			SendItems(id, t.rw, discMsg, r)
 		}
 	}
 	t.fd.Close()
@@ -120,14 +120,14 @@ func (t *rlpx) close(err error, peer discover.NodeID) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (their *protoHandshake, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake, id discover.NodeID) (their *protoHandshake, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
-	go func() { werr <- SendDEVp2p(t.rw, handshakeMsg, our, peer) }()
-	if their, err = readProtocolHandshake(t.rw, peer); err != nil {
+	go func() { werr <- SendDEVp2p(t.rw, handshakeMsg, our, id) }()
+	if their, err = readProtocolHandshake(t.rw, id); err != nil {
 		<-werr // make sure the write terminates too
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake, peer discover.NodeID) (thei
 	return their, nil
 }
 
-func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake, error) {
+func readProtocolHandshake(rw MsgReader, id discover.NodeID) (*protoHandshake, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
 		return nil, err
@@ -155,21 +155,21 @@ func readProtocolHandshake(rw MsgReader, peer discover.NodeID) (*protoHandshake,
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", peer)
+		log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", id)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
 		var emptyMsgObj []interface{}
 		if int(msg.Code) < len(devp2pCodeToString) {
-			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", peer)
+			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", id)
 		} else {
-			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
+			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", id)
 		}
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", peer)
+		log.Proto("<<FAIL_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", id)
 		return nil, err
 	}
 

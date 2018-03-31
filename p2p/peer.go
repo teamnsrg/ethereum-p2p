@@ -53,7 +53,7 @@ const (
 	peersMsg     = 0x05
 )
 
-var devp2pCodeToString = [...]string{
+var devp2pCodeToString = map[uint64]string{
 	handshakeMsg: "DEVP2P_HELLO",
 	discMsg:      "DEVP2P_DISC",
 	pingMsg:      "DEVP2P_PING",
@@ -62,7 +62,7 @@ var devp2pCodeToString = [...]string{
 	peersMsg:     "DEVP2P_PEERS",
 }
 
-var ethCodeToString = [...]string{
+var ethCodeToString = map[uint64]string{
 	// Protocol messages belonging to eth/62
 	0x00: "ETH_STATUS",
 	0x01: "ETH_NEW_BLOCK_HASHES",
@@ -275,7 +275,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendDEVp2p(p.rw, pingMsg, make([]interface{}, 0), p.ID()); err != nil {
+			if err := SendItems(p.ID(), p.rw, pingMsg); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -308,7 +308,7 @@ func (p *Peer) handle(msg Msg) error {
 	case msg.Code == pingMsg:
 		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
-		go SendDEVp2p(p.rw, pongMsg, make([]interface{}, 0), p.ID())
+		go SendItems(p.ID(), p.rw, pongMsg)
 	case msg.Code == pongMsg:
 		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
 		msg.Discard()
