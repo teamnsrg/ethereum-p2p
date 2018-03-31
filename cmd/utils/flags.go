@@ -110,6 +110,11 @@ func NewApp(gitCommit, usage string) *cli.App {
 // are the same for all commands.
 
 var (
+	// Case Study settings
+	LogToFileFlag = cli.BoolFlag{
+		Name:  "logtofile",
+		Usage: "Write log to node-finder.log instead of stderr",
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",

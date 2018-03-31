@@ -130,7 +130,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx 
 	if obj, ok = dataExcludedMsgs[msgcode]; ok {
 		obj = "<OMITTED>"
 	}
-	log.Proto(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
+	log.EthTx(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
 	return err
 }
 
@@ -155,7 +155,7 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...in
 		}
 	}
 
-	log.Proto(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
+	log.DEVp2pTx(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
 	return err
 }
 

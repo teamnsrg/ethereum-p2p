@@ -316,32 +316,32 @@ func (p *Peer) handle(msg Msg) error {
 	connInfoCtx := p.ConnInfoCtx()
 	switch {
 	case msg.Code == pingMsg:
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), emptyMsgObj, nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), emptyMsgObj, nil)
 		msg.Discard()
 		go SendItems(p.rw, pongMsg, connInfoCtx)
 	case msg.Code == pongMsg:
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), emptyMsgObj, nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), emptyMsgObj, nil)
 		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		err := rlp.Decode(msg.Payload, &reason)
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), discReasonToString[reason[0]], err)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), discReasonToString[reason[0]], err)
 		return reason[0]
 	case msg.Code < baseProtocolLength:
-		// ignore other base protocol messages
 		if msgType, ok := devp2pCodeToString[msg.Code]; ok {
-			log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
+			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 		} else {
-			log.Proto(msg.ReceivedAt, connInfoCtx, "<<UNKNOWN_"+msgType, int(msg.Size), "<OMITTED>", nil)
+			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<UNKNOWN_"+msgType, int(msg.Size), "<OMITTED>", nil)
 		}
+		// ignore other base protocol messages
 		return msg.Discard()
 	default:
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
-			log.Proto(msg.ReceivedAt, connInfoCtx, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), int(msg.Size), "<OMITTED>", nil)
+			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), int(msg.Size), "<OMITTED>", nil)
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {

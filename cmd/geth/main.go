@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -40,7 +41,7 @@ import (
 )
 
 const (
-	clientIdentifier = "geth" // Client identifier to advertise over the network
+	clientIdentifier = "geth-case-study" // Client identifier to advertise over the network
 )
 
 var (
@@ -52,6 +53,7 @@ var (
 	app = utils.NewApp(gitCommit, "the go-ethereum command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
+		utils.LogToFileFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,
@@ -176,9 +178,48 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		if err := debug.Setup(ctx); err != nil {
-			return err
+		var isCommand bool
+		name := ctx.Args().First()
+		for _, command := range app.Commands {
+			if name == command.Name {
+				isCommand = true
+				break
+			}
 		}
+		var glogger *log.GlogHandler
+		if !isCommand && ctx.GlobalBool(utils.LogToFileFlag.Name) {
+			logdir := filepath.Join(ctx.GlobalString(utils.DataDirFlag.Name), clientIdentifier, "logs")
+			if err := os.MkdirAll(logdir, 0755); err != nil {
+				return err
+			}
+			newgl := log.NewGlogHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
+			if gl, err := debug.Setup(newgl, ctx); err != nil {
+				return err
+			} else {
+				glogger = gl
+				log.Root().SetHandler(log.MultiHandler(
+					// default logging for any lvl <= verbosity
+					glogger,
+					// lvl specific logging
+					// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlRLPXRx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlRLPXTx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlDEVp2pRx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlDEVp2pTx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlEthRx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlEthTx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlDaoFork, logdir),
+				))
+			}
+		} else {
+			if gl, err := debug.Setup(nil, ctx); err != nil {
+				return err
+			} else {
+				glogger = gl
+				log.Root().SetHandler(gl)
+			}
+		}
+		log.Root().SetGlogger(glogger)
 		// Start system runtime metrics collection
 		go metrics.CollectProcessMetrics(3 * time.Second)
 

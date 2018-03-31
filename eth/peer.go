@@ -270,20 +270,20 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 	}
 	connInfoCtx := p.ConnInfoCtx()
 	if msg.Code != StatusMsg {
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
 	if msg.Size > ProtocolMaxMsgSize {
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<TOOLARGE_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<TOOLARGE_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
 
-	log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), status, nil)
+	log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), status, nil)
 
 	if status.GenesisBlock != genesis {
 		return errResp(ErrGenesisBlockMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])

@@ -22,11 +22,32 @@ const (
 	LvlInfo
 	LvlDebug
 	LvlTrace
+	LvlRLPXRx
+	LvlRLPXTx
+	LvlDEVp2pRx
+	LvlDEVp2pTx
+	LvlEthRx
+	LvlEthTx
+	LvlDaoFork
 )
 
 // Aligned returns a 5-character string containing the name of a Lvl.
 func (l Lvl) AlignedString() string {
 	switch l {
+	case LvlDaoFork:
+		return "DAOFORK"
+	case LvlEthTx:
+		return "ETHTX"
+	case LvlEthRx:
+		return "ETHRX"
+	case LvlDEVp2pTx:
+		return "DEVP2PTX"
+	case LvlDEVp2pRx:
+		return "DEVP2PRX"
+	case LvlRLPXTx:
+		return "RLPXTX"
+	case LvlRLPXRx:
+		return "RLPXRX"
 	case LvlTrace:
 		return "TRACE"
 	case LvlDebug:
@@ -47,6 +68,20 @@ func (l Lvl) AlignedString() string {
 // Strings returns the name of a Lvl.
 func (l Lvl) String() string {
 	switch l {
+	case LvlDaoFork:
+		return "daofork"
+	case LvlEthTx:
+		return "eth-sent"
+	case LvlEthRx:
+		return "eth-received"
+	case LvlDEVp2pTx:
+		return "devp2p-sent"
+	case LvlDEVp2pRx:
+		return "devp2p-received"
+	case LvlRLPXTx:
+		return "rlpx-sent"
+	case LvlRLPXRx:
+		return "rlpx-received"
 	case LvlTrace:
 		return "trce"
 	case LvlDebug:
@@ -68,6 +103,20 @@ func (l Lvl) String() string {
 // Useful for parsing command line args and configuration files.
 func LvlFromString(lvlString string) (Lvl, error) {
 	switch lvlString {
+	case "daofork":
+		return LvlDaoFork, nil
+	case "eth-sent", "eth-tx":
+		return LvlEthTx, nil
+	case "eth-received", "eth-rx":
+		return LvlEthRx, nil
+	case "devp2p-sent", "devp2p-tx":
+		return LvlDEVp2pTx, nil
+	case "devp2p-received", "devp2p-rx":
+		return LvlDEVp2pRx, nil
+	case "rlpx-sent", "rlpx-tx":
+		return LvlRLPXTx, nil
+	case "rlpx-received", "rlpx-rx":
+		return LvlRLPXRx, nil
 	case "trace", "trce":
 		return LvlTrace, nil
 	case "debug", "dbug":
@@ -112,19 +161,31 @@ type Logger interface {
 	// SetHandler updates the logger to write records to the specified handler.
 	SetHandler(h Handler)
 
+	SetGlogger(glogger *GlogHandler)
+
+	GetGlogger() *GlogHandler
+
 	// Log a message at the given level with context key/value pairs
+	DaoFork(t time.Time, connInfoCtx []interface{}, support bool)
+	EthTx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
+	EthRx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
+	DEVp2pTx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
+	DEVp2pRx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
+	RLPXTx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
+	RLPXRx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
 	Info(msg string, ctx ...interface{})
 	Warn(msg string, ctx ...interface{})
 	Error(msg string, ctx ...interface{})
 	Crit(msg string, ctx ...interface{})
-	Proto(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error)
 }
 
 type logger struct {
-	ctx []interface{}
-	h   *swapHandler
+	ctx     []interface{}
+	h       *swapHandler
+	datadir string
+	glogger *GlogHandler
 }
 
 func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
@@ -143,7 +204,7 @@ func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
 }
 
 func (l *logger) New(ctx ...interface{}) Logger {
-	child := &logger{newContext(l.ctx, ctx), new(swapHandler)}
+	child := &logger{ctx: newContext(l.ctx, ctx), h: new(swapHandler)}
 	child.SetHandler(l.h)
 	return child
 }
@@ -156,14 +217,45 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	return newCtx
 }
 
-func (l *logger) Proto(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+func (l *logger) writeMsgType(lvl Lvl, t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
 	ctx := []interface{}{
 		"size", size,
 		"data", data,
 		"err", err,
 	}
 	ctx = append(ctx, connInfoCtx...)
-	l.write(fmt.Sprintf("%f|%s", float64(t.UnixNano())/1000000000, msgType), LvlCrit, ctx)
+	l.write(fmt.Sprintf("%.6f|%s", float64(t.UnixNano())/1e9, msgType), lvl, ctx)
+}
+
+func (l *logger) DaoFork(t time.Time, connInfoCtx []interface{}, support bool) {
+	ctx := []interface{}{
+		"support", support,
+	}
+	l.write(fmt.Sprintf("%.6f", float64(t.UnixNano())/1e9), LvlDaoFork, ctx)
+}
+
+func (l *logger) EthTx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	l.writeMsgType(LvlEthTx, t, connInfoCtx, msgType, size, data, err)
+}
+
+func (l *logger) EthRx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	l.writeMsgType(LvlEthRx, t, connInfoCtx, msgType, size, data, err)
+}
+
+func (l *logger) DEVp2pTx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	l.writeMsgType(LvlDEVp2pTx, t, connInfoCtx, msgType, size, data, err)
+}
+
+func (l *logger) DEVp2pRx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	l.writeMsgType(LvlDEVp2pRx, t, connInfoCtx, msgType, size, data, err)
+}
+
+func (l *logger) RLPXTx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	l.writeMsgType(LvlRLPXTx, t, connInfoCtx, msgType, size, data, err)
+}
+
+func (l *logger) RLPXRx(t time.Time, connInfoCtx []interface{}, msgType string, size int, data interface{}, err error) {
+	l.writeMsgType(LvlRLPXRx, t, connInfoCtx, msgType, size, data, err)
 }
 
 func (l *logger) Trace(msg string, ctx ...interface{}) {
@@ -197,6 +289,14 @@ func (l *logger) GetHandler() Handler {
 
 func (l *logger) SetHandler(h Handler) {
 	l.h.Swap(h)
+}
+
+func (l *logger) GetGlogger() *GlogHandler {
+	return l.glogger
+}
+
+func (l *logger) SetGlogger(glogger *GlogHandler) {
+	l.glogger = glogger
 }
 
 func normalize(ctx []interface{}) []interface{} {

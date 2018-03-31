@@ -19,12 +19,14 @@ package node
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rpc"
@@ -40,6 +42,31 @@ type PrivateAdminAPI struct {
 // of the node itself.
 func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 	return &PrivateAdminAPI{node: node}
+}
+
+func (api *PrivateAdminAPI) Logrotate() error {
+	var (
+		logdir           = filepath.Join(api.node.InstanceDir(), "logs")
+		clientIdentifier = api.node.config.Name
+		glogger          = log.Root().GetGlogger()
+	)
+	if api.node.config.LogToFile {
+		glogger.SetHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
+		log.Root().SetHandler(log.MultiHandler(
+			// default logging for any lvl <= verbosity
+			glogger,
+			// lvl specific logging
+			// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlRLPXRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlRLPXTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDEVp2pRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDEVp2pTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlEthRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlEthTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDaoFork, logdir),
+		))
+	}
+	return nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new

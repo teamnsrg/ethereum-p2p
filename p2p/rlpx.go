@@ -155,26 +155,26 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...int
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), discReasonToString[reason[0]], nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), discReasonToString[reason[0]], nil)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
 		var emptyMsgObj []interface{}
 		if msgType, ok := devp2pCodeToString[msg.Code]; ok {
-			log.Proto(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+msgType, int(msg.Size), emptyMsgObj, nil)
+			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+msgType, int(msg.Size), emptyMsgObj, nil)
 		} else {
-			log.Proto(msg.ReceivedAt, connInfoCtx, fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), int(msg.Size), "<OMITTED>", nil)
+			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), int(msg.Size), "<OMITTED>", nil)
 
 		}
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		log.Proto(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+devp2pCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+devp2pCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
 		return nil, err
 	}
 
-	log.Proto(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), &hs, nil)
+	log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), &hs, nil)
 
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity

@@ -81,13 +81,15 @@ func TerminalFormat(usecolor bool) Format {
 				color = 36
 			case LvlTrace:
 				color = 34
+			default:
+				color = 37
 			}
 		}
 
 		b := &bytes.Buffer{}
 		lvl := r.Lvl.AlignedString()
 
-		unixTime := strconv.FormatFloat(float64(r.Time.UnixNano())/1000000000, floatFormat, 6, 64)
+		unixTime := strconv.FormatFloat(float64(r.Time.UnixNano())/1e9, floatFormat, 6, 64)
 
 		if atomic.LoadUint32(&locationEnabled) != 0 {
 			// Log origin printing was requested, format the location path and line number
@@ -169,7 +171,7 @@ func formatShared(value interface{}) (result interface{}) {
 
 	switch v := value.(type) {
 	case time.Time:
-		return float64(v.UnixNano()) / 1000000000
+		return float64(v.UnixNano()) / 1e9
 
 	case error:
 		return v.Error()
@@ -192,7 +194,7 @@ func formatLogfmtValue(value interface{}, term bool) string {
 		// Performance optimization: No need for escaping since the provided
 		// timeFormat doesn't have any escape characters, and escaping is
 		// expensive.
-		return strconv.FormatFloat(float64(t.UnixNano())/1000000000, floatFormat, 6, 64)
+		return strconv.FormatFloat(float64(t.UnixNano())/1e9, floatFormat, 6, 64)
 	}
 	if term {
 		if s, ok := value.(TerminalStringer); ok {

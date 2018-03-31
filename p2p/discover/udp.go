@@ -311,7 +311,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 			nreceived++
 			n, err := t.nodeFromRPC(toaddr, rn)
 			if err != nil {
-				log.Trace("Invalid neighbor node received", "neighbor_ip", rn.IP, "sender_ip", toaddr, "err", err)
+				log.Trace("Invalid neighbor node received", "neighborIp", rn.IP, "senderIp", toaddr, "err", err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -487,7 +487,7 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) err
 		"id", peer.String(),
 		"addr", toaddr.String(),
 	}
-	log.Proto(currentTime, connInfoCtx, ">>"+req.name(), len(packet), req, err)
+	log.RLPXTx(currentTime, connInfoCtx, ">>"+req.name(), len(packet), req, err)
 	return err
 }
 
@@ -546,7 +546,7 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		"id", fromID.String(),
 		"addr", from.String(),
 	}
-	log.Proto(currentTime, connInfoCtx, "<<"+packet.name(), len(buf), packet, err)
+	log.RLPXRx(currentTime, connInfoCtx, "<<"+packet.name(), len(buf), packet, err)
 	err = packet.handle(t, from, fromID, hash)
 	return err
 }
