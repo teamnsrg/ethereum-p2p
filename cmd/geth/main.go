@@ -26,6 +26,9 @@ import (
 	"strings"
 	"time"
 
+	cli "gopkg.in/urfave/cli.v1"
+
+	"github.com/prometheus/prometheus/util/flock"
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/cmd/utils"
@@ -37,7 +40,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/metrics"
 	"github.com/teamnsrg/go-ethereum/node"
-	"gopkg.in/urfave/cli.v1"
 )
 
 const (
@@ -45,6 +47,7 @@ const (
 )
 
 var (
+	instanceDirLock flock.Releaser
 	// Git SHA1 commit hash of the release (set via linker flags)
 	gitCommit = ""
 	// Ethereum address of the Geth release oracle.
@@ -138,6 +141,35 @@ var (
 	}
 )
 
+func openInstanceDir(ctx *cli.Context) (string, error) {
+	var datadir string
+	switch {
+	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
+		datadir = ctx.GlobalString(utils.DataDirFlag.Name)
+	case ctx.GlobalBool(utils.DeveloperFlag.Name):
+		datadir = os.TempDir()
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "testnet")
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	}
+	if datadir == "" {
+		datadir = node.DefaultDataDir()
+	}
+	instancedir := filepath.Join(datadir, clientIdentifier)
+	if err := os.MkdirAll(instancedir, 0700); err != nil {
+		return instancedir, err
+	}
+	// Lock the instance directory to prevent concurrent use by another instance as well as
+	// accidental use of the instance directory as a database.
+	release, _, err := flock.New(filepath.Join(instancedir, "LOCK"))
+	if err != nil {
+		return instancedir, node.ConvertFileLockError(err)
+	}
+	instanceDirLock = release
+	return instancedir, nil
+}
+
 func init() {
 	// Initialize the CLI app and start Geth
 	app.Action = geth
@@ -178,17 +210,13 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		var isCommand bool
-		name := ctx.Args().First()
-		for _, command := range app.Commands {
-			if name == command.Name {
-				isCommand = true
-				break
-			}
-		}
 		var glogger *log.GlogHandler
-		if !isCommand && ctx.GlobalBool(utils.LogToFileFlag.Name) {
-			logdir := filepath.Join(ctx.GlobalString(utils.DataDirFlag.Name), clientIdentifier, "logs")
+		if ctx.GlobalBool(utils.LogToFileFlag.Name) {
+			instancedir, err := openInstanceDir(ctx)
+			if err != nil {
+				return err
+			}
+			logdir := filepath.Join(instancedir, "logs")
 			if err := os.MkdirAll(logdir, 0755); err != nil {
 				return err
 			}
