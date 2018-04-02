@@ -31,6 +31,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/go-ethereum/common/fdlimit"
 	"github.com/teamnsrg/go-ethereum/consensus"
 	"github.com/teamnsrg/go-ethereum/consensus/clique"
 	"github.com/teamnsrg/go-ethereum/consensus/ethash"
@@ -745,15 +746,17 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 // makeDatabaseHandles raises out the number of allowed file handles per process
 // for Geth and returns half of the allowance to assign to the database.
 func makeDatabaseHandles(max uint64) int {
-	if err := raiseFdLimit(max); err != nil {
-		Fatalf("Failed to raise file descriptor allowance: %v", err)
-	}
-	limit, err := getFdLimit()
+	limit, err := fdlimit.Current()
 	if err != nil {
 		Fatalf("Failed to retrieve file descriptor allowance: %v", err)
 	}
-	if limit > 2048 { // cap database file descriptors even if more is available
-		limit = 2048
+	if limit < int(max) {
+		if err := fdlimit.Raise(max); err != nil {
+			Fatalf("Failed to raise file descriptor allowance: %v", err)
+		}
+	}
+	if limit > int(max) { // cap database file descriptors even if more is available
+		limit = int(max)
 	}
 	return limit / 2 // Leave half for networking and other stuff
 }
@@ -1034,7 +1037,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.DatabaseHandles = makeDatabaseHandles(ctx.GlobalUint64(MaxNumFileFlag.Name))
 	} else {
 		cfg.DatabaseHandles = makeDatabaseHandles(2048)
-
 	}
 
 	if ctx.GlobalIsSet(MinerThreadsFlag.Name) {
