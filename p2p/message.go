@@ -120,8 +120,8 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx 
 		return err
 	}
 
-	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 	currentTime := time.Now()
+	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 	msgType, ok := ethCodeToString[msgcode]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
@@ -141,8 +141,8 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...in
 		return err
 	}
 
-	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 	currentTime := time.Now()
+	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 	msgType, ok := devp2pCodeToString[msgcode]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
