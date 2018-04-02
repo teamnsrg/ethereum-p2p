@@ -127,7 +127,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx 
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
 	obj := data
-	if obj, ok = dataExcludedMsgs[msgcode]; ok {
+	if _, ok := dataExcludedMsgs[msgcode]; ok {
 		obj = "<OMITTED>"
 	}
 	log.EthTx(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
