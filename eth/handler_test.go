@@ -32,8 +32,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/params"
 )
 
-var bigTxGas = new(big.Int).SetUint64(params.TxGas)
-
 // Tests that protocol versions and modes of operations are matched up properly.
 func TestProtocolCompatibility(t *testing.T) {
 	// Define the compatibility chart

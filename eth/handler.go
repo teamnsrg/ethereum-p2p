@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,14 +52,11 @@ func errResp(code errCode, format string, v ...interface{}) error {
 }
 
 type ProtocolManager struct {
-	addEthInfoStmt        *sql.Stmt
-	updateEthInfoStmt     *sql.Stmt
-	addEthNodeInfoStmt    *sql.Stmt
-	addDAOForkSupportStmt *sql.Stmt
-	getRowIDStmt          *sql.Stmt
-	knownNodeInfos        *p2p.KnownNodeInfos // information on known nodes
-	db                    *sql.DB             // mysql db handle
-	noMaxPeers            bool                // Flag whether to ignore maxPeers
+	addNodeEthInfoStmt *sql.Stmt
+	knownNodeInfos     *p2p.KnownNodeInfos // information on known nodes
+	db                 *sql.DB             // mysql db handle
+	strReplacer        *strings.Replacer
+	noMaxPeers         bool // Flag whether to ignore maxPeers
 
 	networkId uint64
 

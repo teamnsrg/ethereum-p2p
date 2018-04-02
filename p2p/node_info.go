@@ -57,7 +57,7 @@ func (td *Td) String() string {
 type Info struct {
 	mux sync.RWMutex
 
-	RowId         uint64 `json:"rowId"`         // Most recent row ID
+	RowId         uint64 `json:"rowId"`         // deprecated
 	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
 	IP            string `json:"ip"`            // IP address of the node
 	TCPPort       uint16 `json:"tcpPort"`       // TCP listening port for RLPx
@@ -126,7 +126,7 @@ func (k *Info) Status() string {
 }
 
 func (k *Info) P2PSummary() string {
-	return fmt.Sprintf("RowID:%v %v %v", k.RowId, k.Address(), k.Hello())
+	return fmt.Sprintf("%v %v", k.Address(), k.Hello())
 }
 
 func (k *Info) EthSummary() string {
@@ -206,11 +206,9 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 		dial       bool
 		accept     bool
 	)
-	addrArr := strings.Split(c.fd.RemoteAddr().String(), ":")
-	addrLen := len(addrArr)
-	remoteIP = strings.Join(addrArr[:addrLen-1], ":")
-	if p, err := strconv.ParseUint(addrArr[addrLen-1], 10, 16); err == nil {
-		remotePort = uint16(p)
+	if remoteAddr, ok := c.fd.RemoteAddr().(*net.TCPAddr); ok {
+		remoteIP = remoteAddr.IP.String()
+		remotePort = uint16(remoteAddr.Port)
 	}
 	srv.KnownNodeInfos.Lock()
 	oldNodeInfo := srv.KnownNodeInfos.Infos()[c.id]
@@ -253,6 +251,7 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 		TCPPort:       tcpPort,
 		RemotePort:    remotePort,
 	}
+	c.tcpPort = tcpPort
 	return newNodeInfo, dial, accept
 }
 
@@ -275,47 +274,28 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 	caps := strings.Join(capsArray, ",")
 
 	// replace unwanted characters
-	if srv.strReplacer == nil {
+	if srv.StrReplacer == nil {
 		log.Crit("No strings.Replacer")
 		return
 	}
-	clientId = srv.strReplacer.Replace(clientId)
-	caps = srv.strReplacer.Replace(caps)
+	clientId = srv.StrReplacer.Replace(clientId)
+	caps = srv.StrReplacer.Replace(caps)
 
 	newInfo.P2PVersion = p2pVersion
 	newInfo.ClientId = clientId
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
-	var infoStr string
 	srv.KnownNodeInfos.Lock()
-	defer srv.KnownNodeInfos.Unlock()
 	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
-		if srv.DB != nil {
-			srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-			if rowId := srv.getRowID(nodeid); rowId > 0 {
-				newInfo.RowId = rowId
-			}
-		}
-		infoStr = newInfo.P2PSummary()
-
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
 
 		// add new node info to in-memory
 		srv.KnownNodeInfos.Infos()[id] = newInfo
 	} else {
+		currentInfo.Lock()
 		if isNewNode(currentInfo, newInfo) {
-			// new entry to the mysql db should contain only the new address, DEVp2p info
-			// let Ethereum protocol update the Status info, if available.
-			if srv.DB != nil {
-				srv.addNodeInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-				if rowId := srv.getRowID(nodeid); rowId > 0 {
-					newInfo.RowId = rowId
-				}
-			}
-			infoStr = newInfo.P2PSummary()
-
 			// if the node's listening port changed
 			// add it as a static node
 			if currentInfo.TCPPort != newInfo.TCPPort {
@@ -325,17 +305,19 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			// replace the current info with new info, setting all fields related to Ethereum Status to null
 			srv.KnownNodeInfos.Infos()[id] = newInfo
 		} else {
-			currentInfo.Lock()
-			defer currentInfo.Unlock()
 			currentInfo.LastHelloAt = newInfo.LastHelloAt
 			currentInfo.RemotePort = newInfo.RemotePort
-			if srv.DB != nil {
-				srv.updateNodeInfo(&KnownNodeInfosWrapper{nodeid, currentInfo})
-			}
-			infoStr = currentInfo.P2PSummary()
+			newInfo = currentInfo
 		}
+		currentInfo.Unlock()
 	}
-	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "info", infoStr)
+	srv.KnownNodeInfos.Unlock()
+
+	// update or add a new entry to node_p2p_info
+	if srv.DB != nil {
+		srv.addNodeP2PInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+	}
+	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "info", newInfo.P2PSummary())
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {
