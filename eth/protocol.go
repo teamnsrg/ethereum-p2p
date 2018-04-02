@@ -146,11 +146,7 @@ type newBlockHashesData []struct {
 }
 
 func (msg newBlockHashesData) GoString() string {
-	var msgs []interface{}
-	for _, blockHash := range msg {
-		msgs = append(msgs, common.MarshalObj(blockHash))
-	}
-	return common.MarshalObj(msgs)
+	return common.MarshalObj(msg)
 }
 
 // getBlockHeadersData represents a block header query.
