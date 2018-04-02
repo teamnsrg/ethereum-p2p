@@ -112,6 +112,34 @@ func NewApp(gitCommit, usage string) *cli.App {
 
 var (
 	// Node Finder settings
+	MaxDialFlag = cli.IntFlag{
+		Name:  "maxdial",
+		Usage: "Maximum number of concurrently dialing outbound connections",
+		Value: 16,
+	}
+	NoMaxPeersFlag = cli.BoolFlag{
+		Name:  "nomaxpeers",
+		Usage: "Ignore/overwrite MaxPeers to allow unlimited number of peer connections",
+	}
+	MaxAcceptConnsFlag = cli.IntFlag{
+		Name:  "maxacceptconns",
+		Usage: "Maximum number of concurrently handshaking inbound connections",
+		Value: 50,
+	}
+	MaxNumFileFlag = cli.Uint64Flag{
+		Name:  "maxnumfile",
+		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
+		Value: 2048,
+	}
+	BlacklistFlag = cli.StringFlag{
+		Name:  "blacklist",
+		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
+	}
+	DialFreqFlag = cli.IntFlag{
+		Name:  "dialfreq",
+		Usage: "Frequency of re-dialing static nodes (in seconds)",
+		Value: 30,
+	}
 	MySQLFlag = cli.StringFlag{
 		Name:  "mysql",
 		Usage: "Connects to the specified database and update node information (username:password@tcp(ip:port)/db)",
@@ -124,33 +152,9 @@ var (
 		Name:  "resetsql",
 		Usage: "Makes a backup of the current MySQL db tables and resets them (if set, backupsql is automatically set)",
 	}
-	MaxNumFileFlag = cli.Uint64Flag{
-		Name:  "maxnumfile",
-		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
-		Value: 2048,
-	}
-	MaxDialFlag = cli.IntFlag{
-		Name:  "maxdial",
-		Usage: "Maximum number of concurrently dialing outbound connections",
-		Value: 16,
-	}
-	MaxAcceptConnsFlag = cli.IntFlag{
-		Name:  "maxacceptconns",
-		Usage: "Maximum number of concurrently handshaking inbound connections",
-		Value: 50,
-	}
-	NoMaxPeersFlag = cli.BoolFlag{
-		Name:  "nomaxpeers",
-		Usage: "Ignore/overwrite MaxPeers to allow unlimited number of peer connections",
-	}
-	DialFreqFlag = cli.IntFlag{
-		Name:  "dialfreq",
-		Usage: "Frequency of re-dialing static nodes (in seconds)",
-		Value: 30,
-	}
-	BlacklistFlag = cli.StringFlag{
-		Name:  "blacklist",
-		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
+	LogToFileFlag = cli.BoolFlag{
+		Name:  "logtofile",
+		Usage: "Write log to node-finder.log instead of stderr",
 	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
@@ -827,6 +831,15 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
+	if ctx.GlobalIsSet(NoMaxPeersFlag.Name) {
+		cfg.NoMaxPeers = true
+	}
+	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
+		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
+	}
+	if ctx.GlobalIsSet(DialFreqFlag.Name) {
+		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
+	}
 	if ctx.GlobalIsSet(MySQLFlag.Name) {
 		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)
 	}
@@ -840,15 +853,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(MaxDialFlag.Name) {
 		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)
 	}
-	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
-		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
-	}
-	if ctx.GlobalIsSet(NoMaxPeersFlag.Name) {
-		cfg.NoMaxPeers = true
-	}
-	if ctx.GlobalIsSet(DialFreqFlag.Name) {
-		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
-	}
+
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {
 		cfg.MaxPeers = ctx.GlobalInt(MaxPeersFlag.Name)
 	}

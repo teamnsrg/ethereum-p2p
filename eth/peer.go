@@ -26,7 +26,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/core/types"
 	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/rlp"
 	"gopkg.in/fatih/set.v0"
 )
 
@@ -87,7 +86,7 @@ func (p *peer) Info() *PeerInfo {
 	return &PeerInfo{
 		Version:    p.version,
 		Difficulty: td,
-		Head:       hash.Hex(),
+		Head:       hash.Hex()[2:],
 	}
 }
 
@@ -130,68 +129,9 @@ func (p *peer) MarkTransaction(hash common.Hash) {
 	p.knownTxs.Add(hash)
 }
 
-// SendTransactions sends transactions to the peer and includes the hashes
-// in its transaction hash set for future reference.
-func (p *peer) SendTransactions(txs types.Transactions) error {
-	for _, tx := range txs {
-		p.knownTxs.Add(tx.Hash())
-	}
-	return p2p.Send(p.rw, TxMsg, txs)
-}
-
-// SendNewBlockHashes announces the availability of a number of blocks through
-// a hash notification.
-func (p *peer) SendNewBlockHashes(hashes []common.Hash, numbers []uint64) error {
-	for _, hash := range hashes {
-		p.knownBlocks.Add(hash)
-	}
-	request := make(newBlockHashesData, len(hashes))
-	for i := 0; i < len(hashes); i++ {
-		request[i].Hash = hashes[i]
-		request[i].Number = numbers[i]
-	}
-	return p2p.Send(p.rw, NewBlockHashesMsg, request)
-}
-
-// SendNewBlock propagates an entire block to a remote peer.
-func (p *peer) SendNewBlock(block *types.Block, td *big.Int) error {
-	p.knownBlocks.Add(block.Hash())
-	return p2p.Send(p.rw, NewBlockMsg, []interface{}{block, td})
-}
-
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []*types.Header) error {
 	return p2p.Send(p.rw, BlockHeadersMsg, headers)
-}
-
-// SendBlockBodies sends a batch of block contents to the remote peer.
-func (p *peer) SendBlockBodies(bodies []*blockBody) error {
-	return p2p.Send(p.rw, BlockBodiesMsg, blockBodiesData(bodies))
-}
-
-// SendBlockBodiesRLP sends a batch of block contents to the remote peer from
-// an already RLP encoded format.
-func (p *peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
-	return p2p.Send(p.rw, BlockBodiesMsg, bodies)
-}
-
-// SendNodeDataRLP sends a batch of arbitrary internal data, corresponding to the
-// hashes requested.
-func (p *peer) SendNodeData(data [][]byte) error {
-	return p2p.Send(p.rw, NodeDataMsg, data)
-}
-
-// SendReceiptsRLP sends a batch of transaction receipts, corresponding to the
-// ones requested from an already RLP encoded format.
-func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
-	return p2p.Send(p.rw, ReceiptsMsg, receipts)
-}
-
-// RequestOneHeader is a wrapper around the header query functions to fetch a
-// single header. It is used solely by the fetcher.
-func (p *peer) RequestOneHeader(hash common.Hash) error {
-	p.Log().Debug("Fetching single header", "hash", hash)
-	return p2p.Send(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: hash}, Amount: uint64(1), Skip: uint64(0), Reverse: false})
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
@@ -230,9 +170,11 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 
 // statusDataWrapper is the wrapper for statusData and unixTime
 type statusDataWrapper struct {
-	ReceivedAt *time.Time
-	Status     *statusData
-	ErrorCode  errCode
+	ReceivedAt   *time.Time
+	Status       *statusData
+	ErrorCode    errCode
+	PeerRtt      float64
+	PeerDuration float64
 }
 
 func (s *statusDataWrapper) isValidIncompatibleStatus() bool {
@@ -278,10 +220,19 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 	if err != nil {
 		return err
 	}
+	// log received eth messages
+	/*
+		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+		msgStr, ok := ethCodeToString[msg.Code]
+		if !ok {
+			msgStr = "ETH_UNKNOWN"
+		}
+		p.CustomLog().Type(fmt.Sprintf("%f", unixTime),
+			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "type", "<<"+msgStr, "size", msg.Size)
+	*/
 	if msg.Code != StatusMsg {
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
-	p.Log().Trace("<<"+ethCodeToString[msg.Code], "receivedAt", msg.ReceivedAt)
 	if msg.Size > ProtocolMaxMsgSize {
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
@@ -292,6 +243,8 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 	}
 	statusWrapper.ReceivedAt = &msg.ReceivedAt
 	statusWrapper.Status = &status
+	statusWrapper.PeerRtt = msg.PeerRtt
+	statusWrapper.PeerDuration = msg.PeerDuration
 
 	if status.GenesisBlock != genesis {
 		statusWrapper.ErrorCode = ErrGenesisBlockMismatch

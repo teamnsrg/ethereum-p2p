@@ -1,18 +1,17 @@
 package eth
 
 import (
+	"fmt"
 	"net"
 	"sort"
 	"strings"
-	"time"
 
-	"fmt"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 )
 
-func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWrapper) {
+func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWrapper) {
 	id := p.ID()
 	nodeid := id.String()
 	status := statusWrapper.Status
@@ -35,7 +34,8 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 		if err := pm.fillP2PInfo(p, newInfo); err != nil {
 			pm.knownNodeInfos.Unlock()
 			log.Debug("Failed to fill P2P info", "err", err)
-			log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "info", newInfo.EthSummary())
+			p.CustomLog().Status(fmt.Sprintf("%f", newInfo.LastStatusAt.Float64()),
+				"rtt", statusWrapper.PeerRtt, "duration", statusWrapper.PeerDuration, "info", newInfo.EthSummary())
 			return
 		}
 
@@ -62,7 +62,8 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 	if pm.db != nil {
 		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: newInfo}, true)
 	}
-	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "info", newInfo.EthSummary())
+	p.CustomLog().Status(fmt.Sprintf("%f", newInfo.LastStatusAt.Float64()),
+		"rtt", statusWrapper.PeerRtt, "duration", statusWrapper.PeerDuration, "info", newInfo.EthSummary())
 }
 
 func (pm *ProtocolManager) fillP2PInfo(p *peer, newInfo *p2p.Info) error {
@@ -100,7 +101,7 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 		oldInfo.GenesisHash != newInfo.GenesisHash
 }
 
-func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time, daoForkSupport int8) {
+func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoForkSupport int8) {
 	id := p.ID()
 	nodeid := id.String()
 
@@ -119,5 +120,7 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 	if pm.db != nil {
 		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
 	}
-	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "support", daoForkSupport > 0)
+	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+	p.CustomLog().DaoFork(fmt.Sprintf("%f", unixTime),
+		"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "support", daoForkSupport > 0)
 }

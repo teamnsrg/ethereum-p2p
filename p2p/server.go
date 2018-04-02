@@ -54,6 +54,21 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MaxDial is the maximum number of concurrently dialing outbound connections.
+	MaxDial int
+
+	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
+	NoMaxPeers bool
+
+	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
+	MaxAcceptConns int
+
+	// Blacklist is the list of IP networks that we should not connect to
+	Blacklist *netutil.Netlist `toml:",omitempty"`
+
+	// DialFreq is the frequency of re-dialing static nodes (in seconds).
+	DialFreq int
+
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
 
@@ -63,21 +78,6 @@ type Config struct {
 	// ResetSQL makes a backup of the current MySQL db tables and resets them.
 	// If set true, BackupSQL should be set true as well.
 	ResetSQL bool
-
-	// MaxDial is the maximum number of concurrently dialing outbound connections.
-	MaxDial int
-
-	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
-	MaxAcceptConns int
-
-	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
-	NoMaxPeers bool
-
-	// DialFreq is the frequency of re-dialing static nodes (in seconds).
-	DialFreq int
-
-	// Blacklist is the list of IP networks that we should not connect to
-	Blacklist *netutil.Netlist `toml:",omitempty"`
 
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
@@ -168,6 +168,7 @@ type Server struct {
 	addNodeMetaInfoStmt *sql.Stmt
 	KnownNodeInfos      *KnownNodeInfos // information on known nodes
 	DB                  *sql.DB         // MySQL database handle
+	dialstate           *dialstate
 	StrReplacer         *strings.Replacer
 
 	// Config fields may not be modified while the server is running.
@@ -234,9 +235,10 @@ type conn struct {
 }
 
 type transport interface {
+	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error)
+	doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -466,8 +468,9 @@ func (srv *Server) Start() (err error) {
 		dynPeers = 0
 	}
 	dialer := newDialState(srv.StaticNodes, srv.ntab, dynPeers, srv.NetRestrict)
-	dialer.setBlacklist(srv.Blacklist)
-	dialer.setDialFreq(srv.DialFreq)
+	dialer.SetBlacklist(srv.Blacklist)
+	dialer.SetDialFreq(srv.DialFreq)
+	srv.dialstate = dialer
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -518,8 +521,14 @@ type dialer interface {
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
-	setBlacklist(*netutil.Netlist)
-	setDialFreq(int)
+	GetDialFreq() time.Duration
+	SetDialFreq(int)
+	GetBlacklist() *netutil.Netlist
+	SetBlacklist(*netutil.Netlist)
+}
+
+func (srv *Server) GetDialstate() dialer {
+	return srv.dialstate
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -771,7 +780,7 @@ func (srv *Server) listenLoop() {
 		// Reject connections that do not match NetRestrict.
 		if srv.NetRestrict != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && !srv.NetRestrict.Contains(tcp.IP) {
-				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr())
+				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue
@@ -781,7 +790,7 @@ func (srv *Server) listenLoop() {
 		// Reject connections that match Blacklist.
 		if srv.Blacklist != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
-				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr().(*net.TCPAddr).IP.String(), "transport", "tcp")
+				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue
@@ -820,8 +829,8 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(err)
 		return
 	}
-	// For dialed connections, check that the remote public key matches.
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
+	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
 		c.close(DiscUnexpectedIdentity)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
@@ -833,7 +842,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, msg, err := c.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
@@ -847,7 +856,9 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 					srv.addNewStatic(c.id, nodeInfo)
 				}
 			}
-			log.Info("[DISC-PROTO]", "receivedAt", *receivedAt, "id", nodeid, "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "reason", r)
+			unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+			log.DiscProto(fmt.Sprintf("%f", unixTime),
+				"id", c.id.String(), "addr", c.fd.RemoteAddr(), "conn", c.flags, "rtt", msg.PeerRtt, "reason", r)
 		}
 		c.close(err)
 		return
@@ -859,7 +870,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	}
 
 	// update node information
-	srv.storeNodeInfo(c, receivedAt, phs)
+	srv.storeNodeP2PInfo(c, &msg, phs)
 
 	c.version, c.caps, c.name = phs.Version, phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {

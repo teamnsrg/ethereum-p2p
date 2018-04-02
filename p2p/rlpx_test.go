@@ -26,6 +26,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -143,6 +144,79 @@ func testEncHandshake(token []byte) error {
 		return fmt.Errorf("dec cipher mismatch:\n c0.rw: %#v\n c1.rw: %#v", c0.rw.dec, c1.rw.dec)
 	}
 	return nil
+}
+
+func TestProtocolHandshake(t *testing.T) {
+	var (
+		prv0, _ = crypto.GenerateKey()
+		node0   = &discover.Node{ID: discover.PubkeyID(&prv0.PublicKey), IP: net.IP{1, 2, 3, 4}, TCP: 33}
+		hs0     = &protoHandshake{Version: 3, ID: node0.ID, Caps: []Cap{{"a", 0}, {"b", 2}}}
+
+		prv1, _ = crypto.GenerateKey()
+		node1   = &discover.Node{ID: discover.PubkeyID(&prv1.PublicKey), IP: net.IP{5, 6, 7, 8}, TCP: 44}
+		hs1     = &protoHandshake{Version: 3, ID: node1.ID, Caps: []Cap{{"c", 1}, {"d", 3}}}
+
+		fd0, fd1 = net.Pipe()
+		wg       sync.WaitGroup
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		defer fd1.Close()
+		rlpx := newRLPX(fd0)
+		remid, err := rlpx.doEncHandshake(prv0, node1)
+		if err != nil {
+			t.Errorf("dial side enc handshake failed: %v", err)
+			return
+		}
+		if remid != node1.ID {
+			t.Errorf("dial side remote id mismatch: got %v, want %v", remid, node1.ID)
+			return
+		}
+
+		phs, _, err := rlpx.doProtoHandshake(hs0)
+		if err != nil {
+			t.Errorf("dial side proto handshake error: %v", err)
+			return
+		}
+		phs.Rest = nil
+		if !reflect.DeepEqual(phs, hs1) {
+			t.Errorf("dial side proto handshake mismatch:\ngot: %s\nwant: %s\n", spew.Sdump(phs), spew.Sdump(hs1))
+			return
+		}
+		rlpx.close(DiscQuitting)
+	}()
+	go func() {
+		defer wg.Done()
+		defer fd1.Close()
+		rlpx := newRLPX(fd1)
+		remid, err := rlpx.doEncHandshake(prv1, nil)
+		if err != nil {
+			t.Errorf("listen side enc handshake failed: %v", err)
+			return
+		}
+		if remid != node0.ID {
+			t.Errorf("listen side remote id mismatch: got %v, want %v", remid, node0.ID)
+			return
+		}
+
+		phs, _, err := rlpx.doProtoHandshake(hs1)
+		if err != nil {
+			t.Errorf("listen side proto handshake error: %v", err)
+			return
+		}
+		phs.Rest = nil
+		if !reflect.DeepEqual(phs, hs0) {
+			t.Errorf("listen side proto handshake mismatch:\ngot: %s\nwant: %s\n", spew.Sdump(phs), spew.Sdump(hs0))
+			return
+		}
+
+		if err := ExpectMsg(rlpx, discMsg, []DiscReason{DiscQuitting}); err != nil {
+			t.Errorf("error receiving disconnect: %v", err)
+		}
+	}()
+	wg.Wait()
 }
 
 func TestProtocolHandshakeErrors(t *testing.T) {

@@ -52,15 +52,16 @@ var (
 	app = utils.NewApp(gitCommit, "the go-ethereum command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
+		utils.MaxDialFlag,
+		utils.NoMaxPeersFlag,
+		utils.MaxAcceptConnsFlag,
+		utils.MaxNumFileFlag,
+		utils.BlacklistFlag,
+		utils.DialFreqFlag,
 		utils.MySQLFlag,
 		utils.BackupSQLFlag,
 		utils.ResetSQLFlag,
-		utils.MaxNumFileFlag,
-		utils.MaxDialFlag,
-		utils.MaxAcceptConnsFlag,
-		utils.NoMaxPeersFlag,
-		utils.DialFreqFlag,
-		utils.BlacklistFlag,
+		utils.LogToFileFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,
@@ -185,9 +186,44 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		if err := debug.Setup(ctx); err != nil {
-			return err
+		var isCommand bool
+		name := ctx.Args().First()
+		for _, command := range app.Commands {
+			if name == command.Name {
+				isCommand = true
+				break
+			}
 		}
+		var glogger *log.GlogHandler
+		datadir := ctx.GlobalString(utils.DataDirFlag.Name)
+		if !isCommand && ctx.GlobalBool(utils.LogToFileFlag.Name) {
+			newgl := log.NewGlogHandler(log.Must.FileHandler(datadir+"/node-finder.log", log.TerminalFormat(false)))
+			if gl, err := debug.Setup(newgl, ctx); err != nil {
+				return err
+			} else {
+				glogger = gl
+				log.Root().SetHandler(log.MultiHandler(
+					// default logging for any lvl <= verbosity
+					glogger,
+					// lvl specific logging
+					// log.LvlMatchFilterFileHandler(log.LvlType, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
+				))
+			}
+		} else {
+			if gl, err := debug.Setup(nil, ctx); err != nil {
+				return err
+			} else {
+				glogger = gl
+				log.Root().SetHandler(gl)
+			}
+		}
+		log.Root().SetGlogger(glogger)
 		// Start system runtime metrics collection
 		go metrics.CollectProcessMetrics(3 * time.Second)
 

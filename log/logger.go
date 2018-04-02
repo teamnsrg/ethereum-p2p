@@ -22,11 +22,20 @@ const (
 	LvlInfo
 	LvlDebug
 	LvlTrace
+	LvlType
+	LvlNeighbors
+	LvlHello
+	LvlDiscProto
+	LvlDiscPeer
+	LvlStatus
+	LvlDaoFork
 )
 
 // Aligned returns a 5-character string containing the name of a Lvl.
 func (l Lvl) AlignedString() string {
 	switch l {
+	case LvlType:
+		return "TYPE"
 	case LvlTrace:
 		return "TRACE"
 	case LvlDebug:
@@ -39,6 +48,18 @@ func (l Lvl) AlignedString() string {
 		return "ERROR"
 	case LvlCrit:
 		return "CRIT"
+	case LvlNeighbors:
+		return "NEIGHBORS"
+	case LvlHello:
+		return "HELLO"
+	case LvlDiscProto:
+		return "DISCPROTO"
+	case LvlDiscPeer:
+		return "DISCPEER"
+	case LvlStatus:
+		return "STATUS"
+	case LvlDaoFork:
+		return "DAOFORK"
 	default:
 		panic("bad level")
 	}
@@ -47,6 +68,8 @@ func (l Lvl) AlignedString() string {
 // Strings returns the name of a Lvl.
 func (l Lvl) String() string {
 	switch l {
+	case LvlType:
+		return "type"
 	case LvlTrace:
 		return "trce"
 	case LvlDebug:
@@ -59,6 +82,18 @@ func (l Lvl) String() string {
 		return "eror"
 	case LvlCrit:
 		return "crit"
+	case LvlNeighbors:
+		return "neighbors"
+	case LvlHello:
+		return "hello"
+	case LvlDiscProto:
+		return "disc-proto"
+	case LvlDiscPeer:
+		return "disc-peer"
+	case LvlStatus:
+		return "status"
+	case LvlDaoFork:
+		return "daofork"
 	default:
 		panic("bad level")
 	}
@@ -68,6 +103,8 @@ func (l Lvl) String() string {
 // Useful for parsing command line args and configuration files.
 func LvlFromString(lvlString string) (Lvl, error) {
 	switch lvlString {
+	case "type":
+		return LvlType, nil
 	case "trace", "trce":
 		return LvlTrace, nil
 	case "debug", "dbug":
@@ -80,6 +117,18 @@ func LvlFromString(lvlString string) (Lvl, error) {
 		return LvlError, nil
 	case "crit":
 		return LvlCrit, nil
+	case "neighbors":
+		return LvlNeighbors, nil
+	case "hello":
+		return LvlHello, nil
+	case "disc-proto":
+		return LvlDiscProto, nil
+	case "disc-peer":
+		return LvlDiscPeer, nil
+	case "status":
+		return LvlStatus, nil
+	case "daofork":
+		return LvlDaoFork, nil
 	default:
 		return LvlDebug, fmt.Errorf("Unknown level: %v", lvlString)
 	}
@@ -112,18 +161,31 @@ type Logger interface {
 	// SetHandler updates the logger to write records to the specified handler.
 	SetHandler(h Handler)
 
+	SetGlogger(glogger *GlogHandler)
+
+	GetGlogger() *GlogHandler
+
 	// Log a message at the given level with context key/value pairs
+	Type(msg string, ctx ...interface{})
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
 	Info(msg string, ctx ...interface{})
 	Warn(msg string, ctx ...interface{})
 	Error(msg string, ctx ...interface{})
 	Crit(msg string, ctx ...interface{})
+	Neighbors(msg string, ctx ...interface{})
+	Hello(msg string, ctx ...interface{})
+	DiscProto(msg string, ctx ...interface{})
+	DiscPeer(msg string, ctx ...interface{})
+	Status(msg string, ctx ...interface{})
+	DaoFork(msg string, ctx ...interface{})
 }
 
 type logger struct {
-	ctx []interface{}
-	h   *swapHandler
+	ctx     []interface{}
+	h       *swapHandler
+	datadir string
+	glogger *GlogHandler
 }
 
 func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
@@ -142,7 +204,7 @@ func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
 }
 
 func (l *logger) New(ctx ...interface{}) Logger {
-	child := &logger{newContext(l.ctx, ctx), new(swapHandler)}
+	child := &logger{ctx: newContext(l.ctx, ctx), h: new(swapHandler)}
 	child.SetHandler(l.h)
 	return child
 }
@@ -153,6 +215,10 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	n := copy(newCtx, prefix)
 	copy(newCtx[n:], normalizedSuffix)
 	return newCtx
+}
+
+func (l *logger) Type(msg string, ctx ...interface{}) {
+	l.write(msg, LvlType, ctx)
 }
 
 func (l *logger) Trace(msg string, ctx ...interface{}) {
@@ -180,12 +246,44 @@ func (l *logger) Crit(msg string, ctx ...interface{}) {
 	os.Exit(1)
 }
 
+func (l *logger) Neighbors(msg string, ctx ...interface{}) {
+	l.write(msg, LvlNeighbors, ctx)
+}
+
+func (l *logger) Hello(msg string, ctx ...interface{}) {
+	l.write(msg, LvlHello, ctx)
+}
+
+func (l *logger) DiscProto(msg string, ctx ...interface{}) {
+	l.write(msg, LvlDiscProto, ctx)
+}
+
+func (l *logger) DiscPeer(msg string, ctx ...interface{}) {
+	l.write(msg, LvlDiscPeer, ctx)
+}
+
+func (l *logger) Status(msg string, ctx ...interface{}) {
+	l.write(msg, LvlStatus, ctx)
+}
+
+func (l *logger) DaoFork(msg string, ctx ...interface{}) {
+	l.write(msg, LvlDaoFork, ctx)
+}
+
 func (l *logger) GetHandler() Handler {
 	return l.h.Get()
 }
 
 func (l *logger) SetHandler(h Handler) {
 	l.h.Swap(h)
+}
+
+func (l *logger) GetGlogger() *GlogHandler {
+	return l.glogger
+}
+
+func (l *logger) SetGlogger(glogger *GlogHandler) {
+	l.glogger = glogger
 }
 
 func normalize(ctx []interface{}) []interface{} {

@@ -142,7 +142,7 @@ func (t *udp) nodeFromRPC(sender *net.UDPAddr, rn rpcNode) (*Node, error) {
 		return nil, errors.New("not contained in netrestrict whitelist")
 	}
 	if t.blacklist != nil && t.blacklist.Contains(rn.IP) {
-		log.Debug("Node ignored (blacklisted)", "addr", rn.IP.String(), "transport", "tcp")
+		log.Debug("Node ignored (blacklisted)", "ip", rn.IP.String(), "transport", "udp")
 		return nil, errors.New("contained in blacklist")
 	}
 	n := NewNode(rn.ID, rn.IP, rn.UDP, rn.TCP)
@@ -490,6 +490,12 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
+	// log sent discovery messages
+	/*
+		unixTime := float64(time.Now().UnixNano()) / 1000000000
+		log.Type(fmt.Sprintf("%f", unixTime),
+			"id", toid.String(), "addr", toaddr.String(), "type", ">>"+req.name(), "size", len(packet), "err", err)
+	*/
 	return err
 }
 
@@ -544,14 +550,21 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		return err
 	}
 	err = packet.handle(t, from, fromID, hash)
+
 	unixTime := float64(time.Now().UnixNano()) / 1000000000
+	// log received discovery messages
+	/*
+		log.Type(fmt.Sprintf("%f", unixTime),
+			"id", fromID.String(), "addr", from.String(), "type", "<<"+packet.name(), "size", len(buf), "err", err)
+	*/
 	// if NEIGHBORS packet, add the node address info to the sql database
 	if packet.name() == "RLPX_NEIGHBORS" {
 		for _, node := range packet.(*neighbors).Nodes {
 			if t.sqldb != nil {
 				t.addNeighbor(node, unixTime)
 			}
-			log.Info("[NEIGHBORS]", "receivedAt", unixTime, "id", fromID.String(), "addr", from.String(), "neighbor", &node)
+			log.Neighbors(fmt.Sprintf("%f", unixTime),
+				"id", fromID.String(), "addr", from.String(), "neighbor", &node)
 		}
 	}
 	return err

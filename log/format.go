@@ -82,6 +82,8 @@ func TerminalFormat(usecolor bool) Format {
 				color = 36
 			case LvlTrace:
 				color = 34
+			default:
+				color = 37
 			}
 		}
 
@@ -105,15 +107,15 @@ func TerminalFormat(usecolor bool) Format {
 
 			// Assemble and print the log heading
 			if color > 0 {
-				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m|%s|%s|[%s]|%s", color, lvl, r.Time.Format(nanoTermTimeFormat), unixTime, location, r.Msg)
+				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m|%s|[%s]|%s", color, lvl, unixTime, location, r.Msg)
 			} else {
-				fmt.Fprintf(b, "%s|%s|%s|[%s]|%s", lvl, r.Time.Format(nanoTermTimeFormat), unixTime, location, r.Msg)
+				fmt.Fprintf(b, "%s|%s|[%s]|%s", lvl, unixTime, location, r.Msg)
 			}
 		} else {
 			if color > 0 {
-				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m|%s|%s|%s", color, lvl, r.Time.Format(nanoTermTimeFormat), unixTime, r.Msg)
+				fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m|%s|%s", color, lvl, unixTime, r.Msg)
 			} else {
-				fmt.Fprintf(b, "%s|%s|%s|%s", lvl, r.Time.Format(nanoTermTimeFormat), unixTime, r.Msg)
+				fmt.Fprintf(b, "%s|%s|%s", lvl, unixTime, r.Msg)
 			}
 		}
 		// print the keys logfmt style
