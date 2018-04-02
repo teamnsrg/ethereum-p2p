@@ -182,7 +182,7 @@ func TestProtocolHandshakeErrors(t *testing.T) {
 	for i, test := range tests {
 		p1, p2 := MsgPipe()
 		go Send(p1, test.code, test.msg)
-		_, _, err := readProtocolHandshake(p2, our.ID)
+		_, _, err := readProtocolHandshake(p2, our)
 		if !reflect.DeepEqual(err, test.err) {
 			t.Errorf("test %d: error mismatch: got %q, want %q", i, err, test.err)
 		}

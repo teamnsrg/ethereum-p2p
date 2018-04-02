@@ -181,20 +181,20 @@ func (k *Info) RUnlock() {
 	k.mux.RUnlock()
 }
 
-type knownNodeInfos struct {
+type KnownNodeInfos struct {
 	mux   sync.Mutex
 	infos map[discover.NodeID]*Info
 }
 
-func (k *knownNodeInfos) Lock() {
+func (k *KnownNodeInfos) Lock() {
 	k.mux.Lock()
 }
 
-func (k *knownNodeInfos) Unlock() {
+func (k *KnownNodeInfos) Unlock() {
 	k.mux.Unlock()
 }
 
-func (k *knownNodeInfos) Infos() map[discover.NodeID]*Info {
+func (k *KnownNodeInfos) Infos() map[discover.NodeID]*Info {
 	return k.infos
 }
 
@@ -335,7 +335,7 @@ func (srv *Server) storeNodeInfo(c *conn, receivedAt *time.Time, hs *protoHandsh
 			infoStr = currentInfo.P2PSummary()
 		}
 	}
-	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "conn", c.flags, "info", infoStr)
+	log.Info("[HELLO]", "receivedAt", newInfo.LastHelloAt, "id", nodeid, "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "info", infoStr)
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {

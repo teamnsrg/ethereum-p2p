@@ -26,7 +26,10 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 	}
 
 	var infoStr string
-	if currentInfo, ok := pm.knownNodeInfos[id]; !ok {
+	pm.knownNodeInfos.Lock()
+	currentInfo, ok := pm.knownNodeInfos.Infos()[id]
+	pm.knownNodeInfos.Unlock()
+	if !ok {
 		infoStr = newInfo.EthSummary()
 	} else {
 		currentInfo.Lock()
@@ -65,7 +68,7 @@ func (pm *ProtocolManager) storeEthNodeInfo(p *peer, statusWrapper *statusDataWr
 		}
 		infoStr = currentInfo.EthSummary()
 	}
-	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "info", infoStr)
+	log.Info("[STATUS]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "info", infoStr)
 
 }
 
@@ -78,21 +81,28 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, receivedAt time.Time
 	id := p.ID()
 	nodeid := id.String()
 
-	if currentInfo, ok := pm.knownNodeInfos[id]; ok {
+	pm.knownNodeInfos.Lock()
+	currentInfo, ok := pm.knownNodeInfos.Infos()[id]
+	pm.knownNodeInfos.Unlock()
+	if ok {
 		currentInfo.Lock()
 		defer currentInfo.Unlock()
 		if currentInfo.DAOForkSupport == 0 {
 			// add DAOForkSupport flag to existing entry for the first time
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			if pm.db != nil {
+				pm.addDAOForkSupport(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo})
+			}
 		} else if currentInfo.DAOForkSupport != daoForkSupport {
 			// DAOForkSupport flag value changed. add a new entry to mysql db
 			currentInfo.DAOForkSupport = daoForkSupport
-			pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
-			if rowId := pm.getRowID(nodeid); rowId > 0 {
-				currentInfo.RowId = rowId
+			if pm.db != nil {
+				pm.addEthNodeInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
+				if rowId := pm.getRowID(nodeid); rowId > 0 {
+					currentInfo.RowId = rowId
+				}
 			}
 		}
 	}
-	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "conn", p.ConnFlags(), "support", daoForkSupport > 0)
+	log.Info("[DAOFORK]", "receivedAt", receivedAt, "id", nodeid, "addr", p.RemoteAddr().String(), "conn", p.ConnFlags(), "support", daoForkSupport > 0)
 }

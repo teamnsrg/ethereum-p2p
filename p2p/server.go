@@ -40,9 +40,7 @@ import (
 const (
 	redialCheckInterval = 60 * time.Second
 
-	defaultDialTimeout      = 15 * time.Second
-	refreshPeersInterval    = 30 * time.Second
-	staticPeerCheckInterval = 15 * time.Second
+	defaultDialTimeout = 15 * time.Second
 
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
@@ -170,7 +168,7 @@ type Server struct {
 	updateNodeInfoStmt  *sql.Stmt
 	addNodeMetaInfoStmt *sql.Stmt
 	GetRowIDStmt        *sql.Stmt
-	KnownNodeInfos      *knownNodeInfos // information on known nodes
+	KnownNodeInfos      *KnownNodeInfos // information on known nodes
 	DB                  *sql.DB         // MySQL database handle
 	strReplacer         *strings.Replacer
 
@@ -237,7 +235,7 @@ type conn struct {
 type transport interface {
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake, peer discover.NodeID) (*protoHandshake, *time.Time, error)
+	doProtoHandshake(our *protoHandshake) (*protoHandshake, *time.Time, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -402,7 +400,7 @@ func (srv *Server) Start() (err error) {
 	// add bootnodes to static
 	srv.StaticNodes = append(srv.StaticNodes, srv.BootstrapNodes...)
 
-	srv.KnownNodeInfos = &knownNodeInfos{infos: make(map[discover.NodeID]*Info)}
+	srv.KnownNodeInfos = &KnownNodeInfos{infos: make(map[discover.NodeID]*Info)}
 
 	// initiate sql connection and prepare statements
 	if err := srv.initSql(); err != nil {
@@ -664,6 +662,17 @@ running:
 			}
 		case pd := <-srv.delpeer:
 			// A peer disconnected.
+			// if sql db available, remotedRequested, and the discReason is TooManyPeers
+			// update the node meta info's too many peer counter
+			if pd.requested {
+				if r, ok := pd.err.(DiscReason); ok && r == DiscTooManyPeers {
+					id := pd.ID()
+					nodeInfo := srv.KnownNodeInfos.Infos()[id]
+					if srv.DB != nil {
+						srv.addNodeMetaInfo(id.String(), nodeInfo.Keccak256Hash, false, false, true)
+					}
+				}
+			}
 			d := common.PrettyDuration(mclock.Now() - pd.created)
 			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
@@ -823,18 +832,21 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake, c.id)
+	phs, receivedAt, err := c.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		if r, ok := err.(DiscReason); ok && r == DiscTooManyPeers {
+		if r, ok := err.(DiscReason); ok {
 			nodeid := c.id.String()
 			var dial, accept bool
-			if srv.DB != nil {
+			if srv.DB != nil && r == DiscTooManyPeers {
 				var nodeInfo *Info
 				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
 				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+				if nodeInfo.TCPPort != 0 {
+					srv.addNewStatic(c.id, nodeInfo)
+				}
 			}
-			log.Info("[DISC4]", "receivedAt", *receivedAt, "id", nodeid, "conn", c.flags)
+			log.Info("[DISC-PROTO]", "receivedAt", *receivedAt, "id", nodeid, "addr", c.fd.RemoteAddr().String(), "conn", c.flags, "reason", r)
 		}
 		c.close(err)
 		return

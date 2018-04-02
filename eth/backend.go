@@ -393,7 +393,7 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 	s.protocolManager.getRowIDStmt = srvr.GetRowIDStmt
 
 	// Set knownNodeInfos
-	s.protocolManager.knownNodeInfos = srvr.KnownNodeInfos.Infos()
+	s.protocolManager.knownNodeInfos = srvr.KnownNodeInfos
 
 	// Set flag to ignore maxPeers
 	s.protocolManager.noMaxPeers = srvr.NoMaxPeers
