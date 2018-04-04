@@ -29,6 +29,36 @@ func Root() Logger {
 // etc.) to keep the call depth the same for all paths to logger.write so
 // runtime.Caller(2) always refers to the call site in client code.
 
+// DaoFork is a convenient alias for Root().DaoFork
+func DaoFork(msg string, ctx ...interface{}) {
+	root.write(msg, LvlDaoFork, ctx)
+}
+
+// Status is a convenient alias for Root().Status
+func Status(msg string, ctx ...interface{}) {
+	root.write(msg, LvlStatus, ctx)
+}
+
+// DiscPeer is a convenient alias for Root().DiscPeer
+func DiscPeer(msg string, ctx ...interface{}) {
+	root.write(msg, LvlDiscPeer, ctx)
+}
+
+// DiscProto is a convenient alias for Root().DiscProto
+func DiscProto(msg string, ctx ...interface{}) {
+	root.write(msg, LvlDiscProto, ctx)
+}
+
+// Hello is a convenient alias for Root().Hello
+func Hello(msg string, ctx ...interface{}) {
+	root.write(msg, LvlHello, ctx)
+}
+
+// Neighbors is a convenient alias for Root().Neighbors
+func Neighbors(msg string, ctx ...interface{}) {
+	root.write(msg, LvlNeighbors, ctx)
+}
+
 // Type is a convenient alias for Root().Type
 func Type(msg string, ctx ...interface{}) {
 	root.write(msg, LvlType, ctx)
@@ -63,34 +93,4 @@ func Error(msg string, ctx ...interface{}) {
 func Crit(msg string, ctx ...interface{}) {
 	root.write(msg, LvlCrit, ctx)
 	os.Exit(1)
-}
-
-// Neighbors is a convenient alias for Root().Neighbors
-func Neighbors(msg string, ctx ...interface{}) {
-	root.write(msg, LvlNeighbors, ctx)
-}
-
-// Hello is a convenient alias for Root().Hello
-func Hello(msg string, ctx ...interface{}) {
-	root.write(msg, LvlHello, ctx)
-}
-
-// DiscProto is a convenient alias for Root().DiscProto
-func DiscProto(msg string, ctx ...interface{}) {
-	root.write(msg, LvlDiscProto, ctx)
-}
-
-// DiscPeer is a convenient alias for Root().DiscPeer
-func DiscPeer(msg string, ctx ...interface{}) {
-	root.write(msg, LvlDiscPeer, ctx)
-}
-
-// Status is a convenient alias for Root().Status
-func Status(msg string, ctx ...interface{}) {
-	root.write(msg, LvlStatus, ctx)
-}
-
-// DaoFork is a convenient alias for Root().DaoFork
-func DaoFork(msg string, ctx ...interface{}) {
-	root.write(msg, LvlDaoFork, ctx)
 }

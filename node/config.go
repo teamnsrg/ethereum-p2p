@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/prometheus/prometheus/util/flock"
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/accounts/usbwallet"
@@ -48,6 +49,10 @@ const (
 // all registered services.
 type Config struct {
 	LogToFile bool `toml:",omitempty"`
+
+	// InstanceDirLock is set at the very beginning if LogToFile is enabled
+	// It prevents concurrent use of instance directory
+	InstanceDirLock flock.Releaser
 
 	// Name sets the instance name of the node. It must not contain the / character and is
 	// used in the devp2p node identifier. The instance name of geth is "geth". If no

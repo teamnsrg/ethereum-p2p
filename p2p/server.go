@@ -224,14 +224,15 @@ const (
 type conn struct {
 	fd net.Conn
 	transport
-	flags      connFlag
-	cont       chan error      // The run loop uses cont to signal errors to SetupConn.
-	id         discover.NodeID // valid after the encryption handshake
-	version    uint64          // valid after the protocol handshake
-	caps       []Cap           // valid after the protocol handshake
-	name       string          // valid after the protocol handshake
-	listenPort uint16          // valid after the protocol handshake
-	tcpPort    uint16          // valid after the protocol handshake
+	flags       connFlag
+	cont        chan error      // The run loop uses cont to signal errors to SetupConn.
+	id          discover.NodeID // valid after the encryption handshake
+	version     uint64          // valid after the protocol handshake
+	caps        []Cap           // valid after the protocol handshake
+	name        string          // valid after the protocol handshake
+	listenPort  uint16          // valid after the protocol handshake
+	tcpPort     uint16          // valid after the protocol handshake
+	connInfoCtx []interface{}
 }
 
 type transport interface {
@@ -463,7 +464,6 @@ func (srv *Server) Start() (err error) {
 	}
 
 	dynPeers := (srv.MaxPeers + 1) / 2
-
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}

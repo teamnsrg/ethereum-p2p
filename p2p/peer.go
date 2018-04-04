@@ -205,6 +205,10 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
+func (p *Peer) ConnInfoCtx() []interface{} {
+	return p.rw.connInfoCtx
+}
+
 func (p *Peer) IsInbound() bool {
 	return p.rw.isInbound()
 }

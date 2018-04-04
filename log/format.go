@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	nanoTermTimeFormat = "2006-01-02T15:04:05.999999999-0700"
-	floatFormat        = 'f'
+	floatFormat = 'f'
 )
 
 // locationTrims are trimmed for display to avoid unwieldy log lines.
@@ -90,7 +89,7 @@ func TerminalFormat(usecolor bool) Format {
 		b := &bytes.Buffer{}
 		lvl := r.Lvl.AlignedString()
 
-		unixTime := strconv.FormatFloat(float64(r.Time.UnixNano())/1000000000, floatFormat, 6, 64)
+		unixTime := strconv.FormatFloat(float64(r.Time.UnixNano())/1e9, floatFormat, 6, 64)
 
 		if atomic.LoadUint32(&locationEnabled) != 0 {
 			// Log origin printing was requested, format the location path and line number
@@ -172,7 +171,7 @@ func formatShared(value interface{}) (result interface{}) {
 
 	switch v := value.(type) {
 	case time.Time:
-		return float64(v.UnixNano()) / 1000000000
+		return float64(v.UnixNano()) / 1e9
 
 	case error:
 		return v.Error()
@@ -195,7 +194,7 @@ func formatLogfmtValue(value interface{}, term bool) string {
 		// Performance optimization: No need for escaping since the provided
 		// timeFormat doesn't have any escape characters, and escaping is
 		// expensive.
-		return strconv.FormatFloat(float64(t.UnixNano())/1000000000, floatFormat, 6, 64)
+		return strconv.FormatFloat(float64(t.UnixNano())/1e9, floatFormat, 6, 64)
 	}
 	if term {
 		if s, ok := value.(TerminalStringer); ok {
@@ -216,7 +215,7 @@ func formatLogfmtValue(value interface{}, term bool) string {
 	case string:
 		return escapeString(v)
 	default:
-		return escapeString(fmt.Sprintf("%+v", value))
+		return escapeString(fmt.Sprintf("%#v", value))
 	}
 }
 
@@ -228,10 +227,10 @@ func escapeString(s string) string {
 	needsQuotes := false
 	needsEscape := false
 	for _, r := range s {
-		if r < ' ' || r == '=' || r == '"' {
+		if r < ' ' {
 			needsQuotes = true
 		}
-		if r == '\\' || r == '"' || r == '\n' || r == '\r' || r == '\t' {
+		if r == '\\' || r == '\n' || r == '\r' || r == '\t' {
 			needsEscape = true
 		}
 	}
@@ -242,7 +241,7 @@ func escapeString(s string) string {
 	e.WriteByte('"')
 	for _, r := range s {
 		switch r {
-		case '\\', '"':
+		case '\\':
 			e.WriteByte('\\')
 			e.WriteByte(byte(r))
 		case '\n':

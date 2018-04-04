@@ -19,6 +19,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -46,22 +47,23 @@ func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 
 func (api *PrivateAdminAPI) Logrotate() error {
 	var (
-		datadir = api.node.DataDir()
-		glogger = log.Root().GetGlogger()
+		logdir           = filepath.Join(api.node.InstanceDir(), "logs")
+		clientIdentifier = api.node.config.Name
+		glogger          = log.Root().GetGlogger()
 	)
 	if api.node.config.LogToFile {
-		glogger.SetHandler(log.Must.FileHandler(datadir+"/node-finder.log", log.TerminalFormat(false)))
+		glogger.SetHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
 		log.Root().SetHandler(log.MultiHandler(
 			// default logging for any lvl <= verbosity
 			glogger,
 			// lvl specific logging
-			// log.LvlMatchFilterFileHandler(log.LvlType, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
+			// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlNeighbors, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlHello, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscProto, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlStatus, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDaoFork, logdir),
 		))
 	}
 	return nil
