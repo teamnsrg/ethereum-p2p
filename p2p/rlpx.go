@@ -149,6 +149,10 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...int
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, fmt.Errorf("message too big")
 	}
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
 		// spec and we send it ourself if the posthanshake checks fail.
@@ -156,26 +160,21 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...int
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), discReasonToString[reason[0]], nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), discReasonToString[reason[0]], nil)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
 		var emptyMsgObj []interface{}
-		if msgType, ok := devp2pCodeToString[msg.Code]; ok {
-			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+msgType, int(msg.Size), emptyMsgObj, nil)
-		} else {
-			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), int(msg.Size), "<OMITTED>", nil)
-
-		}
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+msgType, int(msg.Size), emptyMsgObj, nil)
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+devp2pCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", nil)
 		return nil, err
 	}
 
-	log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), &hs, nil)
+	log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), &hs, nil)
 
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity

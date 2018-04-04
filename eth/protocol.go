@@ -64,7 +64,7 @@ const (
 	ReceiptsMsg    = 0x10
 )
 
-var ethCodeToString = [...]string{
+var ethCodeToString = map[uint64]string{
 	// Protocol messages belonging to eth/62
 	StatusMsg:          "ETH_STATUS",
 	NewBlockHashesMsg:  "ETH_NEW_BLOCK_HASHES",

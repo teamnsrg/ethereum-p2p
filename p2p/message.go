@@ -147,14 +147,12 @@ func SendDEVp2p(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...in
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
-
 	obj := data
 	if dataArr, ok := data.([]interface{}); ok && len(dataArr) > 0 {
 		if d, ok := dataArr[0].(DiscReason); ok && msgcode == discMsg {
 			obj = discReasonToString[d]
 		}
 	}
-
 	log.DEVp2pTx(currentTime, connInfoCtx, ">>"+msgType, size, obj, err)
 	return err
 }

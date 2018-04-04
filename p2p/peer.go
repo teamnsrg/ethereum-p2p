@@ -62,6 +62,9 @@ var devp2pCodeToString = map[uint64]string{
 	peersMsg:     "DEVP2P_PEERS",
 }
 
+// ethCodeToString should be the same as the one in eth/protocol.go
+// We re-define it here so that we can use it when logging sent messages.
+// Make sure the eth message codes match
 var ethCodeToString = map[uint64]string{
 	// Protocol messages belonging to eth/62
 	0x00: "ETH_STATUS",
@@ -314,27 +317,27 @@ func (p *Peer) readLoop(errc chan<- error) {
 func (p *Peer) handle(msg Msg) error {
 	var emptyMsgObj []interface{}
 	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	switch {
 	case msg.Code == pingMsg:
-		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), emptyMsgObj, nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), emptyMsgObj, nil)
 		msg.Discard()
 		go SendItems(p.rw, pongMsg, connInfoCtx)
 	case msg.Code == pongMsg:
-		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), emptyMsgObj, nil)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), emptyMsgObj, nil)
 		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		err := rlp.Decode(msg.Payload, &reason)
-		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+devp2pCodeToString[msg.Code], int(msg.Size), discReasonToString[reason[0]], err)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), discReasonToString[reason[0]], err)
 		return reason[0]
 	case msg.Code < baseProtocolLength:
-		if msgType, ok := devp2pCodeToString[msg.Code]; ok {
-			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
-		} else {
-			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<UNKNOWN_"+msgType, int(msg.Size), "<OMITTED>", nil)
-		}
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 		// ignore other base protocol messages
 		return msg.Discard()
 	default:

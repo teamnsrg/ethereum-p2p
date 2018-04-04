@@ -322,11 +322,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	defer msg.Discard()
 
 	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := ethCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
 		// Status messages should never arrive after the handshake
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<UNEXPECTED_"+msgType, int(msg.Size), "<OMITTED>", nil)
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
 	// Block header query, collect the requested headers and reply
@@ -334,10 +338,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		hashMode := query.Origin.Hash != (common.Hash{})
 
@@ -415,11 +419,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
@@ -474,11 +478,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return err
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Gather blocks until the fetch or network limits is reached
 		var (
@@ -505,11 +509,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of block bodies arrived to one of our previous requests
 		var request blockBodiesData
 		if err := msg.Decode(&request); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
@@ -535,11 +539,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return err
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -566,11 +570,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of node state data arrived to one of our previous requests
 		var data [][]byte
 		if err := msg.Decode(&data); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
@@ -581,11 +585,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return err
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Gather state data until the fetch or network limits is reached
 		var (
@@ -621,11 +625,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of receipts arrived to one of our previous requests
 		var receipts [][]*types.Receipt
 		if err := msg.Decode(&receipts); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
@@ -635,11 +639,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case msg.Code == NewBlockHashesMsg:
 		var announces newBlockHashesData
 		if err := msg.Decode(&announces); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), &announces, nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), &announces, nil)
 
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
@@ -660,11 +664,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Retrieve and decode the propagated block
 		var request newBlockData
 		if err := msg.Decode(&request); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
@@ -693,7 +697,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
-		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", nil)
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 
 		// Transactions arrived, make sure we have a valid and fresh chain to handle them
 		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
@@ -702,7 +706,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Transactions can be processed, parse all of them and deliver to the pool
 		var txs []*types.Transaction
 		if err := msg.Decode(&txs); err != nil {
-			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+ethCodeToString[msg.Code], int(msg.Size), "<OMITTED>", err)
+			log.EthRx(msg.ReceivedAt, connInfoCtx, "<<FAIL_"+msgType, int(msg.Size), "<OMITTED>", err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
@@ -716,6 +720,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		pm.txpool.AddRemotes(txs)
 
 	default:
+		log.EthRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	return nil
