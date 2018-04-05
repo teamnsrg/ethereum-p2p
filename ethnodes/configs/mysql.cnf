@@ -13,6 +13,7 @@ max_connections = 500
 innodb_use_native_aio = 0
 max_user_connections = 0
 secure_file_priv="/backup"
+max_allowed_packet=64M
   
 [mysqld_safe]
 default-character-set=utf8mb4
