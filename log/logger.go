@@ -231,6 +231,7 @@ func (l *logger) DaoFork(t time.Time, connInfoCtx []interface{}, support bool) {
 	ctx := []interface{}{
 		"support", support,
 	}
+	ctx = append(ctx, connInfoCtx...)
 	l.write(fmt.Sprintf("%.6f", float64(t.UnixNano())/1e9), LvlDaoFork, ctx)
 }
 
