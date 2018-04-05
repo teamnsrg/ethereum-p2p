@@ -239,7 +239,7 @@ type transport interface {
 	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error)
+	doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, Msg, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -829,6 +829,11 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(err)
 		return
 	}
+	c.connInfoCtx = []interface{}{
+		"id", c.id.String(),
+		"addr", c.fd.RemoteAddr().String(),
+		"conn", c.flags.String(),
+	}
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
@@ -842,7 +847,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, msg, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, msg, err := c.doProtoHandshake(srv.ourHandshake, c.connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
@@ -856,9 +861,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 					srv.addNewStatic(c.id, nodeInfo)
 				}
 			}
-			unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-			log.DiscProto(fmt.Sprintf("%f", unixTime),
-				"id", c.id.String(), "addr", c.fd.RemoteAddr(), "conn", c.flags, "rtt", msg.PeerRtt, "reason", r)
+			log.DiscProto(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, r.String())
 		}
 		c.close(err)
 		return

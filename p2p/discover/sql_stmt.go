@@ -14,10 +14,10 @@ func (t *udp) prepareAddNeighborStmt() error {
 		count=count+1
 	`)
 	if err != nil {
-		log.Error("Failed to prepare AddNeighbor sql statement", "err", err)
+		log.Sql("Failed to prepare AddNeighbor sql statement", "err", err)
 		return err
 	} else {
-		log.Trace("Prepared AddNeighbor sql statement")
+		log.Sql("Prepared AddNeighbor sql statement")
 		t.addNeighborStmt = pStmt
 	}
 	return nil
@@ -26,7 +26,7 @@ func (t *udp) prepareAddNeighborStmt() error {
 func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
 	// exit if no prepared statement
 	if t.addNeighborStmt == nil {
-		log.Crit("No prepared statement for AddNeighbor")
+		log.Sql("No prepared statement for AddNeighbor")
 		return
 	}
 	nodeid := node.ID.String()
@@ -36,9 +36,9 @@ func (t *udp) addNeighbor(node rpcNode, unixTime float64) {
 	udpPort := node.UDP
 	_, err := t.addNeighborStmt.Exec(nodeid, hash, ip, tcpPort, udpPort, unixTime, unixTime)
 	if err != nil {
-		log.Error("Failed to execute AddNeighbor sql statement", "err", err)
+		log.Sql("Failed to execute AddNeighbor sql statement", "err", err)
 	} else {
-		log.Trace("Executed AddNeighbor sql statement")
+		log.Sql("Executed AddNeighbor sql statement")
 	}
 }
 
@@ -46,9 +46,9 @@ func (t *udp) closeSqlStmts() {
 	// close addNeighbor statement
 	if t.addNeighborStmt != nil {
 		if err := t.addNeighborStmt.Close(); err != nil {
-			log.Error("Failed to close AddNeighbor sql statement", "err", err)
+			log.Sql("Failed to close AddNeighbor sql statement", "err", err)
 		} else {
-			log.Trace("Closed AddNeighbor sql statement")
+			log.Sql("Closed AddNeighbor sql statement")
 		}
 	}
 }

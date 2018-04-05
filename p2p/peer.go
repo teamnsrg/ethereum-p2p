@@ -107,11 +107,10 @@ type PeerEvent struct {
 
 // Peer represents a connected remote node.
 type Peer struct {
-	rw        *conn
-	running   map[string]*protoRW
-	log       log.Logger
-	customLog log.Logger
-	created   mclock.AbsTime
+	rw      *conn
+	running map[string]*protoRW
+	log     log.Logger
+	created mclock.AbsTime
 
 	wg       sync.WaitGroup
 	protoErr chan error
@@ -126,6 +125,11 @@ type Peer struct {
 func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	conn := &conn{fd: pipe, transport: nil, id: id, caps: caps, name: name}
+	conn.connInfoCtx = []interface{}{
+		"id", conn.id.String(),
+		"addr", conn.fd.RemoteAddr().String(),
+		"conn", conn.flags.String(),
+	}
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
@@ -193,14 +197,13 @@ func (p *Peer) String() string {
 func newPeer(conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:        conn,
-		running:   protomap,
-		created:   mclock.Now(),
-		disc:      make(chan DiscReason),
-		protoErr:  make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:    make(chan struct{}),
-		log:       log.New("id", conn.id, "conn", conn.flags),
-		customLog: log.New("id", conn.id.String(), "addr", conn.fd.RemoteAddr().String(), "conn", conn.flags),
+		rw:       conn,
+		running:  protomap,
+		created:  mclock.Now(),
+		disc:     make(chan DiscReason),
+		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:   make(chan struct{}),
+		log:      log.New("id", conn.id, "conn", conn.flags),
 	}
 	return p
 }
@@ -215,10 +218,6 @@ func (p *Peer) IsInbound() bool {
 
 func (p *Peer) ConnFlags() connFlag {
 	return p.rw.flags
-}
-
-func (p *Peer) CustomLog() log.Logger {
-	return p.customLog
 }
 
 func (p *Peer) Log() log.Logger {
@@ -309,26 +308,26 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
-	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-	// log received p2p messages
-	/*
-		msgStr, ok := devp2pCodeToString[msg.Code]
-		if ok {
-			p.CustomLog().Type(fmt.Sprintf("%f", unixTime),
-				"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "type", "<<"+msgStr, "size", msg.Size)
-		}
-	*/
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	switch {
 	case msg.Code == pingMsg:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		msg.Discard()
 		go SendItems(p.rw, pongMsg)
+	case msg.Code == pongMsg:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
-		rlp.Decode(msg.Payload, &reason)
-		p.CustomLog().DiscPeer(fmt.Sprintf("%f", unixTime),
-			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "reason", reason[0])
+		err := rlp.Decode(msg.Payload, &reason)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+		log.DiscPeer(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, reason[0].String())
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -337,6 +336,7 @@ func (p *Peer) handle(msg Msg) error {
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
+			log.MessageRx(msg.ReceivedAt, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), int(msg.Size), connInfoCtx, err)
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {

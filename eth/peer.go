@@ -25,6 +25,7 @@ import (
 
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"gopkg.in/fatih/set.v0"
 )
@@ -220,27 +221,26 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 	if err != nil {
 		return err
 	}
-	// log received eth messages
-	/*
-		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		msgStr, ok := ethCodeToString[msg.Code]
-		if !ok {
-			msgStr = "ETH_UNKNOWN"
-		}
-		p.CustomLog().Type(fmt.Sprintf("%f", unixTime),
-			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "type", "<<"+msgStr, "size", msg.Size)
-	*/
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := ethCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	if msg.Code != StatusMsg {
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
 	if msg.Size > ProtocolMaxMsgSize {
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	var status statusData
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
+	log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 	statusWrapper.ReceivedAt = &msg.ReceivedAt
 	statusWrapper.Status = &status
 	statusWrapper.PeerRtt = msg.PeerRtt

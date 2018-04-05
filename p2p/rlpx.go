@@ -41,6 +41,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto/ecies"
 	"github.com/teamnsrg/go-ethereum/crypto/secp256k1"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -124,14 +125,14 @@ func (t *rlpx) close(err error) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, msg Msg, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (their *protoHandshake, msg Msg, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
-	if their, msg, err = readProtocolHandshake(t.rw, our); err != nil {
+	if their, msg, err = readProtocolHandshake(t.rw, our, connInfoCtx...); err != nil {
 		<-werr // make sure the write terminates too
 		return nil, msg, err
 	}
@@ -144,7 +145,7 @@ func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, msg
 	return their, msg, nil
 }
 
-func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, Msg, error) {
+func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, Msg, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
 		return nil, msg, err
@@ -152,22 +153,32 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, msg, fmt.Errorf("message too big")
 	}
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
 		// spec and we send it ourself if the posthanshake checks fail.
 		// We can't return the reason directly, though, because it is echoed
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
-		rlp.Decode(msg.Payload, &reason)
+		err := rlp.Decode(msg.Payload, &reason)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 		return nil, msg, reason[0]
 	}
 	if msg.Code != handshakeMsg {
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
 		return nil, msg, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
+		log.MessageRx(msg.ReceivedAt, "<<FAIL_"+msgType, int(msg.Size), connInfoCtx, nil)
 		return nil, msg, err
 	}
+
+	log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+
 	if (hs.ID == discover.NodeID{}) {
 		return nil, msg, DiscInvalidIdentity
 	}

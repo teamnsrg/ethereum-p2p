@@ -17,9 +17,9 @@ func (pm *ProtocolManager) prepareSqlStmts() error {
 func (pm *ProtocolManager) closeSqlStmts() {
 	if pm.addNodeEthInfoStmt != nil {
 		if err := pm.addNodeEthInfoStmt.Close(); err != nil {
-			log.Error("Failed to close AddEthNodeInfo sql statement", "err", err)
+			log.Sql("Failed to close AddEthNodeInfo sql statement", "err", err)
 		} else {
-			log.Trace("Closed AddEthNodeInfo sql statement")
+			log.Sql("Closed AddEthNodeInfo sql statement")
 		}
 	}
 }
@@ -41,10 +41,10 @@ func (pm *ProtocolManager) prepareAddNodeEthInfoStmt() error {
 			status_count=status_count+VALUES(status_count)
 	`)
 	if err != nil {
-		log.Error("Failed to prepare AddNodeEthInfo sql statement", "err", err)
+		log.Sql("Failed to prepare AddNodeEthInfo sql statement", "err", err)
 		return err
 	} else {
-		log.Trace("Prepared AddNodeEthInfo sql statement")
+		log.Sql("Prepared AddNodeEthInfo sql statement")
 		pm.addNodeEthInfoStmt = pStmt
 	}
 	return nil
@@ -68,9 +68,9 @@ func (pm *ProtocolManager) addNodeEthInfo(newInfoWrapper *p2p.KnownNodeInfosWrap
 		newInfo.ProtocolVersion, newInfo.NetworkId, firstReceivedTd, lastReceivedTd, newInfo.BestHash, newInfo.GenesisHash,
 		newInfo.DAOForkSupport, firstStatusAt, lastStatusAt, boolToInt(newStatus))
 	if err != nil {
-		log.Error("Failed to execute AddNodeEthInfo sql statement", "id", nodeid[:16], "err", err)
+		log.Sql("Failed to execute AddNodeEthInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Trace("Executed AddNodeEthInfo sql statement", "id", nodeid[:16])
+		log.Sql("Executed AddNodeEthInfo sql statement", "id", nodeid[:16])
 	}
 }
 

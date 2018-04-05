@@ -2,6 +2,7 @@ package log
 
 import (
 	"os"
+	"time"
 )
 
 var (
@@ -29,39 +30,76 @@ func Root() Logger {
 // etc.) to keep the call depth the same for all paths to logger.write so
 // runtime.Caller(2) always refers to the call site in client code.
 
-// DaoFork is a convenient alias for Root().DaoFork
-func DaoFork(msg string, ctx ...interface{}) {
-	root.write(msg, LvlDaoFork, ctx)
+func DaoFork(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, support bool) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"support", support,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlDaoFork, t, ctx)
 }
 
-// Status is a convenient alias for Root().Status
-func Status(msg string, ctx ...interface{}) {
-	root.write(msg, LvlStatus, ctx)
+func Status(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string, statusStr string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"hello", helloStr,
+		"status", statusStr,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlStatus, t, ctx)
 }
 
-// DiscPeer is a convenient alias for Root().DiscPeer
-func DiscPeer(msg string, ctx ...interface{}) {
-	root.write(msg, LvlDiscPeer, ctx)
+func DiscPeer(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"discReason", discReason,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlDiscPeer, t, ctx)
 }
 
-// DiscProto is a convenient alias for Root().DiscProto
-func DiscProto(msg string, ctx ...interface{}) {
-	root.write(msg, LvlDiscProto, ctx)
+func DiscProto(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"discReason", discReason,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlDiscProto, t, ctx)
 }
 
-// Hello is a convenient alias for Root().Hello
-func Hello(msg string, ctx ...interface{}) {
-	root.write(msg, LvlHello, ctx)
+func Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"hello", helloStr,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlHello, t, ctx)
 }
 
-// Neighbors is a convenient alias for Root().Neighbors
-func Neighbors(msg string, ctx ...interface{}) {
-	root.write(msg, LvlNeighbors, ctx)
+func Neighbors(t time.Time, connInfoCtx []interface{}, neighbor interface{}) {
+	ctx := []interface{}{
+		"neighbor", neighbor,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlNeighbors, t, ctx)
 }
 
-// Type is a convenient alias for Root().Type
-func Type(msg string, ctx ...interface{}) {
-	root.write(msg, LvlType, ctx)
+func MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	root.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
+}
+
+func MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	root.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
+}
+
+// Trace is a convenient alias for Root().Trace
+func Sql(msg string, ctx ...interface{}) {
+	root.write(msg, LvlSql, ctx)
 }
 
 // Trace is a convenient alias for Root().Trace

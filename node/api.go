@@ -58,6 +58,9 @@ func (api *PrivateAdminAPI) Logrotate() error {
 			glogger,
 			// lvl specific logging
 			// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlSql, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlNeighbors, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlHello, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlDiscProto, logdir),

@@ -274,37 +274,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	if err != nil {
 		return err
 	}
-	// log received eth messages
-	/*
-		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		msgStr, ok := ethCodeToString[msg.Code]
-		if !ok {
-			msgStr = "ETH_UNKNOWN"
-		}
-		p.CustomLog().Type(fmt.Sprintf("%f", unixTime),
-			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "type", "<<"+msgStr, "size", msg.Size)
-	*/
 	if msg.Size > ProtocolMaxMsgSize {
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	defer msg.Discard()
 
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := ethCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
 		// Status messages should never arrive after the handshake
-		var status statusData
-		// Decode the handshake and make sure everything matches
-		if err := msg.Decode(&status); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		// update node information
-		pm.storeNodeEthInfo(p, &statusDataWrapper{
-			ReceivedAt:   &msg.ReceivedAt,
-			Status:       &status,
-			PeerRtt:      msg.PeerRtt,
-			PeerDuration: msg.PeerDuration,
-		})
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
 	// Block header query, collect the requested headers and reply
@@ -312,8 +296,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 
 		// Return DAOForkBlock header
 		var headers []*types.Header
@@ -326,8 +312,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -369,6 +357,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	default:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	return nil
