@@ -310,12 +310,16 @@ func (api *PublicAdminAPI) Peers() ([]*p2p.PeerInfo, error) {
 
 // KnownNodes retrieves all the information we know about each individual peer at the
 // protocol granularity.
-func (api *PublicAdminAPI) KnownNodes() ([]*p2p.KnownNodeInfosWrapper, error) {
+func (api *PublicAdminAPI) KnownNodes() (string, error) {
 	server := api.node.Server()
 	if server == nil {
-		return nil, ErrNodeStopped
+		return "", ErrNodeStopped
 	}
-	return server.KnownNodes(), nil
+	var knownNodes []string
+	for _, n := range server.KnownNodes() {
+		knownNodes = append(knownNodes, n.String())
+	}
+	return strings.Join(knownNodes, "\n"), nil
 }
 
 // NodeInfo retrieves all the information we know about the host node at the

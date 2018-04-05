@@ -373,6 +373,10 @@ type KnownNodeInfosWrapper struct {
 	Info   *Info  `json:"info"`
 }
 
+func (k *KnownNodeInfosWrapper) String() string {
+	return fmt.Sprintf("NodeID:%s %v", k.NodeId, k.Info)
+}
+
 // NodeInfo gathers and returns a collection of metadata known about the host.
 func (srv *Server) KnownNodes() []*KnownNodeInfosWrapper {
 	srv.KnownNodeInfos.Lock()
