@@ -117,10 +117,6 @@ var (
 		Usage: "Maximum number of concurrently dialing outbound connections",
 		Value: 16,
 	}
-	NoMaxPeersFlag = cli.BoolFlag{
-		Name:  "nomaxpeers",
-		Usage: "Ignore/overwrite MaxPeers to allow unlimited number of peer connections",
-	}
 	MaxAcceptConnsFlag = cli.IntFlag{
 		Name:  "maxacceptconns",
 		Usage: "Maximum number of concurrently handshaking inbound connections",
@@ -831,9 +827,6 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	if ctx.GlobalIsSet(NoMaxPeersFlag.Name) {
-		cfg.NoMaxPeers = true
-	}
 	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
 		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
 	}
