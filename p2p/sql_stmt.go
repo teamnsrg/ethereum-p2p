@@ -160,7 +160,6 @@ func (srv *Server) createTables() error {
 	// create node_p2p_info table
 	if _, err := srv.DB.Exec(`
 		CREATE TABLE IF NOT EXISTS node_p2p_info (
-			id BIGINT unsigned NOT NULL AUTO_INCREMENT, 
 			node_id VARCHAR(128) NOT NULL, 
 			ip VARCHAR(39) NOT NULL, 
 			tcp_port SMALLINT unsigned NOT NULL, 
@@ -173,7 +172,7 @@ func (srv *Server) createTables() error {
 			first_hello_at DECIMAL(18,6) NOT NULL, 
 			last_hello_at DECIMAL(18,6) NOT NULL, 
 			PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port),
-			KEY (id)
+			KEY (last_hello_at)
 		)
 	`); err != nil {
 		log.Sql("Failed to create node_p2p_info table", "database", srv.MySQLName, "err", err)
@@ -184,7 +183,6 @@ func (srv *Server) createTables() error {
 	// create node_eth_info table
 	if _, err := srv.DB.Exec(`
 		CREATE TABLE IF NOT EXISTS node_eth_info (
-			id BIGINT unsigned NOT NULL AUTO_INCREMENT, 
 			node_id VARCHAR(128) NOT NULL, 
 			ip VARCHAR(39) NOT NULL, 
 			tcp_port SMALLINT unsigned NOT NULL, 
@@ -204,7 +202,7 @@ func (srv *Server) createTables() error {
 			first_status_at DECIMAL(18,6) NOT NULL, 
 			last_status_at DECIMAL(18,6) NOT NULL, 
 			PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port, protocol_version, network_id, genesis_hash), 
-			KEY (id)
+			KEY (last_status_at)
 		)
 	`); err != nil {
 		log.Sql("Failed to create node_eth_info table", "database", srv.MySQLName, "err", err)
@@ -263,21 +261,21 @@ func (srv *Server) loadKnownNodeInfos() error {
 				 FROM (SELECT * 
 				 	   FROM node_p2p_info AS x 
 				 	   		INNER JOIN 
-				 	   			(SELECT node_id AS nid, MAX(id) AS max_id 
+				 	   			(SELECT node_id AS nid, MAX(last_hello_at) AS last_ts 
 				 	   			 FROM node_p2p_info 
 				 	   			 GROUP BY node_id
-				 	   			 ) AS max_ids 
-				 	   			ON x.id = max_ids.max_id
+				 	   			 ) AS last_tss 
+				 	   			ON x.last_hello_at = last_tss.last_ts
 				 	   ) AS p2p 
 				 	LEFT JOIN 
 				 	  (SELECT * 
 					   FROM node_eth_info AS x 
 					   		INNER JOIN 
-					   			(SELECT node_id AS nid, MAX(id) AS max_id 
+					   			(SELECT node_id AS nid, MAX(last_status_at) AS last_ts 
 							  	 FROM node_eth_info 
 							  	 GROUP BY node_id
-							  	 ) AS max_ids 
-								ON x.id = max_ids.max_id
+							  	 ) AS last_tss 
+								ON x.last_status_at = last_tss.last_ts
 					   ) AS eth 
 						ON p2p.node_id = eth.node_id
 				 ) AS nodes
