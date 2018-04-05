@@ -117,11 +117,6 @@ var (
 		Usage: "Maximum number of concurrently dialing outbound connections",
 		Value: 16,
 	}
-	MaxAcceptConnsFlag = cli.IntFlag{
-		Name:  "maxacceptconns",
-		Usage: "Maximum number of concurrently handshaking inbound connections",
-		Value: 50,
-	}
 	MaxNumFileFlag = cli.Uint64Flag{
 		Name:  "maxnumfile",
 		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
@@ -827,9 +822,6 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
-		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
-	}
 	if ctx.GlobalIsSet(DialFreqFlag.Name) {
 		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
 	}

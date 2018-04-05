@@ -42,6 +42,9 @@ const (
 
 	defaultDialTimeout = 15 * time.Second
 
+	// Maximum number of concurrently handshaking inbound connections.
+	maxAcceptConns = 50
+
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
 	frameReadTimeout = 30 * time.Second
@@ -59,9 +62,6 @@ type Config struct {
 
 	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
 	NoMaxPeers bool
-
-	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
-	MaxAcceptConns int
 
 	// Blacklist is the list of IP networks that we should not connect to
 	Blacklist *netutil.Netlist `toml:",omitempty"`
@@ -724,7 +724,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && !srv.NoMaxPeers && len(peers) >= srv.MaxPeers:
+	case !srv.NoMaxPeers && !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case peers[c.id] != nil:
 		return DiscAlreadyConnected
@@ -748,7 +748,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := srv.MaxAcceptConns
+	tokens := maxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}

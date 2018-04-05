@@ -122,7 +122,6 @@ func TestServerListen(t *testing.T) {
 		connected <- p
 	})
 	srv.MaxDial = 16
-	srv.MaxAcceptConns = 50
 	defer close(connected)
 	defer srv.Stop()
 
@@ -170,7 +169,6 @@ func TestServerDial(t *testing.T) {
 	remid := randomID()
 	srv := startTestConnectServer(listener, t, remid, func(p *Peer) { connected <- p })
 	srv.MaxDial = 16
-	srv.MaxAcceptConns = 50
 	defer close(connected)
 	defer srv.Stop()
 
@@ -237,7 +235,6 @@ func TestServerTaskScheduling(t *testing.T) {
 		running: true,
 	}
 	srv.MaxDial = 16
-	srv.MaxAcceptConns = 50
 	srv.loopWG.Add(1)
 	go func() {
 		srv.run(tg)
@@ -282,7 +279,6 @@ func TestServerManyTasks(t *testing.T) {
 		start, end = 0, 0
 	)
 	srv.MaxDial = 16
-	srv.MaxAcceptConns = 50
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{

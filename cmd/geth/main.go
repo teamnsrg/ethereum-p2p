@@ -57,7 +57,6 @@ var (
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
 		utils.MaxDialFlag,
-		utils.MaxAcceptConnsFlag,
 		utils.MaxNumFileFlag,
 		utils.BlacklistFlag,
 		utils.DialFreqFlag,

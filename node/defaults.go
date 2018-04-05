@@ -47,7 +47,6 @@ var DefaultConfig = Config{
 		NAT:             nat.Any(),
 		MaxDial:         16,
 		NoMaxPeers:      true, // node-finder never limits number of peers
-		MaxAcceptConns:  50,
 		DialFreq:        30,
 		MySQLName:       "",
 		BackupSQL:       false,
