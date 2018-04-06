@@ -15,19 +15,19 @@ import (
 
 func (srv *Server) initSql() error {
 	if srv.MySQLName == "" {
-		log.Trace("No sql db connection info provided")
+		log.Sql("No sql db connection info provided")
 	} else {
 		db, err := sql.Open("mysql", srv.MySQLName)
 		if err != nil {
-			log.Error("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
+			log.Sql("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
 			return err
 		}
-		log.Trace("Opened sql db handle", "database", srv.MySQLName)
+		log.Sql("Opened sql db handle", "database", srv.MySQLName)
 		if err := db.Ping(); err != nil {
-			log.Error("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
+			log.Sql("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
 			return err
 		}
-		log.Trace("Sql db connection passed ping test", "database", srv.MySQLName)
+		log.Sql("Sql db connection passed ping test", "database", srv.MySQLName)
 		srv.DB = db
 
 		// backup tables
@@ -82,13 +82,13 @@ func (srv *Server) checkIfTableExists(dbName string, tableName string) (int, err
 func (srv *Server) backupTable(dbName string, tableName string) error {
 	// check if table exists
 	if result, err := srv.checkIfTableExists(dbName, tableName); err != nil {
-		log.Error(fmt.Sprintf("Failed to check if %s table exists", tableName), "database", srv.MySQLName, "err", err)
+		log.Sql(fmt.Sprintf("Failed to check if %s table exists", tableName), "database", srv.MySQLName, "err", err)
 		return err
 	} else if result == 0 {
 		log.Debug(tableName+" table not found. Skipping backup", "database", srv.MySQLName)
 		return nil
 	}
-	log.Trace(tableName+" table exists", "database", srv.MySQLName)
+	log.Sql(tableName+" table exists", "database", srv.MySQLName)
 
 	// format backup file name
 	tableNameCamel := ""
@@ -102,10 +102,10 @@ func (srv *Server) backupTable(dbName string, tableName string) error {
 	if _, err := srv.DB.Exec(fmt.Sprintf(`
 		SELECT * INTO OUTFILE '/backup/%s' FROM %s
 	`, fileName, tableName)); err != nil {
-		log.Error(fmt.Sprintf("Failed to create %s", fileName), "database", srv.MySQLName, "err", err)
+		log.Sql(fmt.Sprintf("Failed to create %s", fileName), "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace(fileName+" created", "database", srv.MySQLName)
+	log.Sql(fileName+" created", "database", srv.MySQLName)
 	return nil
 }
 
@@ -113,10 +113,10 @@ func (srv *Server) dropTables() error {
 	if _, err := srv.DB.Exec(`
 		DROP TABLE IF EXISTS node_eth_info, node_p2p_info, node_meta_info, neighbors
 	`); err != nil {
-		log.Error("Failed to drop sql tables", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to drop sql tables", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("Existing sql tables dropped", "database", srv.MySQLName)
+	log.Sql("Existing sql tables dropped", "database", srv.MySQLName)
 	return nil
 }
 
@@ -135,10 +135,10 @@ func (srv *Server) createTables() error {
 			PRIMARY KEY (node_id, ip, tcp_port, udp_port)
 		)
 	`); err != nil {
-		log.Error("Failed to create neighbors table", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to create neighbors table", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("neighbors table already exists or is newly created", "database", srv.MySQLName)
+	log.Sql("neighbors table already exists or is newly created", "database", srv.MySQLName)
 
 	// create node_meta_info table
 	if _, err := srv.DB.Exec(`
@@ -152,10 +152,10 @@ func (srv *Server) createTables() error {
 			PRIMARY KEY (node_id)
 		)
 	`); err != nil {
-		log.Error("Failed to create node_meta_info table", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to create node_meta_info table", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("node_meta_info table already exists or is newly created", "database", srv.MySQLName)
+	log.Sql("node_meta_info table already exists or is newly created", "database", srv.MySQLName)
 
 	// create node_p2p_info table
 	if _, err := srv.DB.Exec(`
@@ -176,10 +176,10 @@ func (srv *Server) createTables() error {
 			KEY (id)
 		)
 	`); err != nil {
-		log.Error("Failed to create node_p2p_info table", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to create node_p2p_info table", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("node_p2p_info table already exists or is newly created", "database", srv.MySQLName)
+	log.Sql("node_p2p_info table already exists or is newly created", "database", srv.MySQLName)
 
 	// create node_eth_info table
 	if _, err := srv.DB.Exec(`
@@ -207,10 +207,10 @@ func (srv *Server) createTables() error {
 			KEY (id)
 		)
 	`); err != nil {
-		log.Error("Failed to create node_eth_info table", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to create node_eth_info table", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("node_eth_info table already exists or is newly created", "database", srv.MySQLName)
+	log.Sql("node_eth_info table already exists or is newly created", "database", srv.MySQLName)
 	return nil
 }
 
@@ -226,24 +226,24 @@ func (srv *Server) CloseSql() {
 
 func (srv *Server) closeDB(db *sql.DB) {
 	if err := db.Close(); err != nil {
-		log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
 	}
-	log.Trace("Closed sql db handle", "database", srv.MySQLName)
+	log.Sql("Closed sql db handle", "database", srv.MySQLName)
 }
 
 func (srv *Server) closeSqlStmts() {
 	if srv.addNodeP2PInfoStmt != nil {
 		if err := srv.addNodeP2PInfoStmt.Close(); err != nil {
-			log.Error("Failed to close AddNodeInfo sql statement", "err", err)
+			log.Sql("Failed to close AddNodeInfo sql statement", "err", err)
 		} else {
-			log.Trace("Closed AddNodeInfo sql statement")
+			log.Sql("Closed AddNodeInfo sql statement")
 		}
 	}
 	if srv.addNodeMetaInfoStmt != nil {
 		if err := srv.addNodeMetaInfoStmt.Close(); err != nil {
-			log.Error("Failed to close AddNodeMetaInfo sql statement", "err", err)
+			log.Sql("Failed to close AddNodeMetaInfo sql statement", "err", err)
 		} else {
-			log.Trace("Closed AddNodeMetaInfo sql statement")
+			log.Sql("Closed AddNodeMetaInfo sql statement")
 		}
 	}
 }
@@ -284,10 +284,10 @@ func (srv *Server) loadKnownNodeInfos() error {
 					ON nmi.node_id = nodes.node_id
 	`)
 	if err != nil {
-		log.Error("Failed to execute initial query", "database", srv.MySQLName, "err", err)
+		log.Sql("Failed to execute initial query", "database", srv.MySQLName, "err", err)
 		return err
 	}
-	log.Trace("Executed initial query", "database", srv.MySQLName)
+	log.Sql("Executed initial query", "database", srv.MySQLName)
 	defer rows.Close()
 
 	type sqlObjects struct {
@@ -326,13 +326,13 @@ func (srv *Server) loadKnownNodeInfos() error {
 			&sqlObj.firstReceivedTd, &sqlObj.lastReceivedTd, &sqlObj.bestHash, &sqlObj.genesisHash,
 			&sqlObj.firstStatusAt, &sqlObj.lastStatusAt, &sqlObj.daoForkSupport)
 		if err != nil {
-			log.Error("Failed to copy values from sql query result", "err", err)
+			log.Sql("Failed to copy values from sql query result", "err", err)
 			continue
 		}
 		// convert hex to NodeID
 		id, err := discover.HexID(nodeid)
 		if err != nil {
-			log.Error("Failed to parse node_id value from db", "id", nodeid, "err", err)
+			log.Sql("Failed to parse node_id value from db", "id", nodeid, "err", err)
 			continue
 		}
 		nodeInfo := &Info{
@@ -374,7 +374,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 			s := sqlObj.firstReceivedTd.String
 			_, ok := firstReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Error("Failed to parse first_received_td value from db", "value", s)
+				log.Sql("Failed to parse first_received_td value from db", "value", s)
 			} else {
 				nodeInfo.FirstReceivedTd = NewTd(firstReceivedTd)
 			}
@@ -384,7 +384,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 			s := sqlObj.lastReceivedTd.String
 			_, ok := lastReceivedTd.SetString(s, 10)
 			if !ok {
-				log.Error("Failed to parse last_received_td value from db", "value", s)
+				log.Sql("Failed to parse last_received_td value from db", "value", s)
 			} else {
 				nodeInfo.LastReceivedTd = NewTd(lastReceivedTd)
 			}
@@ -428,10 +428,10 @@ func (srv *Server) prepareAddNodeP2PInfoStmt() error {
 			hello_count=hello_count+1
 	`)
 	if err != nil {
-		log.Error("Failed to prepare AddNodeP2PInfo sql statement", "err", err)
+		log.Sql("Failed to prepare AddNodeP2PInfo sql statement", "err", err)
 		return err
 	} else {
-		log.Trace("Prepared AddNodeP2PInfo sql statement")
+		log.Sql("Prepared AddNodeP2PInfo sql statement")
 		srv.addNodeP2PInfoStmt = pStmt
 	}
 	return nil
@@ -450,9 +450,9 @@ func (srv *Server) addNodeP2PInfo(newInfoWrapper *KnownNodeInfosWrapper) {
 	_, err := srv.addNodeP2PInfoStmt.Exec(nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort, lastHelloAt, lastHelloAt)
 	if err != nil {
-		log.Error("Failed to execute AddNodeP2PInfo sql statement", "id", nodeid[:16], "err", err)
+		log.Sql("Failed to execute AddNodeP2PInfo sql statement", "id", nodeid[:16], "err", err)
 	} else {
-		log.Trace("Executed AddNodeP2PInfo sql statement", "id", nodeid[:16])
+		log.Sql("Executed AddNodeP2PInfo sql statement", "id", nodeid[:16])
 	}
 }
 
@@ -467,10 +467,10 @@ func (srv *Server) prepareAddNodeMetaInfoStmt() error {
 		eth_disc4_count=eth_disc4_count+values(eth_disc4_count)
 	`)
 	if err != nil {
-		log.Error("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
+		log.Sql("Failed to prepare AddNodeMetaInfo sql statement", "err", err)
 		return err
 	} else {
-		log.Trace("Prepared AddNodeMetaInfo sql statement")
+		log.Sql("Prepared AddNodeMetaInfo sql statement")
 		srv.addNodeMetaInfoStmt = pStmt
 	}
 	return nil
@@ -493,9 +493,9 @@ func (srv *Server) addNodeMetaInfo(nodeid string, hash string, dial bool, accept
 	_, err := srv.addNodeMetaInfoStmt.Exec(nodeid, hash, boolToInt(dial), boolToInt(accept),
 		boolToInt(p2pDisc4), boolToInt(ethDisc4))
 	if err != nil {
-		log.Error("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4, "err", err)
+		log.Sql("Failed to execute AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4, "err", err)
 	} else {
-		log.Trace("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4)
+		log.Sql("Executed AddNodeMetaNodeInfo sql statement", "id", nodeid[:16], "dial", dial, "accept", accept, "p2pDisc4", p2pDisc4, "ethDisc4", ethDisc4)
 	}
 }
 

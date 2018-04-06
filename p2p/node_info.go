@@ -26,11 +26,11 @@ type UnixTime struct {
 }
 
 func (t *UnixTime) String() string {
-	return strconv.FormatFloat(float64(t.Time.UnixNano())/1000000000, 'f', 6, 64)
+	return strconv.FormatFloat(float64(t.Time.UnixNano())/1e9, 'f', 6, 64)
 }
 
 func (t *UnixTime) Float64() float64 {
-	return float64(t.Time.UnixNano()) / 1000000000
+	return float64(t.Time.UnixNano()) / 1e9
 }
 
 type Td struct {
@@ -57,7 +57,6 @@ func (td *Td) String() string {
 type Info struct {
 	mux sync.RWMutex
 
-	RowId         uint64 `json:"rowId"`         // deprecated
 	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
 	IP            string `json:"ip"`            // IP address of the node
 	TCPPort       uint16 `json:"tcpPort"`       // TCP listening port for RLPx
@@ -111,10 +110,6 @@ func (k *Info) String() string {
 	return s
 }
 
-func (k *Info) Address() string {
-	return fmt.Sprintf("IP:%v TCPPort:%v RemotePort:%v", k.IP, k.TCPPort, k.RemotePort)
-}
-
 func (k *Info) Hello() string {
 	return fmt.Sprintf("P2PVersion:%v ClientId:%v Caps:%v ListenPort:%v",
 		k.P2PVersion, k.ClientId, k.Caps, k.ListenPort)
@@ -123,14 +118,6 @@ func (k *Info) Hello() string {
 func (k *Info) Status() string {
 	return fmt.Sprintf("ProtocolVersion:%v NetworkId:%v Td:%v BestHash:%v GenesisHash:%v",
 		k.ProtocolVersion, k.NetworkId, k.LastReceivedTd, k.BestHash, k.GenesisHash)
-}
-
-func (k *Info) P2PSummary() string {
-	return fmt.Sprintf("%v %v", k.Address(), k.Hello())
-}
-
-func (k *Info) EthSummary() string {
-	return fmt.Sprintf("%v %v", k.P2PSummary(), k.Status())
 }
 
 func (k *Info) MarshalJSON() ([]byte, error) {
@@ -317,9 +304,7 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	if srv.DB != nil {
 		srv.addNodeP2PInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
 	}
-	log.Hello(fmt.Sprintf("%f", newInfo.LastHelloAt.Float64()),
-		"id", nodeid, "addr", c.fd.RemoteAddr(), "conn", c.flags, "rtt", msg.PeerRtt,
-		"info", newInfo.P2PSummary())
+	log.Hello(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, newInfo.Hello())
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {
@@ -371,6 +356,10 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 type KnownNodeInfosWrapper struct {
 	NodeId string `json:"nodeId"` // Unique node identifier (also the encryption key)
 	Info   *Info  `json:"info"`
+}
+
+func (k *KnownNodeInfosWrapper) String() string {
+	return fmt.Sprintf("ID:%s %v", k.NodeId, k.Info)
 }
 
 // NodeInfo gathers and returns a collection of metadata known about the host.

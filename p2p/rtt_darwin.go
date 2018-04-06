@@ -16,7 +16,7 @@ func (rw *rlpxFrameRW) Rtt() float64 {
 	if tcpInfo == nil {
 		return rw.rtt
 	}
-	rw.rtt = float64(tcpInfo.Srtt) / 1000
+	rw.rtt = float64(tcpInfo.Srtt) / 1e3
 	return rw.rtt
 }
 

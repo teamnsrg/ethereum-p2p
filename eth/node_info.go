@@ -34,8 +34,7 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 		if err := pm.fillP2PInfo(p, newInfo); err != nil {
 			pm.knownNodeInfos.Unlock()
 			log.Debug("Failed to fill P2P info", "err", err)
-			p.CustomLog().Status(fmt.Sprintf("%f", newInfo.LastStatusAt.Float64()),
-				"rtt", statusWrapper.PeerRtt, "duration", statusWrapper.PeerDuration, "info", newInfo.EthSummary())
+			log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx(), statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
 			return
 		}
 
@@ -62,8 +61,7 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 	if pm.db != nil {
 		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: newInfo}, true)
 	}
-	p.CustomLog().Status(fmt.Sprintf("%f", newInfo.LastStatusAt.Float64()),
-		"rtt", statusWrapper.PeerRtt, "duration", statusWrapper.PeerDuration, "info", newInfo.EthSummary())
+	log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx(), statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
 }
 
 func (pm *ProtocolManager) fillP2PInfo(p *peer, newInfo *p2p.Info) error {
@@ -120,7 +118,5 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoFor
 	if pm.db != nil {
 		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
 	}
-	unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-	p.CustomLog().DaoFork(fmt.Sprintf("%f", unixTime),
-		"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "support", daoForkSupport > 0)
+	log.DaoFork(msg.ReceivedAt, p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
 }

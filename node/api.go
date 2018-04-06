@@ -19,6 +19,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -46,22 +47,26 @@ func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 
 func (api *PrivateAdminAPI) Logrotate() error {
 	var (
-		datadir = api.node.DataDir()
-		glogger = log.Root().GetGlogger()
+		logdir           = filepath.Join(api.node.InstanceDir(), "logs")
+		clientIdentifier = api.node.config.Name
+		glogger          = log.Root().GetGlogger()
 	)
 	if api.node.config.LogToFile {
-		glogger.SetHandler(log.Must.FileHandler(datadir+"/node-finder.log", log.TerminalFormat(false)))
+		glogger.SetHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
 		log.Root().SetHandler(log.MultiHandler(
 			// default logging for any lvl <= verbosity
 			glogger,
 			// lvl specific logging
-			// log.LvlMatchFilterFileHandler(log.LvlType, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
+			// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlSql, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlNeighbors, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlHello, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscProto, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlStatus, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlDaoFork, logdir),
 		))
 	}
 	return nil
@@ -308,12 +313,16 @@ func (api *PublicAdminAPI) Peers() ([]*p2p.PeerInfo, error) {
 
 // KnownNodes retrieves all the information we know about each individual peer at the
 // protocol granularity.
-func (api *PublicAdminAPI) KnownNodes() ([]*p2p.KnownNodeInfosWrapper, error) {
+func (api *PublicAdminAPI) KnownNodes() (string, error) {
 	server := api.node.Server()
 	if server == nil {
-		return nil, ErrNodeStopped
+		return "", ErrNodeStopped
 	}
-	return server.KnownNodes(), nil
+	var knownNodes []string
+	for _, n := range server.KnownNodes() {
+		knownNodes = append(knownNodes, n.String())
+	}
+	return strings.Join(knownNodes, "\n"), nil
 }
 
 // NodeInfo retrieves all the information we know about the host node at the

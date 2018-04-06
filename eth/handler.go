@@ -274,37 +274,21 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	if err != nil {
 		return err
 	}
-	// log received eth messages
-	/*
-		unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-		msgStr, ok := ethCodeToString[msg.Code]
-		if !ok {
-			msgStr = "ETH_UNKNOWN"
-		}
-		p.CustomLog().Type(fmt.Sprintf("%f", unixTime),
-			"rtt", msg.PeerRtt, "duration", msg.PeerDuration, "type", "<<"+msgStr, "size", msg.Size)
-	*/
 	if msg.Size > ProtocolMaxMsgSize {
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	defer msg.Discard()
 
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := ethCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
 		// Status messages should never arrive after the handshake
-		var status statusData
-		// Decode the handshake and make sure everything matches
-		if err := msg.Decode(&status); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		// update node information
-		pm.storeNodeEthInfo(p, &statusDataWrapper{
-			ReceivedAt:   &msg.ReceivedAt,
-			Status:       &status,
-			PeerRtt:      msg.PeerRtt,
-			PeerDuration: msg.PeerDuration,
-		})
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
 		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
 
 	// Block header query, collect the requested headers and reply
@@ -312,30 +296,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 
 		// Return DAOForkBlock header
 		var headers []*types.Header
 		if query.Origin.Number == params.MainnetChainConfig.DAOForkBlock.Uint64() && query.Amount == 1 && query.Skip == 0 && !query.Reverse {
-			DAOForkBlockHeader := &types.Header{
-				ParentHash:  common.HexToHash("a218e2c611f21232d857e3c8cecdcdf1f65f25a4477f98f6f47e4063807f2308"),
-				UncleHash:   common.HexToHash("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"),
-				Coinbase:    common.HexToAddress("bcdfc35b86bedf72f0cda046a3c16829a2ef41d1"),
-				Root:        common.HexToHash("c5e389416116e3696cce82ec4533cce33efccb24ce245ae9546a4b8f0d5e9a75"),
-				TxHash:      common.HexToHash("7701df8e07169452554d14aadd7bfa256d4a1d0355c1d174ab373e3e2d0a3743"),
-				ReceiptHash: common.HexToHash("26cf9d9422e9dd95aedc7914db690b92bab6902f5221d62694a2fa5d065f534b"),
-				Bloom:       types.Bloom{},
-				Difficulty:  big.NewInt(62413376722602),
-				Number:      params.MainnetChainConfig.DAOForkBlock,
-				GasLimit:    big.NewInt(4712384),
-				GasUsed:     big.NewInt(84000),
-				Time:        big.NewInt(1469020840),
-				Extra:       params.DAOForkBlockExtra,
-				MixDigest:   common.HexToHash("5b5acbf4bf305f948bd7be176047b20623e1417f75597341a059729165b92397"),
-				Nonce:       [8]byte{0xbe, 0xde, 0x87, 0x20, 0x1d, 0xe4, 0x24, 0x26},
-			}
-			headers = append(headers, DAOForkBlockHeader)
+			headers = append(headers, types.DAOForkBlockHeader)
 			return p.SendBlockHeaders(headers)
 		}
 
@@ -343,8 +312,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -352,7 +323,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 			// If the peer's td is ahead of the DAO fork block's td, it too must have a reply to the DAO check
 			daoTd := new(big.Int)
-			daoTd.SetString("39490964433395682584", 10)
+			daoTd.SetString(params.MainnetChainConfig.DAOForkTdStr, 10)
 			if _, td := p.Head(); td.Cmp(daoTd) >= 0 {
 				verifyDAO = false
 			}
@@ -386,6 +357,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	default:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	return nil

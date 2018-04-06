@@ -53,12 +53,13 @@ func TestConsoleWelcome(t *testing.T) {
 	geth.SetTemplateFunc("gethver", func() string { return params.Version })
 	geth.SetTemplateFunc("niltime", func() string { return time.Unix(0, 0).Format(time.RFC1123) })
 	geth.SetTemplateFunc("apis", func() string { return ipcAPIs })
+	geth.SetTemplateFunc("clientname", func() string { return clientIdentifier })
 
 	// Verify the actual welcome message to the required template
 	geth.Expect(`
 Welcome to the Geth JavaScript console!
 
-instance: Geth/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
+instance: {{clientname}}/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
 coinbase: {{.Etherbase}}
 at block: 0 ({{niltime}})
  datadir: {{.Datadir}}
@@ -79,7 +80,7 @@ func TestIPCAttachWelcome(t *testing.T) {
 	} else {
 		ws := tmpdir(t)
 		defer os.RemoveAll(ws)
-		ipc = filepath.Join(ws, "geth.ipc")
+		ipc = filepath.Join(ws, clientIdentifier+".ipc")
 	}
 	// Note: we need --shh because testAttachWelcome checks for default
 	// list of ipc modules and shh is included there.
@@ -139,12 +140,13 @@ func testAttachWelcome(t *testing.T, geth *testgeth, endpoint, apis string) {
 	attach.SetTemplateFunc("ipc", func() bool { return strings.HasPrefix(endpoint, "ipc") })
 	attach.SetTemplateFunc("datadir", func() string { return geth.Datadir })
 	attach.SetTemplateFunc("apis", func() string { return apis })
+	attach.SetTemplateFunc("clientname", func() string { return clientIdentifier })
 
 	// Verify the actual welcome message to the required template
 	attach.Expect(`
 Welcome to the Geth JavaScript console!
 
-instance: Geth/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
+instance: {{clientname}}/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
 coinbase: {{etherbase}}
 at block: 0 ({{niltime}}){{if ipc}}
  datadir: {{datadir}}{{end}}

@@ -32,7 +32,7 @@ var (
 	datadirInUseErrnos = map[uint]bool{11: true, 32: true, 35: true}
 )
 
-func convertFileLockError(err error) error {
+func ConvertFileLockError(err error) error {
 	if errno, ok := err.(syscall.Errno); ok && datadirInUseErrnos[uint(errno)] {
 		return ErrDatadirUsed
 	}

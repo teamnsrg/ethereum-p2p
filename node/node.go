@@ -188,7 +188,7 @@ func (n *Node) Start() error {
 	}
 	if err := running.Start(); err != nil {
 		running.CloseSql()
-		return convertFileLockError(err)
+		return ConvertFileLockError(err)
 	}
 	// Start each of the services
 	started := []reflect.Type{}
@@ -222,6 +222,10 @@ func (n *Node) Start() error {
 }
 
 func (n *Node) openDataDir() error {
+	if n.config.LogToFile {
+		n.instanceDirLock = n.config.InstanceDirLock
+		return nil
+	}
 	if n.config.DataDir == "" {
 		return nil // ephemeral
 	}
@@ -234,7 +238,7 @@ func (n *Node) openDataDir() error {
 	// accidental use of the instance directory as a database.
 	release, _, err := flock.New(filepath.Join(instdir, "LOCK"))
 	if err != nil {
-		return convertFileLockError(err)
+		return ConvertFileLockError(err)
 	}
 	n.instanceDirLock = release
 	return nil

@@ -42,6 +42,9 @@ const (
 
 	defaultDialTimeout = 15 * time.Second
 
+	// Maximum number of concurrently handshaking inbound connections.
+	maxAcceptConns = 50
+
 	// Maximum time allowed for reading a complete message.
 	// This is effectively the amount of time a connection can be idle.
 	frameReadTimeout = 30 * time.Second
@@ -59,9 +62,6 @@ type Config struct {
 
 	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
 	NoMaxPeers bool
-
-	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
-	MaxAcceptConns int
 
 	// Blacklist is the list of IP networks that we should not connect to
 	Blacklist *netutil.Netlist `toml:",omitempty"`
@@ -224,21 +224,22 @@ const (
 type conn struct {
 	fd net.Conn
 	transport
-	flags      connFlag
-	cont       chan error      // The run loop uses cont to signal errors to SetupConn.
-	id         discover.NodeID // valid after the encryption handshake
-	version    uint64          // valid after the protocol handshake
-	caps       []Cap           // valid after the protocol handshake
-	name       string          // valid after the protocol handshake
-	listenPort uint16          // valid after the protocol handshake
-	tcpPort    uint16          // valid after the protocol handshake
+	flags       connFlag
+	cont        chan error      // The run loop uses cont to signal errors to SetupConn.
+	id          discover.NodeID // valid after the encryption handshake
+	version     uint64          // valid after the protocol handshake
+	caps        []Cap           // valid after the protocol handshake
+	name        string          // valid after the protocol handshake
+	listenPort  uint16          // valid after the protocol handshake
+	tcpPort     uint16          // valid after the protocol handshake
+	connInfoCtx []interface{}
 }
 
 type transport interface {
 	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error)
+	doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, Msg, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -463,7 +464,6 @@ func (srv *Server) Start() (err error) {
 	}
 
 	dynPeers := (srv.MaxPeers + 1) / 2
-
 	if srv.NoDiscovery {
 		dynPeers = 0
 	}
@@ -724,7 +724,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && !srv.NoMaxPeers && len(peers) >= srv.MaxPeers:
+	case !srv.NoMaxPeers && !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case peers[c.id] != nil:
 		return DiscAlreadyConnected
@@ -748,7 +748,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := srv.MaxAcceptConns
+	tokens := maxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}
@@ -829,6 +829,11 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(err)
 		return
 	}
+	c.connInfoCtx = []interface{}{
+		"id", c.id.String(),
+		"addr", c.fd.RemoteAddr().String(),
+		"conn", c.flags.String(),
+	}
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
@@ -842,7 +847,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, msg, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, msg, err := c.doProtoHandshake(srv.ourHandshake, c.connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
@@ -856,9 +861,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 					srv.addNewStatic(c.id, nodeInfo)
 				}
 			}
-			unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
-			log.DiscProto(fmt.Sprintf("%f", unixTime),
-				"id", c.id.String(), "addr", c.fd.RemoteAddr(), "conn", c.flags, "rtt", msg.PeerRtt, "reason", r)
+			log.DiscProto(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, r.String())
 		}
 		c.close(err)
 		return

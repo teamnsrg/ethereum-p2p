@@ -300,7 +300,7 @@ func (t *udp) ping(toid NodeID, toaddr *net.UDPAddr) error {
 		From:       t.ourEndpoint,
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, toid)
 	return <-errc
 }
 
@@ -329,7 +329,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 	t.send(toaddr, findnodePacket, &findnode{
 		Target:     target,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, toid)
 	err := <-errc
 	return nodes, err
 }
@@ -484,18 +484,18 @@ func init() {
 	}
 }
 
-func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
+func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) error {
 	packet, err := encodePacket(t.priv, ptype, req)
 	if err != nil {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	// log sent discovery messages
-	/*
-		unixTime := float64(time.Now().UnixNano()) / 1000000000
-		log.Type(fmt.Sprintf("%f", unixTime),
-			"id", toid.String(), "addr", toaddr.String(), "type", ">>"+req.name(), "size", len(packet), "err", err)
-	*/
+	currentTime := time.Now()
+	connInfoCtx := []interface{}{
+		"id", peer.String(),
+		"addr", toaddr.String(),
+	}
+	log.MessageTx(currentTime, ">>"+req.name(), len(packet), connInfoCtx, err)
 	return err
 }
 
@@ -549,22 +549,21 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		log.Debug("Bad discv4 packet", "addr", from, "err", err)
 		return err
 	}
+	currentTime := time.Now()
+	connInfoCtx := []interface{}{
+		"id", fromID.String(),
+		"addr", from.String(),
+	}
+	log.MessageRx(currentTime, "<<"+packet.name(), len(buf), connInfoCtx, nil)
 	err = packet.handle(t, from, fromID, hash)
-
-	unixTime := float64(time.Now().UnixNano()) / 1000000000
-	// log received discovery messages
-	/*
-		log.Type(fmt.Sprintf("%f", unixTime),
-			"id", fromID.String(), "addr", from.String(), "type", "<<"+packet.name(), "size", len(buf), "err", err)
-	*/
+	unixTime := float64(currentTime.UnixNano()) / 1e9
 	// if NEIGHBORS packet, add the node address info to the sql database
 	if packet.name() == "RLPX_NEIGHBORS" {
 		for _, node := range packet.(*neighbors).Nodes {
 			if t.sqldb != nil {
 				t.addNeighbor(node, unixTime)
 			}
-			log.Neighbors(fmt.Sprintf("%f", unixTime),
-				"id", fromID.String(), "addr", from.String(), "neighbor", &node)
+			log.Neighbors(currentTime, connInfoCtx, &node)
 		}
 	}
 	return err
@@ -609,7 +608,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 		To:         makeEndpoint(from, req.From.TCP),
 		ReplyTok:   mac,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, fromID)
 	if !t.handleReply(fromID, pingPacket, req) {
 		// Note: we're ignoring the provided IP address right now
 		go t.bond(true, fromID, from, req.From.TCP)
@@ -659,7 +658,7 @@ func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte
 		}
 		p.Nodes = append(p.Nodes, nodeToRPC(n))
 		if len(p.Nodes) == maxNeighbors || i == len(closest)-1 {
-			t.send(from, neighborsPacket, &p)
+			t.send(from, neighborsPacket, &p, fromID)
 			p.Nodes = p.Nodes[:0]
 		}
 	}
