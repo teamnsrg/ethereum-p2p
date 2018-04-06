@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/big"
@@ -52,11 +51,10 @@ func errResp(code errCode, format string, v ...interface{}) error {
 }
 
 type ProtocolManager struct {
-	addNodeEthInfoStmt *sql.Stmt
-	knownNodeInfos     *p2p.KnownNodeInfos // information on known nodes
-	db                 *sql.DB             // mysql db handle
-	strReplacer        *strings.Replacer
-	noMaxPeers         bool // Flag whether to ignore maxPeers
+	ethInfoChan    chan<- []interface{}
+	knownNodeInfos *p2p.KnownNodeInfos // information on known nodes
+	strReplacer    *strings.Replacer
+	noMaxPeers     bool // Flag whether to ignore maxPeers
 
 	networkId uint64
 
@@ -167,11 +165,6 @@ func (pm *ProtocolManager) removePeer(id string) {
 func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
-	// prepare sql statements
-	if err := pm.prepareSqlStmts(); err != nil {
-		log.Crit("Failed to prepare sql statements", "err", err)
-	}
-
 	// start sync handlers
 	go pm.syncer()
 }
@@ -193,8 +186,10 @@ func (pm *ProtocolManager) Stop() {
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
 
-	// close prepared sql statements
-	pm.closeSqlStmts()
+	// close NodeEthInfo channel
+	if pm.ethInfoChan != nil {
+		close(pm.ethInfoChan)
+	}
 
 	log.Info("Ethereum protocol stopped")
 }

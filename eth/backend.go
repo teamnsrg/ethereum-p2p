@@ -386,8 +386,8 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 		}
 	}
 
-	// Set mysql db handle
-	s.protocolManager.db = srvr.DB
+	// Set NodeEthInfo channel
+	s.protocolManager.ethInfoChan = srvr.EthInfoChan
 
 	// initiate string replacer
 	s.protocolManager.strReplacer = srvr.StrReplacer

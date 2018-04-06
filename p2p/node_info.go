@@ -247,8 +247,8 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	newInfo, dial, accept := srv.getNodeAddress(c, &msg.ReceivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	if srv.DB != nil {
-		srv.addNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+	if srv.p2pInfoChan != nil {
+		srv.queueNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 	}
 
 	// DEVp2p Hello
@@ -300,11 +300,12 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	}
 	srv.KnownNodeInfos.Unlock()
 
-	// update or add a new entry to node_p2p_info
-	if srv.DB != nil {
-		srv.addNodeP2PInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
-	}
 	log.Hello(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, newInfo.Hello())
+
+	// update or add a new entry to node_p2p_info
+	if srv.p2pInfoChan != nil {
+		srv.queueNodeP2PInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+	}
 }
 
 func isNewNode(oldInfo *Info, newInfo *Info) bool {

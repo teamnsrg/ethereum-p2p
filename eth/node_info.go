@@ -33,7 +33,7 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 	if currentInfo, ok := pm.knownNodeInfos.Infos()[id]; !ok {
 		if err := pm.fillP2PInfo(p, newInfo); err != nil {
 			pm.knownNodeInfos.Unlock()
-			log.Debug("Failed to fill P2P info", "err", err)
+			p.Log().Debug("Failed to fill P2P info", "err", err)
 			log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx(), statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
 			return
 		}
@@ -57,11 +57,12 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 	}
 	pm.knownNodeInfos.Unlock()
 
-	// update or add a new entry to node_eth_info
-	if pm.db != nil {
-		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: newInfo}, true)
-	}
 	log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx(), statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
+
+	// queue updated/new entry to node_eth_info
+	if pm.ethInfoChan != nil {
+		pm.queueNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: newInfo}, true)
+	}
 }
 
 func (pm *ProtocolManager) fillP2PInfo(p *peer, newInfo *p2p.Info) error {
@@ -114,9 +115,10 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoFor
 	}
 	pm.knownNodeInfos.Unlock()
 
-	// update or add a new entry to node_eth_info
-	if pm.db != nil {
-		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
-	}
 	log.DaoFork(msg.ReceivedAt, p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+
+	// queue updated/new entry to node_eth_info
+	if pm.ethInfoChan != nil {
+		pm.queueNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
+	}
 }

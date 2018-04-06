@@ -29,6 +29,7 @@ import (
 
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
+	"github.com/teamnsrg/go-ethereum/common/mticker"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
@@ -68,6 +69,9 @@ type Config struct {
 
 	// DialFreq is the frequency of re-dialing static nodes (in seconds).
 	DialFreq int
+
+	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
+	PushFreq int
 
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
@@ -164,12 +168,20 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
-	addNodeP2PInfoStmt  *sql.Stmt
-	addNodeMetaInfoStmt *sql.Stmt
-	KnownNodeInfos      *KnownNodeInfos // information on known nodes
-	DB                  *sql.DB         // MySQL database handle
-	dialstate           *dialstate
-	StrReplacer         *strings.Replacer
+	db                *sql.DB // MySQL database handle
+	NeighborChan      chan []interface{}
+	metaInfoChan      chan []interface{}
+	p2pInfoChan       chan []interface{}
+	EthInfoChan       chan []interface{}
+	neighborInfoQueue *infoQueue
+	metaInfoQueue     *infoQueue
+	p2pInfoQueue      *infoQueue
+	ethInfoQueue      *infoQueue
+	pushTicker        *mticker.MutableTicker
+
+	KnownNodeInfos *KnownNodeInfos // information on known nodes
+	StrReplacer    *strings.Replacer
+	dialstate      *dialstate
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -442,7 +454,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.DB)
+		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.NeighborChan)
 		if err != nil {
 			return err
 		}
@@ -468,9 +480,9 @@ func (srv *Server) Start() (err error) {
 		dynPeers = 0
 	}
 	dialer := newDialState(srv.StaticNodes, srv.ntab, dynPeers, srv.NetRestrict)
-	dialer.SetBlacklist(srv.Blacklist)
-	dialer.SetDialFreq(srv.DialFreq)
+	dialer.blacklist = srv.Blacklist
 	srv.dialstate = dialer
+	srv.SetDialFreq(srv.DialFreq)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -521,14 +533,35 @@ type dialer interface {
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
-	GetDialFreq() time.Duration
-	SetDialFreq(int)
-	GetBlacklist() *netutil.Netlist
-	SetBlacklist(*netutil.Netlist)
 }
 
-func (srv *Server) GetDialstate() dialer {
-	return srv.dialstate
+func (srv *Server) SetDialFreq(dialFreq int) {
+	srv.DialFreq = dialFreq
+	srv.dialstate.dialFreq = time.Duration(dialFreq) * time.Second
+}
+
+func (srv *Server) SetPushFreq(pushFreq int) {
+	srv.PushFreq = pushFreq
+	srv.pushTicker.UpdateInterval(time.Duration(pushFreq) * time.Second)
+}
+
+func (srv *Server) SetBlacklist(cidrs string) error {
+	// TODO: update udp's list as well
+	if srv.Blacklist == nil {
+		if list, err := netutil.ParseNetlist(cidrs); err != nil {
+			return err
+		} else {
+			srv.Blacklist = list
+			srv.dialstate.blacklist = list
+		}
+	} else {
+		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
+		masks := strings.Split(ws.Replace(cidrs), ",")
+		for _, mask := range masks {
+			srv.Blacklist.AddNonDuplicate(mask)
+		}
+	}
+	return nil
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -678,8 +711,8 @@ running:
 				if r, ok := pd.err.(DiscReason); ok && r == DiscTooManyPeers {
 					id := pd.ID()
 					nodeInfo := srv.KnownNodeInfos.Infos()[id]
-					if srv.DB != nil {
-						srv.addNodeMetaInfo(id.String(), nodeInfo.Keccak256Hash, false, false, true)
+					if srv.metaInfoChan != nil {
+						srv.queueNodeMetaInfo(id.String(), nodeInfo.Keccak256Hash, false, false, true)
 					}
 				}
 			}
@@ -702,6 +735,15 @@ running:
 	for _, p := range peers {
 		p.Disconnect(DiscQuitting)
 	}
+
+	// close node info channels
+	if srv.metaInfoChan != nil {
+		close(srv.metaInfoChan)
+	}
+	if srv.p2pInfoChan != nil {
+		close(srv.p2pInfoChan)
+	}
+
 	// Wait for peers to shut down. Pending connections and tasks are
 	// not handled here and will terminate soon-ish because srv.quit
 	// is closed.
@@ -852,16 +894,16 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
 			nodeid := c.id.String()
-			var dial, accept bool
-			if srv.DB != nil && r == DiscTooManyPeers {
-				var nodeInfo *Info
-				nodeInfo, dial, accept = srv.getNodeAddress(c, nil)
-				srv.addNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+			log.DiscProto(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, r.String())
+			if r == DiscTooManyPeers {
+				nodeInfo, dial, accept := srv.getNodeAddress(c, nil)
 				if nodeInfo.TCPPort != 0 {
 					srv.addNewStatic(c.id, nodeInfo)
 				}
+				if srv.metaInfoChan != nil {
+					srv.queueNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+				}
 			}
-			log.DiscProto(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, r.String())
 		}
 		c.close(err)
 		return

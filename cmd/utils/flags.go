@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/urfave/cli.v1"
+
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/common"
@@ -55,7 +57,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/params"
-	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -130,6 +131,11 @@ var (
 		Name:  "dialfreq",
 		Usage: "Frequency of re-dialing static nodes (in seconds)",
 		Value: 30,
+	}
+	PushFreqFlag = cli.IntFlag{
+		Name:  "pushfreq",
+		Usage: "Frequency of pushing updates to MySQL database (in seconds)",
+		Value: 1,
 	}
 	MySQLFlag = cli.StringFlag{
 		Name:  "mysql",
@@ -824,6 +830,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 	if ctx.GlobalIsSet(DialFreqFlag.Name) {
 		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
+	}
+	if ctx.GlobalIsSet(PushFreqFlag.Name) {
+		cfg.PushFreq = ctx.GlobalInt(PushFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(MySQLFlag.Name) {
 		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)

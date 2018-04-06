@@ -140,22 +140,6 @@ func newDialState(static []*discover.Node, ntab discoverTable, maxdyn int, netre
 	return s
 }
 
-func (s *dialstate) GetDialFreq() time.Duration {
-	return s.dialFreq
-}
-
-func (s *dialstate) SetDialFreq(f int) {
-	s.dialFreq = time.Duration(f) * time.Second
-}
-
-func (s *dialstate) GetBlacklist() *netutil.Netlist {
-	return s.blacklist
-}
-
-func (s *dialstate) SetBlacklist(blacklist *netutil.Netlist) {
-	s.blacklist = blacklist
-}
-
 func (s *dialstate) addStatic(n *discover.Node) {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
