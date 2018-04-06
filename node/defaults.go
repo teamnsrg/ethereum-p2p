@@ -45,6 +45,9 @@ var DefaultConfig = Config{
 		DiscoveryV5Addr: ":30304",
 		MaxPeers:        25,
 		NAT:             nat.Any(),
+		MaxAcceptConns:  50,
+		DialFreq:        30,
+		MySQLName:       "",
 	},
 }
 

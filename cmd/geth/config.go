@@ -123,6 +123,9 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	}
 
 	// Apply flags.
+	if ctx.GlobalBool(utils.LogToFileFlag.Name) {
+		cfg.Node.LogToFile = true
+	}
 	utils.SetNodeConfig(ctx, &cfg.Node)
 	stack, err := node.New(&cfg.Node)
 	if err != nil {

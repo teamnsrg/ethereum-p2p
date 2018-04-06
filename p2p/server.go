@@ -19,9 +19,11 @@ package p2p
 
 import (
 	"crypto/ecdsa"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,9 +42,6 @@ const (
 	refreshPeersInterval    = 30 * time.Second
 	staticPeerCheckInterval = 15 * time.Second
 
-	// Maximum number of concurrently handshaking inbound connections.
-	maxAcceptConns = 50
-
 	// Maximum number of concurrently dialing outbound connections.
 	maxActiveDialTasks = 16
 
@@ -58,6 +57,18 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MaxAcceptConns is the maximum number of concurrently handshaking inbound connections.
+	MaxAcceptConns int
+
+	// Blacklist is the list of IP networks that we should not connect to
+	Blacklist *netutil.Netlist `toml:",omitempty"`
+
+	// DialFreq is the frequency of re-dialing static nodes (in seconds).
+	DialFreq int
+
+	// MySQLName is the MySQL node database connection information
+	MySQLName string
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -143,6 +154,10 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
+	DB          *sql.DB // MySQL database handle
+	dialstate   *dialstate
+	StrReplacer *strings.Replacer
+
 	// Config fields may not be modified while the server is running.
 	Config
 
@@ -348,6 +363,8 @@ func (srv *Server) Stop() {
 	}
 	close(srv.quit)
 	srv.loopWG.Wait()
+
+	srv.CloseSql()
 }
 
 // Start starts running the server.
@@ -358,6 +375,19 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
+
+	// initiate sql connection
+	if err := srv.initSql(); err != nil {
+		return err
+	}
+
+	// initiate string replacer
+	srv.StrReplacer = strings.NewReplacer(
+		"|", "",
+		" ", "",
+		"'", "",
+		"\"", "")
+
 	srv.running = true
 	log.Info("Starting P2P networking")
 
@@ -382,7 +412,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict)
+		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist)
 		if err != nil {
 			return err
 		}
@@ -408,6 +438,9 @@ func (srv *Server) Start() (err error) {
 		dynPeers = 0
 	}
 	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer.SetBlacklist(srv.Blacklist)
+	dialer.SetDialFreq(srv.DialFreq)
+	srv.dialstate = dialer
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -457,6 +490,14 @@ type dialer interface {
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
+	GetDialFreq() time.Duration
+	SetDialFreq(int)
+	GetBlacklist() *netutil.Netlist
+	SetBlacklist(*netutil.Netlist)
+}
+
+func (srv *Server) GetDialstate() dialer {
+	return srv.dialstate
 }
 
 func (srv *Server) run(dialstate dialer) {
@@ -644,7 +685,7 @@ func (srv *Server) listenLoop() {
 	// This channel acts as a semaphore limiting
 	// active inbound connections that are lingering pre-handshake.
 	// If all slots are taken, no further connections are accepted.
-	tokens := maxAcceptConns
+	tokens := srv.MaxAcceptConns
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}
@@ -676,7 +717,17 @@ func (srv *Server) listenLoop() {
 		// Reject connections that do not match NetRestrict.
 		if srv.NetRestrict != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && !srv.NetRestrict.Contains(tcp.IP) {
-				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr())
+				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr(), "transport", "tcp")
+				fd.Close()
+				slots <- struct{}{}
+				continue
+			}
+		}
+
+		// Reject connections that match Blacklist.
+		if srv.Blacklist != nil {
+			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
+				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue

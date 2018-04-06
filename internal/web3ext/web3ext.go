@@ -159,6 +159,20 @@ web3._extend({
 			name: 'stopWS',
 			call: 'admin_stopWS'
 		}),
+		new web3._extend.Method({
+			name: 'logrotate',
+			call: 'admin_logrotate'
+		}),
+		new web3._extend.Method({
+			name: 'setDialFreq',
+			call: 'admin_setDialFreq',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'addBlackList',
+			call: 'admin_addBlacklist',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -172,6 +186,18 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'datadir',
 			getter: 'admin_datadir'
+		}),
+		new web3._extend.Property({
+			name: 'dialFreq',
+			getter: 'admin_dialFreq'
+		}),
+		new web3._extend.Property({
+			name: 'blacklist',
+			getter: 'admin_blacklist'
+		}),
+		new web3._extend.Property({
+			name: 'peerList',
+			getter: 'admin_peerList'
 		}),
 	]
 });

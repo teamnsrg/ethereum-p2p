@@ -19,14 +19,18 @@ package node
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rpc"
 )
 
@@ -40,6 +44,109 @@ type PrivateAdminAPI struct {
 // of the node itself.
 func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 	return &PrivateAdminAPI{node: node}
+}
+
+func (api *PrivateAdminAPI) Logrotate() error {
+	var (
+		datadir = api.node.DataDir()
+		glogger = log.Root().GetGlogger()
+	)
+	if api.node.config.LogToFile {
+		glogger.SetHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+	}
+	log.Root().SetHandler(log.MultiHandler(
+		// default logging for any lvl <= verbosity
+		glogger,
+	))
+	return nil
+}
+
+func (api *PrivateAdminAPI) DialFreq() (int, error) {
+	return int(api.node.Server().GetDialstate().GetDialFreq().Seconds()), nil
+}
+
+func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
+	server := api.node.Server()
+	server.DialFreq = dialFreq
+	server.GetDialstate().SetDialFreq(dialFreq)
+	return nil
+}
+
+func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
+	blacklist := api.node.Server().GetDialstate().GetBlacklist()
+	if blacklist != nil {
+		return blacklist.MarshalTOML(), nil
+	}
+	return []string{}, nil
+}
+
+func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
+	server := api.node.Server()
+	if server.Blacklist == nil {
+		if list, err := netutil.ParseNetlist(cidrs); err != nil {
+			return err
+		} else {
+			server.Blacklist = list
+			server.GetDialstate().SetBlacklist(list)
+		}
+	} else {
+		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
+		masks := strings.Split(ws.Replace(cidrs), ",")
+		for _, mask := range masks {
+			server.Blacklist.AddNonDuplicate(mask)
+		}
+	}
+	return nil
+}
+
+// PeersList retrieves all the information we know about each individual peer at the
+// protocol granularity in bsv.
+func (api *PublicAdminAPI) PeerList() (string, error) {
+	server := api.node.Server()
+	if server == nil {
+		return "", ErrNodeStopped
+	}
+	var peerList []string
+	for _, info := range server.PeersInfo() {
+		id := info.ID
+		name := server.StrReplacer.Replace(info.Name)
+		capsArray := make([]string, len(info.Caps))
+		copy(capsArray, info.Caps)
+		sort.Strings(capsArray)
+		caps := strings.Join(capsArray, ",")
+		caps = server.StrReplacer.Replace(caps)
+		localAddr := info.Network.LocalAddress
+		remoteAddr := info.Network.RemoteAddress
+		rtt := info.Rtt
+		duration := info.Duration
+		p2pInfoStr := fmt.Sprintf("%v|%v|%v|%v|%v|%v|%v", id, remoteAddr, localAddr, rtt, duration, name, caps)
+		var ethInfoStr string
+		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
+			r := reflect.ValueOf(ethInfo)
+			switch r.Kind() {
+			case reflect.String:
+				continue
+			default:
+				v := r.Elem()
+				for i := 0; i < v.NumField(); i++ {
+					elem := v.Field(i)
+					switch elem.Kind() {
+					case reflect.Ptr:
+						ptrV := elem.Elem()
+						if ptrV.IsValid() {
+							ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+						}
+					case reflect.Int, reflect.String:
+						ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+					default:
+						continue
+					}
+				}
+			}
+		}
+		peerList = append(peerList, fmt.Sprintf("%s%s", p2pInfoStr, ethInfoStr))
+	}
+	return strings.Join(peerList, "\n"), nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new

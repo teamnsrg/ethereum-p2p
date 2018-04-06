@@ -52,6 +52,12 @@ var (
 	app = utils.NewApp(gitCommit, "the go-ethereum command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
+		utils.MaxAcceptConnsFlag,
+		utils.MaxNumFileFlag,
+		utils.BlacklistFlag,
+		utils.DialFreqFlag,
+		utils.MySQLFlag,
+		utils.LogToFileFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,
@@ -176,8 +182,27 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		if err := debug.Setup(ctx); err != nil {
+		var isCommand bool
+		name := ctx.Args().First()
+		for _, command := range app.Commands {
+			if name == command.Name {
+				isCommand = true
+				break
+			}
+		}
+		var glogger *log.GlogHandler
+		datadir := ctx.GlobalString(utils.DataDirFlag.Name)
+		if !isCommand && ctx.GlobalBool(utils.LogToFileFlag.Name) {
+			glogger = log.NewGlogHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+		}
+		if gl, err := debug.Setup(glogger, ctx); err != nil {
 			return err
+		} else {
+			log.Root().SetHandler(log.MultiHandler(
+				// default logging for any lvl <= verbosity
+				gl,
+			))
+			log.Root().SetGlogger(gl)
 		}
 		// Start system runtime metrics collection
 		go metrics.CollectProcessMetrics(3 * time.Second)

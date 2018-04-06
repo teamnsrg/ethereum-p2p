@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -408,10 +409,12 @@ func (rw *protoRW) ReadMsg() (Msg, error) {
 // peer. Sub-protocol independent fields are contained and initialized here, with
 // protocol specifics delegated to all connected sub-protocols.
 type PeerInfo struct {
-	ID      string   `json:"id"`   // Unique node identifier (also the encryption key)
-	Name    string   `json:"name"` // Name of the node, including client type, version, OS, custom data
-	Caps    []string `json:"caps"` // Sum-protocols advertised by this particular peer
-	Network struct {
+	ID       string   `json:"id"`   // Unique node identifier (also the encryption key)
+	Name     string   `json:"name"` // Name of the node, including client type, version, OS, custom data
+	Caps     []string `json:"caps"` // Sum-protocols advertised by this particular peer
+	Rtt      float64  `json:"rtt"`
+	Duration float64  `json:"duration"`
+	Network  struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
@@ -430,6 +433,7 @@ func (p *Peer) Info() *PeerInfo {
 		ID:        p.ID().String(),
 		Name:      p.Name(),
 		Caps:      caps,
+		Rtt:       p.Srtt(),
 		Protocols: make(map[string]interface{}),
 	}
 	info.Network.LocalAddress = p.LocalAddr().String()
@@ -447,5 +451,7 @@ func (p *Peer) Info() *PeerInfo {
 		}
 		info.Protocols[proto.Name] = protoInfo
 	}
+	d := common.PrettyDuration(mclock.Now() - p.created)
+	info.Duration = time.Duration(d).Seconds()
 	return info
 }
