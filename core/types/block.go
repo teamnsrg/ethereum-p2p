@@ -399,6 +399,18 @@ Uncles:
 	return str
 }
 
+func (b *Block) LogString() string {
+	enc, _ := rlp.EncodeToBytes(extblock{
+		Header: b.header,
+		Txs:    b.transactions,
+		Uncles: b.uncles,
+	})
+	return fmt.Sprintf("Hash:%x Number:%s Timestamp:%s "+
+		"ParentHash:%x Sha3Uncles:%x Miner:%x Size:%d ExtraData:%x Encoded:%x",
+		b.Hash(), b.Number().String(), b.Time().String(), b.ParentHash(), b.UncleHash(), b.Coinbase(),
+		b.Size().Int64(), b.Extra(), enc)
+}
+
 func (h *Header) String() string {
 	return fmt.Sprintf(`Header(%x):
 [

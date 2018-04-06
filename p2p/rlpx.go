@@ -32,6 +32,7 @@ import (
 	"io/ioutil"
 	mrand "math/rand"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -88,6 +89,10 @@ func newRLPX(fd net.Conn) transport {
 	return &rlpx{fd: fd}
 }
 
+func (t *rlpx) Rtt() float64 {
+	return t.rw.rtt
+}
+
 func (t *rlpx) ReadMsg() (Msg, error) {
 	t.rmu.Lock()
 	defer t.rmu.Unlock()
@@ -119,33 +124,33 @@ func (t *rlpx) close(err error) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, msg Msg, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
-	if their, err = readProtocolHandshake(t.rw, our); err != nil {
+	if their, msg, err = readProtocolHandshake(t.rw, our); err != nil {
 		<-werr // make sure the write terminates too
-		return nil, err
+		return nil, msg, err
 	}
 	if err := <-werr; err != nil {
-		return nil, fmt.Errorf("write error: %v", err)
+		return nil, msg, fmt.Errorf("write error: %v", err)
 	}
 	// If the protocol version supports Snappy encoding, upgrade immediately
 	t.rw.snappy = their.Version >= snappyProtocolVersion
 
-	return their, nil
+	return their, msg, nil
 }
 
-func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, error) {
+func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, Msg, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
-		return nil, err
+		return nil, msg, err
 	}
 	if msg.Size > baseProtocolMaxMsgSize {
-		return nil, fmt.Errorf("message too big")
+		return nil, msg, fmt.Errorf("message too big")
 	}
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
@@ -154,19 +159,19 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		rlp.Decode(msg.Payload, &reason)
-		return nil, reason[0]
+		return nil, msg, reason[0]
 	}
 	if msg.Code != handshakeMsg {
-		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
+		return nil, msg, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		return nil, err
+		return nil, msg, err
 	}
 	if (hs.ID == discover.NodeID{}) {
-		return nil, DiscInvalidIdentity
+		return nil, msg, DiscInvalidIdentity
 	}
-	return &hs, nil
+	return &hs, msg, nil
 }
 
 func (t *rlpx) doEncHandshake(prv *ecdsa.PrivateKey, dial *discover.Node) (discover.NodeID, error) {
@@ -566,6 +571,8 @@ type rlpxFrameRW struct {
 	egressMAC  hash.Hash
 	ingressMAC hash.Hash
 
+	rtt float64 // most recent rtt recorded when receiving messages
+
 	snappy bool
 }
 
@@ -690,6 +697,13 @@ func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
 	}
 	msg.Size = uint32(content.Len())
 	msg.Payload = content
+
+	msg.ReceivedAt = time.Now()
+	// get the most recent rtt and duration of the peer
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		rw.updateRtt()
+		msg.PeerRtt = rw.rtt
+	}
 
 	// if snappy is enabled, verify and decompress message
 	if rw.snappy {

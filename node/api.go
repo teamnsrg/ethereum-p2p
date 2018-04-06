@@ -53,11 +53,26 @@ func (api *PrivateAdminAPI) Logrotate() error {
 	)
 	if api.node.config.LogToFile {
 		glogger.SetHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+		log.Root().SetHandler(log.MultiHandler(
+			// default logging for any lvl <= verbosity
+			glogger,
+			// lvl specific logging
+			log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlTxData, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlTxRx, datadir),
+			//log.LvlMatchFilterFileHandler(log.LvlTxTx, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlNewBlockData, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, datadir),
+			//log.LvlMatchFilterFileHandler(log.LvlNewBlockTx, datadir),
+			log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesRx, datadir),
+			//log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesTx, datadir),
+		))
 	}
-	log.Root().SetHandler(log.MultiHandler(
-		// default logging for any lvl <= verbosity
-		glogger,
-	))
 	return nil
 }
 

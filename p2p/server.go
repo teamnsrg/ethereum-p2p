@@ -216,12 +216,14 @@ type conn struct {
 	id    discover.NodeID // valid after the encryption handshake
 	caps  []Cap           // valid after the protocol handshake
 	name  string          // valid after the protocol handshake
+	rtt   float64         // most recent rtt recorded when receiving messages
 }
 
 type transport interface {
+	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -779,9 +781,13 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, msg, err := c.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
+		if r, ok := err.(DiscReason); ok {
+			unixTime := float64(msg.ReceivedAt.UnixNano()) / 1000000000
+			clog.DiscProto(fmt.Sprintf("%f", unixTime), "rtt", msg.PeerRtt, "reason", r)
+		}
 		c.close(err)
 		return
 	}
