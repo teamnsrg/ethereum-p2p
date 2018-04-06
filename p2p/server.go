@@ -416,7 +416,7 @@ func (srv *Server) Start() (err error) {
 	// add bootnodes to static
 	srv.StaticNodes = append(srv.StaticNodes, srv.BootstrapNodes...)
 
-	srv.KnownNodeInfos = &KnownNodeInfos{infos: make(map[discover.NodeID]*Info)}
+	srv.KnownNodeInfos = NewKnownNodeInfos()
 
 	// initiate sql connection and prepare statements
 	if err := srv.initSql(); err != nil {

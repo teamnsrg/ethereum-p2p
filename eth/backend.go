@@ -385,21 +385,10 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 			maxPeers = srvr.MaxPeers / 2
 		}
 	}
-
-	// Set NodeEthInfo channel
-	s.protocolManager.ethInfoChan = srvr.EthInfoChan
-
-	// initiate string replacer
-	s.protocolManager.strReplacer = srvr.StrReplacer
-
-	// Set knownNodeInfos
-	s.protocolManager.knownNodeInfos = srvr.KnownNodeInfos
-
-	// Set flag to ignore maxPeers
-	s.protocolManager.noMaxPeers = srvr.NoMaxPeers
+	s.protocolManager.maxPeers = maxPeers
 
 	// Start the networking layer and the light server if requested
-	s.protocolManager.Start(maxPeers)
+	s.protocolManager.Start(srvr)
 	if s.lesServer != nil {
 		s.lesServer.Start(srvr)
 	}

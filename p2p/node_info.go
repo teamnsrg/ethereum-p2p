@@ -181,6 +181,10 @@ func (k *KnownNodeInfos) Unlock() {
 	k.mux.Unlock()
 }
 
+func NewKnownNodeInfos() *KnownNodeInfos {
+	return &KnownNodeInfos{infos: make(map[discover.NodeID]*Info)}
+}
+
 func (k *KnownNodeInfos) Infos() map[discover.NodeID]*Info {
 	return k.infos
 }

@@ -71,7 +71,6 @@ type ProtocolManager struct {
 
 	SubProtocols []p2p.Protocol
 
-	// channels for fetcher, syncer, txsyncLoop
 	newPeerCh   chan *peer
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
@@ -162,11 +161,33 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int) {
-	pm.maxPeers = maxPeers
+func (pm *ProtocolManager) Start(srvr *p2p.Server) {
+	// Set NodeEthInfo channel
+	pm.ethInfoChan = srvr.EthInfoChan
 
-	// start sync handlers
-	go pm.syncer()
+	// initiate string replacer
+	pm.strReplacer = srvr.StrReplacer
+
+	// Set knownNodeInfos
+	pm.knownNodeInfos = srvr.KnownNodeInfos
+	if pm.knownNodeInfos == nil {
+		pm.knownNodeInfos = p2p.NewKnownNodeInfos()
+	}
+
+	// Set flag to ignore maxPeers
+	pm.noMaxPeers = srvr.NoMaxPeers
+
+	// loop to avoid accepting new peers when stopping Ethereum protocol
+	go func() {
+		for {
+			select {
+			case <-pm.newPeerCh:
+				continue
+			case <-pm.noMorePeers:
+				return
+			}
+		}
+	}()
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -209,7 +230,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	// Execute the Ethereum handshake
 	var statusWrapper statusDataWrapper
 	td, head, genesis := pm.blockchain.Status()
-
 	if err := p.Handshake(pm.networkId, td, head, genesis, &statusWrapper); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch
