@@ -480,7 +480,7 @@ func testDAOChallenge(t *testing.T, localForked, remoteForked bool, timeout bool
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
-	pm.Start(1000)
+	pm.Start()
 	defer pm.Stop()
 
 	// Connect a new peer and check that we receive the DAO challenge
