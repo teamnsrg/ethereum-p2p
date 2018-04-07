@@ -158,12 +158,12 @@ func (s *dialstate) removeStatic(n *discover.Node) {
 	delete(s.static, n.ID)
 }
 
-func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now time.Time) ([]task, bool) {
 	if s.start == (time.Time{}) {
 		s.start = now
 	}
 
-	var newtasks []task
+	var newDynDialTasks []task
 	addDial := func(flag connFlag, n *discover.Node) bool {
 		if err := s.checkDial(n, peers); err != nil {
 			log.Trace("Skipping dial candidate", "id", n.ID, "addr", &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, "err", err)
@@ -174,7 +174,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 		}
 		s.dialing[n.ID] = flag
 		ctx, cancel := context.WithCancel(context.Background())
-		newtasks = append(newtasks, &dialTask{ctx: ctx, cancel: cancel, flags: flag, dest: n})
+		newDynDialTasks = append(newDynDialTasks, &dialTask{ctx: ctx, cancel: cancel, flags: flag, dest: n})
 		return true
 	}
 
@@ -215,20 +215,19 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	}
 	s.lookupBuf = s.lookupBuf[:copy(s.lookupBuf, s.lookupBuf[i:])]
 	// Launch a discovery lookup if more candidates are needed.
-	if len(s.lookupBuf) < needDynDials && !s.lookupRunning {
-		s.lookupRunning = true
-		newtasks = append(newtasks, &discoverTask{})
-	}
+	needDiscoverTask := len(s.lookupBuf) < needDynDials && !s.lookupRunning
+	s.lookupRunning = s.lookupRunning || needDiscoverTask
 
 	// Launch a timer to wait for the next node to expire if all
 	// candidates have been tried and no task is currently active.
 	// This should prevent cases where the dialer logic is not ticked
 	// because there are no pending events.
-	if nRunning == 0 && len(newtasks) == 0 && s.hist.Len() > 0 {
+	if nRunning == 0 && len(newDynDialTasks) == 0 && !needDiscoverTask && s.hist.Len() > 0 {
 		t := &waitExpireTask{s.hist.min().exp.Sub(now)}
-		newtasks = append(newtasks, t)
+		newDynDialTasks = append(newDynDialTasks, t)
 	}
-	return newtasks
+
+	return newDynDialTasks, needDiscoverTask
 }
 
 func (s *dialstate) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {

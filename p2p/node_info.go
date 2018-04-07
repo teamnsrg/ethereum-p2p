@@ -206,7 +206,10 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 	// otherwise, remotePort is the listening port
 	if c.isInbound() {
 		if tcpPort == 0 {
-			newNode := srv.ntab.Resolve(c.id)
+			var newNode *discover.Node
+			if srv.ntab != nil {
+				newNode = srv.ntab.Resolve(c.id)
+			}
 			// if the node address is resolved, set the tcpPort
 			// otherwise, leave it as 0
 			if newNode != nil {

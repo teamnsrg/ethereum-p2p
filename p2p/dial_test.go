@@ -77,7 +77,11 @@ func runDialTest(t *testing.T, test dialtest) {
 			}
 		} else {
 			expected = round.new
-			result = test.init.newTasks(running, pm(round.peers), vtime)
+			var needDiscoverTask bool
+			result, needDiscoverTask = test.init.newTasks(running, pm(round.peers), vtime)
+			if needDiscoverTask {
+				result = append(result, &discoverTask{})
+			}
 			// we don't need dial context for test cases
 			for _, t := range result {
 				if r, ok := t.(*dialTask); ok {
