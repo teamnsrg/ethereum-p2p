@@ -167,16 +167,15 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
-	neighborChan chan<- []interface{}
-	blacklist    *netutil.Netlist
-
 	conn        conn
 	netrestrict *netutil.Netlist
+	blacklist   *netutil.Netlist
 	priv        *ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
 
-	addpending chan *pending
-	gotreply   chan reply
+	neighborChan chan<- []interface{}
+	addpending   chan *pending
+	gotreply     chan reply
 
 	closing chan struct{}
 	nat     nat.Interface

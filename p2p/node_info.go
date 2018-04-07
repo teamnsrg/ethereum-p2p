@@ -251,7 +251,7 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	newInfo, dial, accept := srv.getNodeAddress(c, &msg.ReceivedAt)
 	id := hs.ID
 	nodeid := id.String()
-	if srv.p2pInfoChan != nil {
+	if srv.metaInfoChan != nil {
 		srv.queueNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
 	}
 

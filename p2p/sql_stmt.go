@@ -294,7 +294,22 @@ func (srv *Server) createTables() error {
 	return nil
 }
 
-func (srv *Server) CloseSql() {
+func (srv *Server) closeSql() {
+	// make sure all sql related channels are closed
+	// so that the dbPushLoop properly quits
+	if srv.NeighborChan != nil {
+		close(srv.NeighborChan)
+	}
+	if srv.metaInfoChan != nil {
+		close(srv.metaInfoChan)
+	}
+	if srv.p2pInfoChan != nil {
+		close(srv.p2pInfoChan)
+	}
+	if srv.EthInfoChan != nil {
+		close(srv.EthInfoChan)
+	}
+
 	if srv.db == nil {
 		return
 	}
@@ -474,20 +489,21 @@ func (srv *Server) loadKnownNodeInfos() error {
 
 func (srv *Server) dbPushLoop() {
 	defer srv.loopWG.Done()
+	log.Sql("Starting database update push loop")
 	srv.pushTicker = mticker.NewMutableTicker(time.Duration(srv.PushFreq) * time.Second)
 	defer srv.pushTicker.Stop()
 	for {
 		select {
 		case <-srv.pushTicker.C:
 			// insert all pending info
-			log.Sql("Pushing updates to database")
+			log.Sql("Pushing all pending updates to database")
 			go srv.addNeighbors()
 			go srv.addNodeMetaInfos()
 			go srv.addNodeP2PInfos()
 			go srv.addNodeEthInfos()
 		case info, ok := <-srv.NeighborChan:
 			if !ok {
-				log.Sql("UDP listener stopped. Pushing Neighbors updates")
+				log.Sql("UDP listener stopped. Pushing all pending Neighbors updates")
 				go srv.addNeighbors()
 				srv.NeighborChan = nil
 			} else if len(info) != neighborInfoSqlString.NumValues {
@@ -497,7 +513,7 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.metaInfoChan:
 			if !ok {
-				log.Sql("P2P networking stopped. Pushing NodeMetaInfo updates")
+				log.Sql("P2P networking stopped. Pushing all pending NodeMetaInfo updates")
 				go srv.addNodeMetaInfos()
 				srv.metaInfoChan = nil
 			} else if len(info) != metaInfoSqlString.NumValues {
@@ -507,7 +523,7 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.p2pInfoChan:
 			if !ok {
-				log.Sql("P2P networking stopped. Pushing NodeP2PInfo updates")
+				log.Sql("P2P networking stopped. Pushing all pending NodeP2PInfo updates")
 				go srv.addNodeP2PInfos()
 				srv.p2pInfoChan = nil
 			} else if len(info) != p2pInfoSqlString.NumValues {
@@ -517,7 +533,7 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.EthInfoChan:
 			if !ok {
-				log.Sql("Ethereum protocol stopped. Pushing NodeEthInfo updates")
+				log.Sql("Ethereum protocol stopped. Pushing all pending NodeEthInfo updates")
 				go srv.addNodeEthInfos()
 				srv.EthInfoChan = nil
 			} else if len(info) != ethInfoSqlString.NumValues {
@@ -527,6 +543,7 @@ func (srv *Server) dbPushLoop() {
 			}
 		}
 		if srv.NeighborChan == nil && srv.metaInfoChan == nil && srv.p2pInfoChan == nil && srv.EthInfoChan == nil {
+			log.Sql("Stopping database update push loop")
 			return
 		}
 	}
