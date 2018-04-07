@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -362,14 +363,14 @@ func (srv *Server) loadKnownNodeInfos() error {
 	defer rows.Close()
 
 	type sqlObjects struct {
-		p2pVersion      sql.NullInt64
+		p2pVersion      sql.NullString
 		clientId        sql.NullString
 		caps            sql.NullString
 		listenPort      sql.NullInt64
 		firstHelloAt    sql.NullFloat64
 		lastHelloAt     sql.NullFloat64
-		protocolVersion sql.NullInt64
-		networkId       sql.NullInt64
+		protocolVersion sql.NullString
+		networkId       sql.NullString
 		firstReceivedTd sql.NullString
 		lastReceivedTd  sql.NullString
 		bestHash        sql.NullString
@@ -410,7 +411,12 @@ func (srv *Server) loadKnownNodeInfos() error {
 			RemotePort:    remotePort,
 		}
 		if sqlObj.p2pVersion.Valid {
-			nodeInfo.P2PVersion = uint64(sqlObj.p2pVersion.Int64)
+			s := sqlObj.p2pVersion.String
+			nodeInfo.P2PVersion, err = strconv.ParseUint(s, 10, 64)
+			if err != nil {
+				log.Sql("Failed to parse p2p_version from db", "value", s, "err", err)
+				continue
+			}
 		}
 		if sqlObj.clientId.Valid {
 			nodeInfo.ClientId = sqlObj.clientId.String
@@ -432,10 +438,20 @@ func (srv *Server) loadKnownNodeInfos() error {
 			nodeInfo.LastHelloAt = &UnixTime{Time: &t}
 		}
 		if sqlObj.protocolVersion.Valid {
-			nodeInfo.ProtocolVersion = uint64(sqlObj.protocolVersion.Int64)
+			s := sqlObj.protocolVersion.String
+			nodeInfo.ProtocolVersion, err = strconv.ParseUint(s, 10, 64)
+			if err != nil {
+				log.Sql("Failed to parse protocol_version from db", "value", s, "err", err)
+				continue
+			}
 		}
 		if sqlObj.networkId.Valid {
-			nodeInfo.NetworkId = uint64(sqlObj.networkId.Int64)
+			s := sqlObj.networkId.String
+			nodeInfo.NetworkId, err = strconv.ParseUint(s, 10, 64)
+			if err != nil {
+				log.Sql("Failed to parse network_id from db", "value", s, "err", err)
+				continue
+			}
 		}
 		if sqlObj.firstReceivedTd.Valid {
 			firstReceivedTd := &big.Int{}
