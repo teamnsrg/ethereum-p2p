@@ -556,6 +556,7 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 			log.Neighbors(currentTime, connInfoCtx, &n)
 		}
 		if t.neighborChan != nil {
+			log.Sql("Queueing Neighbors", connInfoCtx...)
 			t.queueNeighbors(neighbors, currentTime)
 		}
 	}

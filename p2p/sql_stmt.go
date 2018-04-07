@@ -379,9 +379,6 @@ func (srv *Server) loadKnownNodeInfos() error {
 		lastStatusAt    sql.NullFloat64
 	}
 
-	srv.KnownNodeInfos.Lock()
-	defer srv.KnownNodeInfos.Unlock()
-
 	for rows.Next() {
 		var (
 			nodeid     string
@@ -479,7 +476,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 		if sqlObj.daoForkSupport.Valid {
 			nodeInfo.DAOForkSupport = int8(sqlObj.daoForkSupport.Int64)
 		}
-		srv.KnownNodeInfos.Infos()[id] = nodeInfo
+		srv.KnownNodeInfos.AddInfo(id, nodeInfo)
 
 		// add the node to the initial static node list
 		srv.addInitialStatic(id, nodeInfo)
@@ -661,8 +658,7 @@ func (srv *Server) addNodeEthInfos() {
 	}
 }
 
-func (srv *Server) queueNodeMetaInfo(nodeid string, hash string, dial bool, accept bool, tooManyPeers bool) {
-	log.Sql("Queueing NodeMetaInfo")
+func (srv *Server) queueNodeMetaInfo(id discover.NodeID, hash string, dial bool, accept bool, tooManyPeers bool) {
 	p2pDisc4, ethDisc4 := false, false
 	if tooManyPeers {
 		if dial || accept {
@@ -672,19 +668,16 @@ func (srv *Server) queueNodeMetaInfo(nodeid string, hash string, dial bool, acce
 		}
 	}
 	srv.metaInfoChan <- []interface{}{
-		nodeid, hash,
+		id.String(), hash,
 		boolToInt(dial), boolToInt(accept),
 		boolToInt(p2pDisc4), boolToInt(ethDisc4),
 	}
 }
 
-func (srv *Server) queueNodeP2PInfo(newInfoWrapper *KnownNodeInfosWrapper) {
-	log.Sql("Queueing NodeP2PInfo")
-	nodeid := newInfoWrapper.NodeId
-	newInfo := newInfoWrapper.Info
+func (srv *Server) queueNodeP2PInfo(id discover.NodeID, newInfo *Info) {
 	lastHelloAt := newInfo.LastHelloAt.Float64()
 	srv.p2pInfoChan <- []interface{}{
-		nodeid, newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
+		id.String(), newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort,
 		lastHelloAt, lastHelloAt,
 	}

@@ -4,11 +4,9 @@ import (
 	"time"
 
 	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/log"
 )
 
 func (t *udp) queueNeighbors(neighbors []rpcNode, currentTime time.Time) {
-	log.Sql("Queueing Neighbors")
 	unixTime := float64(currentTime.UnixNano()) / 1e9
 	for _, n := range neighbors {
 		t.neighborChan <- []interface{}{

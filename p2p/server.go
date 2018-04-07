@@ -30,6 +30,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/common/mticker"
+	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
@@ -713,9 +714,18 @@ running:
 			if pd.requested {
 				if r, ok := pd.err.(DiscReason); ok && r == DiscTooManyPeers {
 					id := pd.ID()
-					nodeInfo := srv.KnownNodeInfos.Infos()[id]
+					var hash string
+					nodeInfo := srv.KnownNodeInfos.GetInfo(id)
+					if nodeInfo != nil {
+						nodeInfo.RLock()
+						hash = nodeInfo.Keccak256Hash
+						nodeInfo.RUnlock()
+					} else {
+						hash = crypto.Keccak256Hash(id[:]).String()[2:]
+					}
 					if srv.metaInfoChan != nil {
-						srv.queueNodeMetaInfo(id.String(), nodeInfo.Keccak256Hash, false, false, true)
+						log.Sql("Queueing NodeMetaInfo", pd.ConnInfoCtx()...)
+						srv.queueNodeMetaInfo(id, hash, false, false, true)
 					}
 				}
 			}
@@ -915,15 +925,15 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
-			nodeid := c.id.String()
 			log.DiscProto(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, r.String())
 			if r == DiscTooManyPeers {
-				nodeInfo, dial, accept := srv.getNodeAddress(c, nil)
-				if nodeInfo.TCPPort != 0 {
-					srv.addNewStatic(c.id, nodeInfo)
+				newInfo, dial, accept := srv.getNodeAddress(c, nil)
+				if newInfo.TCPPort != 0 {
+					srv.addNewStatic(c.id, newInfo)
 				}
 				if srv.metaInfoChan != nil {
-					srv.queueNodeMetaInfo(nodeid, nodeInfo.Keccak256Hash, dial, accept, true)
+					log.Sql("Queueing NodeMetaInfo", c.connInfoCtx...)
+					srv.queueNodeMetaInfo(c.id, newInfo.Keccak256Hash, dial, accept, true)
 				}
 			}
 		}

@@ -55,7 +55,7 @@ func (td *Td) String() string {
 
 // Info represents a short summary of the information known about a known node.
 type Info struct {
-	mux sync.RWMutex
+	sync.RWMutex
 
 	Keccak256Hash string `json:"keccak256Hash"` // Keccak256 hash of node ID
 	IP            string `json:"ip"`            // IP address of the node
@@ -152,33 +152,9 @@ func (k *Info) MarshalJSON() ([]byte, error) {
 	return json.Marshal(temp)
 }
 
-func (k *Info) Lock() {
-	k.mux.Lock()
-}
-
-func (k *Info) Unlock() {
-	k.mux.Unlock()
-}
-
-func (k *Info) RLock() {
-	k.mux.RLock()
-}
-
-func (k *Info) RUnlock() {
-	k.mux.RUnlock()
-}
-
 type KnownNodeInfos struct {
-	mux   sync.Mutex
+	sync.RWMutex
 	infos map[discover.NodeID]*Info
-}
-
-func (k *KnownNodeInfos) Lock() {
-	k.mux.Lock()
-}
-
-func (k *KnownNodeInfos) Unlock() {
-	k.mux.Unlock()
 }
 
 func NewKnownNodeInfos() *KnownNodeInfos {
@@ -186,7 +162,21 @@ func NewKnownNodeInfos() *KnownNodeInfos {
 }
 
 func (k *KnownNodeInfos) Infos() map[discover.NodeID]*Info {
+	k.RLock()
+	defer k.RUnlock()
 	return k.infos
+}
+
+func (k *KnownNodeInfos) GetInfo(id discover.NodeID) *Info {
+	k.RLock()
+	defer k.RUnlock()
+	return k.infos[id]
+}
+
+func (k *KnownNodeInfos) AddInfo(id discover.NodeID, newInfo *Info) {
+	k.Lock()
+	defer k.Unlock()
+	k.infos[id] = newInfo
 }
 
 func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, bool) {
@@ -201,9 +191,7 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 		remoteIP = remoteAddr.IP.String()
 		remotePort = uint16(remoteAddr.Port)
 	}
-	srv.KnownNodeInfos.Lock()
-	oldNodeInfo := srv.KnownNodeInfos.Infos()[c.id]
-	srv.KnownNodeInfos.Unlock()
+	oldNodeInfo := srv.KnownNodeInfos.GetInfo(c.id)
 
 	var hash string
 	if oldNodeInfo != nil {
@@ -247,12 +235,13 @@ func (srv *Server) getNodeAddress(c *conn, receivedAt *time.Time) (*Info, bool, 
 }
 
 func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
+	connInfoCtx := c.connInfoCtx
 	// node address currentInfo
 	newInfo, dial, accept := srv.getNodeAddress(c, &msg.ReceivedAt)
-	id := hs.ID
-	nodeid := id.String()
+	id := c.id
 	if srv.metaInfoChan != nil {
-		srv.queueNodeMetaInfo(nodeid, newInfo.Keccak256Hash, dial, accept, false)
+		log.Sql("Queueing NodeMetaInfo", connInfoCtx...)
+		srv.queueNodeMetaInfo(id, newInfo.Keccak256Hash, dial, accept, false)
 	}
 
 	// DEVp2p Hello
@@ -277,38 +266,41 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	newInfo.Caps = caps
 	newInfo.ListenPort = listenPort
 
-	srv.KnownNodeInfos.Lock()
-	if currentInfo, ok := srv.KnownNodeInfos.Infos()[id]; !ok {
+	newInfo.RLock()
+	defer newInfo.RUnlock()
+
+	currentInfo := srv.KnownNodeInfos.GetInfo(id)
+	if currentInfo == nil {
 		// add the new node as a static node
 		srv.addNewStatic(id, newInfo)
 
 		// add new node info to in-memory
-		srv.KnownNodeInfos.Infos()[id] = newInfo
+
+		srv.KnownNodeInfos.AddInfo(id, newInfo)
 	} else {
 		currentInfo.Lock()
+		defer currentInfo.Unlock()
 		if isNewNode(currentInfo, newInfo) {
 			// if the node's listening port changed
 			// add it as a static node
 			if currentInfo.TCPPort != newInfo.TCPPort {
 				srv.addNewStatic(id, newInfo)
 			}
-
 			// replace the current info with new info, setting all fields related to Ethereum Status to null
-			srv.KnownNodeInfos.Infos()[id] = newInfo
+			srv.KnownNodeInfos.AddInfo(id, newInfo)
 		} else {
 			currentInfo.LastHelloAt = newInfo.LastHelloAt
 			currentInfo.RemotePort = newInfo.RemotePort
 			newInfo = currentInfo
 		}
-		currentInfo.Unlock()
 	}
-	srv.KnownNodeInfos.Unlock()
 
-	log.Hello(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, newInfo.Hello())
+	log.Hello(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, newInfo.Hello())
 
 	// update or add a new entry to node_p2p_info
 	if srv.p2pInfoChan != nil {
-		srv.queueNodeP2PInfo(&KnownNodeInfosWrapper{nodeid, newInfo})
+		log.Sql("Queueing NodeP2PInfo", connInfoCtx...)
+		srv.queueNodeP2PInfo(id, newInfo)
 	}
 }
 
@@ -356,36 +348,4 @@ func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
 			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
 		}
 	}
-}
-
-type KnownNodeInfosWrapper struct {
-	NodeId string `json:"nodeId"` // Unique node identifier (also the encryption key)
-	Info   *Info  `json:"info"`
-}
-
-func (k *KnownNodeInfosWrapper) String() string {
-	return fmt.Sprintf("ID:%s %v", k.NodeId, k.Info)
-}
-
-// NodeInfo gathers and returns a collection of metadata known about the host.
-func (srv *Server) KnownNodes() []*KnownNodeInfosWrapper {
-	srv.KnownNodeInfos.Lock()
-	defer srv.KnownNodeInfos.Unlock()
-	infos := make([]*KnownNodeInfosWrapper, 0, len(srv.KnownNodeInfos.Infos()))
-	for id, info := range srv.KnownNodeInfos.Infos() {
-		nodeInfo := &KnownNodeInfosWrapper{
-			id.String(),
-			info,
-		}
-		infos = append(infos, nodeInfo)
-	}
-	// Sort the result array alphabetically by node identifier
-	for i := 0; i < len(infos); i++ {
-		for j := i + 1; j < len(infos); j++ {
-			if infos[i].NodeId > infos[j].NodeId {
-				infos[i], infos[j] = infos[j], infos[i]
-			}
-		}
-	}
-	return infos
 }

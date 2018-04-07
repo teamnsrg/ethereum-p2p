@@ -310,8 +310,19 @@ func (api *PublicAdminAPI) KnownNodes() (string, error) {
 		return "", ErrNodeStopped
 	}
 	var knownNodes []string
-	for _, n := range server.KnownNodes() {
-		knownNodes = append(knownNodes, n.String())
+	for id, info := range server.KnownNodeInfos.Infos() {
+		info.RLock()
+		defer info.RUnlock()
+		knownNodes = append(knownNodes, fmt.Sprintf("ID:%s %v", id.String(), info))
+	}
+
+	// Sort the result array alphabetically by node identifier
+	for i := 0; i < len(knownNodes); i++ {
+		for j := i + 1; j < len(knownNodes); j++ {
+			if knownNodes[i] > knownNodes[j] {
+				knownNodes[i], knownNodes[j] = knownNodes[j], knownNodes[i]
+			}
+		}
 	}
 	return strings.Join(knownNodes, "\n"), nil
 }
