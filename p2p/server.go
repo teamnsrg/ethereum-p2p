@@ -786,34 +786,6 @@ running:
 	if srv.p2pInfoChan != nil {
 		close(srv.p2pInfoChan)
 	}
-
-	// Wait for peers and tasks to shut down.
-	srv.loopWG.Add(2)
-	go func() {
-		defer srv.loopWG.Done()
-		n := len(peers)
-		for _, p := range peers {
-			<-srv.delpeer
-			n--
-			p.log.Trace("<-delpeer (spindown)", "remainingPeers", n)
-		}
-	}()
-	go func() {
-		defer srv.loopWG.Done()
-		runningTasks := append(runningStaticDial, runningDynDial...)
-		runningTasks = append(runningTasks, runningDiscover...)
-		n := len(runningTasks)
-		for _, t := range runningTasks {
-			switch t := t.(type) {
-			case *dialTask:
-				t.cancel()
-			case *discoverTask:
-				<-discoverdone
-			}
-			n--
-			log.Trace("<-taskdone (cancelled)", "task", t, "remainingTasks", n)
-		}
-	}()
 }
 
 func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
