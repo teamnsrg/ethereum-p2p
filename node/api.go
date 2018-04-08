@@ -29,7 +29,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rpc"
 )
 
@@ -73,18 +72,25 @@ func (api *PrivateAdminAPI) Logrotate() error {
 }
 
 func (api *PrivateAdminAPI) DialFreq() (int, error) {
-	return int(api.node.Server().GetDialstate().GetDialFreq().Seconds()), nil
+	return api.node.Server().DialFreq, nil
 }
 
 func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
-	server := api.node.Server()
-	server.DialFreq = dialFreq
-	server.GetDialstate().SetDialFreq(dialFreq)
+	api.node.Server().SetDialFreq(dialFreq)
+	return nil
+}
+
+func (api *PrivateAdminAPI) PushFreq() (int, error) {
+	return api.node.Server().PushFreq, nil
+}
+
+func (api *PrivateAdminAPI) SetPushFreq(pushFreq int) error {
+	api.node.Server().SetPushFreq(pushFreq)
 	return nil
 }
 
 func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
-	blacklist := api.node.Server().GetDialstate().GetBlacklist()
+	blacklist := api.node.Server().Blacklist
 	if blacklist != nil {
 		return blacklist.MarshalTOML(), nil
 	}
@@ -92,22 +98,7 @@ func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
 }
 
 func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
-	server := api.node.Server()
-	if server.Blacklist == nil {
-		if list, err := netutil.ParseNetlist(cidrs); err != nil {
-			return err
-		} else {
-			server.Blacklist = list
-			server.GetDialstate().SetBlacklist(list)
-		}
-	} else {
-		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
-		masks := strings.Split(ws.Replace(cidrs), ",")
-		for _, mask := range masks {
-			server.Blacklist.AddNonDuplicate(mask)
-		}
-	}
-	return nil
+	return api.node.Server().SetBlacklist(cidrs)
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new
@@ -319,8 +310,19 @@ func (api *PublicAdminAPI) KnownNodes() (string, error) {
 		return "", ErrNodeStopped
 	}
 	var knownNodes []string
-	for _, n := range server.KnownNodes() {
-		knownNodes = append(knownNodes, n.String())
+	for id, info := range server.KnownNodeInfos.Infos() {
+		info.RLock()
+		defer info.RUnlock()
+		knownNodes = append(knownNodes, fmt.Sprintf("ID:%s %v", id.String(), info))
+	}
+
+	// Sort the result array alphabetically by node identifier
+	for i := 0; i < len(knownNodes); i++ {
+		for j := i + 1; j < len(knownNodes); j++ {
+			if knownNodes[i] > knownNodes[j] {
+				knownNodes[i], knownNodes[j] = knownNodes[j], knownNodes[i]
+			}
+		}
 	}
 	return strings.Join(knownNodes, "\n"), nil
 }

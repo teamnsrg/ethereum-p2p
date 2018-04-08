@@ -169,7 +169,12 @@ web3._extend({
 			params: 1,
 		}),
 		new web3._extend.Method({
-			name: 'addBlackList',
+			name: 'setPushFreq',
+			call: 'admin_setPushFreq',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'addBlacklist',
 			call: 'admin_addBlacklist',
 			params: 1,
 		}),
@@ -194,6 +199,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'dialFreq',
 			getter: 'admin_dialFreq'
+		}),
+		new web3._extend.Property({
+			name: 'pushFreq',
+			getter: 'admin_pushFreq'
 		}),
 		new web3._extend.Property({
 			name: 'blacklist',

@@ -70,8 +70,8 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 	if err != nil {
 		return nil, err
 	}
-	pm.knownNodeInfos = &p2p.KnownNodeInfos{}
-	pm.Start(1000)
+	pm.maxPeers = 1000
+	pm.Start(&p2p.Server{KnownNodeInfos: p2p.NewKnownNodeInfos()})
 	return pm, nil
 }
 

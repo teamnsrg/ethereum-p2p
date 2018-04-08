@@ -12,8 +12,8 @@ import (
 )
 
 func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWrapper) {
+	connInfoCtx := p.ConnInfoCtx()
 	id := p.ID()
-	nodeid := id.String()
 	status := statusWrapper.Status
 	receivedTd := p2p.NewTd(status.TD)
 	receivedAt := &p2p.UnixTime{Time: statusWrapper.ReceivedAt}
@@ -29,19 +29,20 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 		LastStatusAt:    receivedAt,
 	}
 
-	pm.knownNodeInfos.Lock()
-	if currentInfo, ok := pm.knownNodeInfos.Infos()[id]; !ok {
+	currentInfo := pm.knownNodeInfos.GetInfo(id)
+	if currentInfo == nil {
 		if err := pm.fillP2PInfo(p, newInfo); err != nil {
-			pm.knownNodeInfos.Unlock()
-			log.Debug("Failed to fill P2P info", "err", err)
-			log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx(), statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
+			p.Log().Debug("Failed to fill P2P info", "err", err)
+			log.Status(*newInfo.LastStatusAt.Time, connInfoCtx, statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
 			return
 		}
-
+		newInfo.RLock()
+		defer newInfo.RUnlock()
 		// add new node info to in-memory
-		pm.knownNodeInfos.Infos()[id] = newInfo
+		pm.knownNodeInfos.AddInfo(id, newInfo)
 	} else {
 		currentInfo.Lock()
+		defer currentInfo.Unlock()
 		currentInfo.LastStatusAt = newInfo.LastStatusAt
 		currentInfo.LastReceivedTd = newInfo.LastReceivedTd
 		currentInfo.BestHash = newInfo.BestHash
@@ -52,16 +53,16 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 			currentInfo.NetworkId = newInfo.NetworkId
 			currentInfo.GenesisHash = newInfo.GenesisHash
 		}
-		currentInfo.Unlock()
 		newInfo = currentInfo
 	}
-	pm.knownNodeInfos.Unlock()
 
-	// update or add a new entry to node_eth_info
-	if pm.db != nil {
-		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: newInfo}, true)
+	log.Status(*newInfo.LastStatusAt.Time, connInfoCtx, statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
+
+	// queue updated/new entry to node_eth_info
+	if pm.ethInfoChan != nil {
+		log.Sql("Queueing NodeEthInfo", connInfoCtx...)
+		pm.queueNodeEthInfo(id, newInfo, true)
 	}
-	log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx(), statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
 }
 
 func (pm *ProtocolManager) fillP2PInfo(p *peer, newInfo *p2p.Info) error {
@@ -100,23 +101,32 @@ func isNewEthNode(oldInfo *p2p.Info, newInfo *p2p.Info) bool {
 }
 
 func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoForkSupport int8) {
+	connInfoCtx := p.ConnInfoCtx()
 	id := p.ID()
-	nodeid := id.String()
 
-	pm.knownNodeInfos.Lock()
-	currentInfo, ok := pm.knownNodeInfos.Infos()[id]
-	if ok {
-		currentInfo.Lock()
-		if currentInfo.DAOForkSupport == 0 || currentInfo.DAOForkSupport != daoForkSupport {
-			currentInfo.DAOForkSupport = daoForkSupport
-		}
-		currentInfo.Unlock()
+	currentInfo := pm.knownNodeInfos.GetInfo(id)
+	// missing other node information
+	// log but don't update database
+	if currentInfo == nil {
+		log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+		return
 	}
-	pm.knownNodeInfos.Unlock()
 
-	// update or add a new entry to node_eth_info
-	if pm.db != nil {
-		pm.addNodeEthInfo(&p2p.KnownNodeInfosWrapper{NodeId: nodeid, Info: currentInfo}, false)
+	currentInfo.Lock()
+	defer currentInfo.Unlock()
+	// daoForkSupport hasn't changed
+	// log but don't update database
+	if currentInfo.DAOForkSupport == daoForkSupport {
+		log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+		return
 	}
-	log.DaoFork(msg.ReceivedAt, p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+	currentInfo.DAOForkSupport = daoForkSupport
+
+	log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+
+	// queue updated/new entry to node_eth_info
+	if pm.ethInfoChan != nil {
+		log.Sql("Queueing NodeEthInfo", connInfoCtx...)
+		pm.queueNodeEthInfo(id, currentInfo, false)
+	}
 }

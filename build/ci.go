@@ -303,7 +303,7 @@ func doTest(cmdline []string) {
 	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
 
-	// Exclude packages that always fail
+	// Exclude packages
 	packages = build.FilterPackages(packages)
 
 	// Run the actual tests.

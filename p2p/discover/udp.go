@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"container/list"
 	"crypto/ecdsa"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -168,17 +167,15 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
-	sqldb           *sql.DB
-	addNeighborStmt *sql.Stmt
-	blacklist       *netutil.Netlist
-
 	conn        conn
 	netrestrict *netutil.Netlist
+	blacklist   *netutil.Netlist
 	priv        *ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
 
-	addpending chan *pending
-	gotreply   chan reply
+	neighborChan chan<- []interface{}
+	addpending   chan *pending
+	gotreply     chan reply
 
 	closing chan struct{}
 	nat     nat.Interface
@@ -224,7 +221,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, err
@@ -233,7 +230,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	if err != nil {
 		return nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, db)
+	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, neighborChan)
 	if err != nil {
 		return nil, err
 	}
@@ -241,16 +238,16 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBP
 	return tab, nil
 }
 
-func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, db *sql.DB) (*Table, *udp, error) {
+func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, *udp, error) {
 	udp := &udp{
-		sqldb:       db,
-		conn:        c,
-		priv:        priv,
-		netrestrict: netrestrict,
-		blacklist:   blacklist,
-		closing:     make(chan struct{}),
-		gotreply:    make(chan reply),
-		addpending:  make(chan *pending),
+		neighborChan: neighborChan,
+		conn:         c,
+		priv:         priv,
+		netrestrict:  netrestrict,
+		blacklist:    blacklist,
+		closing:      make(chan struct{}),
+		gotreply:     make(chan reply),
+		addpending:   make(chan *pending),
 	}
 	realaddr := c.LocalAddr().(*net.UDPAddr)
 	if natm != nil {
@@ -270,13 +267,6 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 	}
 	udp.Table = tab
 
-	// prepare sql statement
-	if udp.sqldb != nil {
-		if err := udp.prepareAddNeighborStmt(); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	go udp.loop()
 	go udp.readLoop()
 	return udp.Table, udp, nil
@@ -286,8 +276,11 @@ func (t *udp) close() {
 	close(t.closing)
 	t.conn.Close()
 
-	// close prepared sql statements
-	t.closeSqlStmts()
+	// close Neighbor channel
+	if t.neighborChan != nil {
+		close(t.neighborChan)
+	}
+
 	// TODO: wait for the loops to end.
 }
 
@@ -489,8 +482,8 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) err
 	if err != nil {
 		return err
 	}
-	_, err = t.conn.WriteToUDP(packet, toaddr)
 	currentTime := time.Now()
+	_, err = t.conn.WriteToUDP(packet, toaddr)
 	connInfoCtx := []interface{}{
 		"id", peer.String(),
 		"addr", toaddr.String(),
@@ -556,14 +549,15 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	}
 	log.MessageRx(currentTime, "<<"+packet.name(), len(buf), connInfoCtx, nil)
 	err = packet.handle(t, from, fromID, hash)
-	unixTime := float64(currentTime.UnixNano()) / 1e9
 	// if NEIGHBORS packet, add the node address info to the sql database
 	if packet.name() == "RLPX_NEIGHBORS" {
-		for _, node := range packet.(*neighbors).Nodes {
-			if t.sqldb != nil {
-				t.addNeighbor(node, unixTime)
-			}
-			log.Neighbors(currentTime, connInfoCtx, &node)
+		neighbors := packet.(*neighbors).Nodes
+		for _, n := range neighbors {
+			log.Neighbors(currentTime, connInfoCtx, &n)
+		}
+		if t.neighborChan != nil {
+			log.Sql("Queueing Neighbors", connInfoCtx...)
+			t.queueNeighbors(neighbors, currentTime)
 		}
 	}
 	return err

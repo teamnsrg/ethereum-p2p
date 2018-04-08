@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/big"
@@ -52,11 +51,10 @@ func errResp(code errCode, format string, v ...interface{}) error {
 }
 
 type ProtocolManager struct {
-	addNodeEthInfoStmt *sql.Stmt
-	knownNodeInfos     *p2p.KnownNodeInfos // information on known nodes
-	db                 *sql.DB             // mysql db handle
-	strReplacer        *strings.Replacer
-	noMaxPeers         bool // Flag whether to ignore maxPeers
+	ethInfoChan    chan<- []interface{}
+	knownNodeInfos *p2p.KnownNodeInfos // information on known nodes
+	strReplacer    *strings.Replacer
+	noMaxPeers     bool // Flag whether to ignore maxPeers
 
 	networkId uint64
 
@@ -73,7 +71,6 @@ type ProtocolManager struct {
 
 	SubProtocols []p2p.Protocol
 
-	// channels for fetcher, syncer, txsyncLoop
 	newPeerCh   chan *peer
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
@@ -164,16 +161,33 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 }
 
-func (pm *ProtocolManager) Start(maxPeers int) {
-	pm.maxPeers = maxPeers
+func (pm *ProtocolManager) Start(srvr *p2p.Server) {
+	// Set NodeEthInfo channel
+	pm.ethInfoChan = srvr.EthInfoChan
 
-	// prepare sql statements
-	if err := pm.prepareSqlStmts(); err != nil {
-		log.Crit("Failed to prepare sql statements", "err", err)
+	// initiate string replacer
+	pm.strReplacer = srvr.StrReplacer
+
+	// Set knownNodeInfos
+	pm.knownNodeInfos = srvr.KnownNodeInfos
+	if pm.knownNodeInfos == nil {
+		pm.knownNodeInfos = p2p.NewKnownNodeInfos()
 	}
 
-	// start sync handlers
-	go pm.syncer()
+	// Set flag to ignore maxPeers
+	pm.noMaxPeers = srvr.NoMaxPeers
+
+	// loop to avoid accepting new peers when stopping Ethereum protocol
+	go func() {
+		for {
+			select {
+			case <-pm.newPeerCh:
+				continue
+			case <-pm.noMorePeers:
+				return
+			}
+		}
+	}()
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -193,8 +207,10 @@ func (pm *ProtocolManager) Stop() {
 	// Wait for all peer handler goroutines and the loops to come down.
 	pm.wg.Wait()
 
-	// close prepared sql statements
-	pm.closeSqlStmts()
+	// close NodeEthInfo channel
+	if pm.ethInfoChan != nil {
+		close(pm.ethInfoChan)
+	}
 
 	log.Info("Ethereum protocol stopped")
 }
@@ -214,7 +230,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	// Execute the Ethereum handshake
 	var statusWrapper statusDataWrapper
 	td, head, genesis := pm.blockchain.Status()
-
 	if err := p.Handshake(pm.networkId, td, head, genesis, &statusWrapper); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		// if error is due to GenesisBlockMismatch, NetworkIdMismatch, or ProtocolVersionMismatch

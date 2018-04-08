@@ -48,6 +48,7 @@ var DefaultConfig = Config{
 		MaxDial:         16,
 		NoMaxPeers:      true, // node-finder never limits number of peers
 		DialFreq:        30,
+		PushFreq:        1,
 		MySQLName:       "",
 		BackupSQL:       false,
 		ResetSQL:        false,

@@ -60,6 +60,7 @@ var (
 		utils.MaxNumFileFlag,
 		utils.BlacklistFlag,
 		utils.DialFreqFlag,
+		utils.PushFreqFlag,
 		utils.MySQLFlag,
 		utils.BackupSQLFlag,
 		utils.ResetSQLFlag,
