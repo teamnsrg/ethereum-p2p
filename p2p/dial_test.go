@@ -527,16 +527,12 @@ func TestDialResolve(t *testing.T) {
 	// Check that the task is generated with an incomplete ID.
 	dest := discover.NewNode(uintID(1), nil, 0, 0)
 	state.addStatic(dest)
-	s := state.static[dest.ID]
 	tasks := state.newRedialTasks(nil, time.Time{})
 	if !reflect.DeepEqual(tasks, []task{&dialTask{flags: staticDialedConn, dest: dest}}) {
 		t.Fatalf("expected dial task, got %#v", tasks)
 	}
 
 	// Now run the task, it should resolve the ID once.
-	// node-finder does not resolve addresses of staticDialedConns
-	// manually change it to dynDialedConn to force resolve
-	s.flags = dynDialedConn
 	config := Config{Dialer: TCPDialer{&net.Dialer{Deadline: time.Now().Add(-5 * time.Minute)}}}
 	srv := &Server{ntab: table, Config: config}
 	tasks[0].Do(srv)

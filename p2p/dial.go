@@ -283,10 +283,18 @@ func (s *dialstate) taskDone(t task, now time.Time) {
 }
 
 func (t *dialTask) Do(srv *Server) {
-	if t.flags&dynDialedConn != 0 && t.dest.Incomplete() && !t.resolve(srv) {
-		return
+	if t.dest.Incomplete() {
+		if !t.resolve(srv) {
+			return
+		}
 	}
-	t.dial(srv, t.dest)
+	success := t.dial(srv, t.dest)
+	// Try resolving the ID of static nodes if dialing failed.
+	if !success && t.flags&staticDialedConn != 0 {
+		if t.resolve(srv) {
+			t.dial(srv, t.dest)
+		}
+	}
 }
 
 // resolve attempts to find the current endpoint for the destination
