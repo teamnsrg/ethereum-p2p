@@ -81,6 +81,10 @@ func Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64
 	root.writeTime(LvlHello, t, ctx)
 }
 
+func Task(msg string, taskInfoCtx []interface{}) {
+	root.write(msg, LvlTask, taskInfoCtx)
+}
+
 func Neighbors(t time.Time, connInfoCtx []interface{}, neighbor interface{}) {
 	ctx := []interface{}{
 		"neighbor", neighbor,

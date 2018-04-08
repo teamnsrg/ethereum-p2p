@@ -243,6 +243,7 @@ func init() {
 					log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
 					log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
 					log.LvlMatchFilterFileHandler(log.LvlNeighbors, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlTask, logdir),
 					log.LvlMatchFilterFileHandler(log.LvlHello, logdir),
 					log.LvlMatchFilterFileHandler(log.LvlDiscProto, logdir),
 					log.LvlMatchFilterFileHandler(log.LvlDiscPeer, logdir),

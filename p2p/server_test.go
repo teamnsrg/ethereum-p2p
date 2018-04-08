@@ -356,6 +356,10 @@ func (t *testTask) Do(srv *Server) {
 	t.called = true
 }
 
+func (t *testTask) TaskInfoCtx() []interface{} {
+	return nil
+}
+
 // This test checks that connections are disconnected
 // just after the encryption handshake when the server is
 // at capacity. Trusted connections should still be accepted.

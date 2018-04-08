@@ -593,7 +593,7 @@ func (srv *Server) run(dialstate dialer) {
 
 	// removes t from runningTasks
 	delTask := func(t task) {
-		log.Trace("Dial task done", "task", t)
+		log.Task("DONE", t.TaskInfoCtx())
 		dialstate.taskDone(t, time.Now())
 		switch t := t.(type) {
 		case *dialTask:
@@ -630,7 +630,7 @@ func (srv *Server) run(dialstate dialer) {
 		i := 0
 		for ; len(runningDynDial) < srv.MaxDial && i < len(ts); i++ {
 			t := ts[i]
-			log.Trace("New dial task", "task", t)
+			log.Task("NEW", t.TaskInfoCtx())
 			go func() { t.Do(srv); dyndialdone <- t }()
 			runningDynDial = append(runningDynDial, t)
 		}
@@ -646,7 +646,7 @@ func (srv *Server) run(dialstate dialer) {
 			queuedTasks = append(queuedTasks, startDynDialTasks(nt)...)
 			if needDiscoverTask {
 				t := &discoverTask{}
-				log.Trace("New dial task", "task", t)
+				log.Task("NEW", t.TaskInfoCtx())
 				go func() { t.Do(srv); discoverdone <- t }()
 				runningDiscover = append(runningDiscover, t)
 			}
@@ -655,7 +655,7 @@ func (srv *Server) run(dialstate dialer) {
 	scheduleRedialTasks := func() {
 		// Query dialer for new static tasks and start all
 		for _, t := range dialstate.newRedialTasks(peers, time.Now()) {
-			log.Trace("New dial task", "task", t)
+			log.Task("NEW", t.TaskInfoCtx())
 			go func(t task) { t.Do(srv); staticdialdone <- t }(t)
 			runningStaticDial = append(runningStaticDial, t)
 		}

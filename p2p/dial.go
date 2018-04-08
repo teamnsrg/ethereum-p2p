@@ -96,6 +96,7 @@ type pastDial struct {
 
 type task interface {
 	Do(*Server)
+	TaskInfoCtx() []interface{}
 }
 
 // A dialTask is generated for each node that is dialed. Its
@@ -304,9 +305,8 @@ func (t *dialTask) Do(srv *Server) {
 // discovery network with useless queries for nodes that don't exist.
 // The backoff delay resets when the node is found.
 func (t *dialTask) resolve(srv *Server) bool {
-	addr := &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}
 	if srv.ntab == nil {
-		log.Debug("Can't resolve node", "id", t.dest.ID, "addr", addr.String(), "conn", t.flags, "err", "discovery is disabled")
+		log.Task("FAIL-RESOLVE", append(t.TaskInfoCtx(), "err", "discovery is disabled"))
 		return false
 	}
 	if t.resolveDelay == 0 {
@@ -322,13 +322,13 @@ func (t *dialTask) resolve(srv *Server) bool {
 		if t.resolveDelay > maxResolveDelay {
 			t.resolveDelay = maxResolveDelay
 		}
-		log.Debug("Resolving node failed", "id", t.dest.ID, "addr", addr.String(), "conn", t.flags, "newdelay", t.resolveDelay)
+		log.Task("FAIL-RESOLVE", append(t.TaskInfoCtx(), t.ResolveInfoCtx()...))
 		return false
 	}
 	// The node was found.
 	t.resolveDelay = initialResolveDelay
 	t.dest = resolved
-	log.Debug("Resolved node", "id", t.dest.ID, "addr", addr.String(), "conn", t.flags)
+	log.Task("RESOLVED", append(t.TaskInfoCtx(), t.ResolveInfoCtx()...))
 	return true
 }
 
@@ -336,12 +336,34 @@ func (t *dialTask) resolve(srv *Server) bool {
 func (t *dialTask) dial(srv *Server, dest *discover.Node) bool {
 	fd, err := srv.Dialer.Dial(dest)
 	if err != nil {
-		log.Trace("Dial error", "task", t, "err", err)
+		log.Task("FAIL-DIAL", append(t.TaskInfoCtx(), "err", err))
 		return false
 	}
 	mfd := newMeteredConn(fd, false)
 	srv.SetupConn(mfd, t.flags, dest)
 	return true
+}
+
+func (t *dialTask) TaskInfoCtx() []interface{} {
+	addr := &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}
+	return []interface{}{
+		"task", t.flags,
+		"id", t.dest.ID.String(),
+		"addr", addr.String(),
+	}
+}
+
+func (t *dialTask) ResolveInfoCtx() []interface{} {
+	var lastResolved interface{}
+	if t.lastResolved.IsZero() {
+		lastResolved = nil
+	} else {
+		lastResolved = t.lastResolved
+	}
+	return []interface{}{
+		"lastResolveTry", lastResolved,
+		"resolveDelay", t.resolveDelay.Seconds(),
+	}
 }
 
 func (t *dialTask) String() string {
@@ -362,6 +384,13 @@ func (t *discoverTask) Do(srv *Server) {
 	t.results = srv.ntab.Lookup(target)
 }
 
+func (t *discoverTask) TaskInfoCtx() []interface{} {
+	return []interface{}{
+		"task", "discover",
+		"numResults", len(t.results),
+	}
+}
+
 func (t *discoverTask) String() string {
 	s := "discovery lookup"
 	if len(t.results) > 0 {
@@ -373,6 +402,14 @@ func (t *discoverTask) String() string {
 func (t waitExpireTask) Do(*Server) {
 	time.Sleep(t.Duration)
 }
+
+func (t *waitExpireTask) TaskInfoCtx() []interface{} {
+	return []interface{}{
+		"task", "wait",
+		"duration", t.Duration.Seconds(),
+	}
+}
+
 func (t waitExpireTask) String() string {
 	return fmt.Sprintf("wait for dial hist expire (%v)", t.Duration)
 }
