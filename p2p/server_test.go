@@ -231,13 +231,11 @@ func TestServerTaskScheduling(t *testing.T) {
 	// The Server in this test isn't actually running
 	// because we're only interested in what run does.
 	srv := &Server{
-		Config:  Config{MaxPeers: 10},
+		Config:  Config{MaxPeers: 10, MaxDial: 16, DialCheckFreq: 15, PushFreq: 1},
 		quit:    make(chan struct{}),
 		ntab:    fakeTable{},
 		running: true,
 	}
-	srv.MaxDial = 16
-	srv.NoMaxPeers = false
 	srv.loopWG.Add(1)
 	go func() {
 		srv.run(tg)
@@ -282,6 +280,7 @@ func TestServerManyTasks(t *testing.T) {
 		start, end = 0, 0
 	)
 	srv.MaxDial = 16
+	srv.DialCheckFreq = 15
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{

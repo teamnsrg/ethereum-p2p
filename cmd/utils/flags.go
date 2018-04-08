@@ -132,6 +132,11 @@ var (
 		Usage: "Frequency of re-dialing static nodes (in seconds)",
 		Value: 30,
 	}
+	DialCheckFreqFlag = cli.IntFlag{
+		Name:  "dialcheckfreq",
+		Usage: "Frequency of checking static nodes ready for redial (in seconds)",
+		Value: 15,
+	}
 	PushFreqFlag = cli.IntFlag{
 		Name:  "pushfreq",
 		Usage: "Frequency of pushing updates to MySQL database (in seconds)",
@@ -830,6 +835,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 	if ctx.GlobalIsSet(DialFreqFlag.Name) {
 		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
+	}
+	if ctx.GlobalIsSet(DialCheckFreqFlag.Name) {
+		cfg.DialCheckFreq = ctx.GlobalInt(DialCheckFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(PushFreqFlag.Name) {
 		cfg.PushFreq = ctx.GlobalInt(PushFreqFlag.Name)

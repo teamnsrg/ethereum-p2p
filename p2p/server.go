@@ -40,8 +40,6 @@ import (
 )
 
 const (
-	redialCheckInterval = 60 * time.Second
-
 	defaultDialTimeout = 15 * time.Second
 
 	// Maximum number of concurrently handshaking inbound connections.
@@ -70,6 +68,9 @@ type Config struct {
 
 	// DialFreq is the frequency of re-dialing static nodes (in seconds).
 	DialFreq int
+
+	// DialCheckFreq is the frequency of checking static nodes ready for redial (in seconds).
+	DialCheckFreq int
 
 	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
 	PushFreq int
@@ -179,6 +180,7 @@ type Server struct {
 	p2pInfoQueue      *infoQueue
 	ethInfoQueue      *infoQueue
 	pushTicker        *mticker.MutableTicker
+	dialCheckTicker   *mticker.MutableTicker
 
 	KnownNodeInfos *KnownNodeInfos // information on known nodes
 	StrReplacer    *strings.Replacer
@@ -413,6 +415,12 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
+	if srv.Config.DialCheckFreq <= 0 {
+		srv.Config.DialCheckFreq = 15
+	}
+	if srv.Config.PushFreq <= 0 {
+		srv.Config.PushFreq = 1
+	}
 
 	srv.running = true
 	log.Info("Starting P2P networking")
@@ -534,6 +542,11 @@ func (srv *Server) SetDialFreq(dialFreq int) {
 	srv.dialstate.dialFreq = time.Duration(dialFreq) * time.Second
 }
 
+func (srv *Server) SetDialCheckFreq(dialCheckFreq int) {
+	srv.DialCheckFreq = dialCheckFreq
+	srv.dialCheckTicker.UpdateInterval(time.Duration(dialCheckFreq) * time.Second)
+}
+
 func (srv *Server) SetPushFreq(pushFreq int) {
 	srv.PushFreq = pushFreq
 	srv.pushTicker.UpdateInterval(time.Duration(pushFreq) * time.Second)
@@ -649,7 +662,7 @@ func (srv *Server) run(dialstate dialer) {
 	}
 
 	// start redial check timer
-	forceRedial := time.NewTicker(redialCheckInterval)
+	srv.dialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.DialCheckFreq) * time.Second)
 	// initial static dials
 	scheduleRedialTasks()
 
@@ -661,7 +674,7 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
-		case <-forceRedial.C:
+		case <-srv.dialCheckTicker.C:
 			scheduleRedialTasks()
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
@@ -753,7 +766,7 @@ running:
 			delete(peers, pd.ID())
 		}
 	}
-	forceRedial.Stop()
+	srv.dialCheckTicker.Stop()
 
 	log.Trace("P2P networking is spinning down")
 

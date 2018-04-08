@@ -80,6 +80,15 @@ func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
 	return nil
 }
 
+func (api *PrivateAdminAPI) DialCheckFreq() (int, error) {
+	return api.node.Server().DialCheckFreq, nil
+}
+
+func (api *PrivateAdminAPI) SetDialCheckFreq(dialCheckFreq int) error {
+	api.node.Server().SetDialCheckFreq(dialCheckFreq)
+	return nil
+}
+
 func (api *PrivateAdminAPI) PushFreq() (int, error) {
 	return api.node.Server().PushFreq, nil
 }
