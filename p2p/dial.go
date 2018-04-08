@@ -18,7 +18,6 @@ package p2p
 
 import (
 	"container/heap"
-	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -43,7 +42,7 @@ const (
 // NodeDialer is used to connect to nodes in the network, typically by using
 // an underlying net.Dialer but also using net.Pipe in tests
 type NodeDialer interface {
-	Dial(context.Context, *discover.Node) (net.Conn, error)
+	Dial(*discover.Node) (net.Conn, error)
 }
 
 // TCPDialer implements the NodeDialer interface by using a net.Dialer to
@@ -53,12 +52,9 @@ type TCPDialer struct {
 }
 
 // Dial creates a TCP connection to the node
-func (t TCPDialer) Dial(ctx context.Context, dest *discover.Node) (net.Conn, error) {
+func (t TCPDialer) Dial(dest *discover.Node) (net.Conn, error) {
 	addr := &net.TCPAddr{IP: dest.IP, Port: int(dest.TCP)}
-	if ctx == nil {
-		return t.Dialer.Dial("tcp", addr.String())
-	}
-	return t.Dialer.DialContext(ctx, "tcp", addr.String())
+	return t.Dialer.Dial("tcp", addr.String())
 }
 
 // dialstate schedules dials and discovery lookups.
@@ -105,8 +101,6 @@ type task interface {
 // A dialTask is generated for each node that is dialed. Its
 // fields cannot be accessed while the task is running.
 type dialTask struct {
-	ctx          context.Context
-	cancel       context.CancelFunc
 	flags        connFlag
 	dest         *discover.Node
 	lastResolved time.Time
@@ -145,8 +139,7 @@ func newDialState(static []*discover.Node, ntab discoverTable, maxdyn int, netre
 func (s *dialstate) addStatic(n *discover.Node) {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
-	ctx, cancel := context.WithCancel(context.Background())
-	s.static[n.ID] = &dialTask{ctx: ctx, cancel: cancel, flags: staticDialedConn, dest: n}
+	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
@@ -169,8 +162,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 			return false
 		}
 		s.dialing[n.ID] = flag
-		ctx, cancel := context.WithCancel(context.Background())
-		newDynDialTasks = append(newDynDialTasks, &dialTask{ctx: ctx, cancel: cancel, flags: flag, dest: n})
+		newDynDialTasks = append(newDynDialTasks, &dialTask{flags: flag, dest: n})
 		return true
 	}
 
@@ -294,10 +286,7 @@ func (t *dialTask) Do(srv *Server) {
 	if t.flags&dynDialedConn != 0 && t.dest.Incomplete() && !t.resolve(srv) {
 		return
 	}
-	t.dial(t.ctx, srv, t.dest)
-	if t.cancel != nil {
-		t.cancel()
-	}
+	t.dial(srv, t.dest)
 }
 
 // resolve attempts to find the current endpoint for the destination
@@ -336,8 +325,8 @@ func (t *dialTask) resolve(srv *Server) bool {
 }
 
 // dial performs the actual connection attempt.
-func (t *dialTask) dial(ctx context.Context, srv *Server, dest *discover.Node) bool {
-	fd, err := srv.Dialer.Dial(ctx, dest)
+func (t *dialTask) dial(srv *Server, dest *discover.Node) bool {
+	fd, err := srv.Dialer.Dial(dest)
 	if err != nil {
 		log.Trace("Dial error", "task", t, "err", err)
 		return false
