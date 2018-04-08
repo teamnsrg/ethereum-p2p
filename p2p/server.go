@@ -198,6 +198,7 @@ type Server struct {
 	running bool
 
 	ntab         discoverTable
+	udp          udp
 	listener     net.Listener
 	ourHandshake *protoHandshake
 	lastLookup   time.Time
@@ -215,6 +216,10 @@ type Server struct {
 	delpeer       chan peerDrop
 	loopWG        sync.WaitGroup // loop, listenLoop
 	peerFeed      event.Feed
+}
+
+type udp interface {
+	SetBlacklist(blacklist *netutil.Netlist)
 }
 
 type peerOpFunc func(map[discover.NodeID]*Peer)
@@ -464,7 +469,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.NeighborChan)
+		ntab, udp, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.NeighborChan)
 		if err != nil {
 			srv.closeSql()
 			return err
@@ -474,6 +479,7 @@ func (srv *Server) Start() (err error) {
 			return err
 		}
 		srv.ntab = ntab
+		srv.udp = udp
 	}
 
 	dynPeers := (srv.MaxPeers + 1) / 2
@@ -552,20 +558,22 @@ func (srv *Server) SetPushFreq(pushFreq int) {
 	srv.pushTicker.UpdateInterval(time.Duration(pushFreq) * time.Second)
 }
 
-func (srv *Server) SetBlacklist(cidrs string) error {
-	// TODO: update udp's list as well
+func (srv *Server) AddBlacklist(cidrs string) error {
 	if srv.Blacklist == nil {
 		if list, err := netutil.ParseNetlist(cidrs); err != nil {
 			return err
 		} else {
 			srv.Blacklist = list
 			srv.dialstate.blacklist = list
+			srv.udp.SetBlacklist(list)
 		}
 	} else {
 		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
 		masks := strings.Split(ws.Replace(cidrs), ",")
 		for _, mask := range masks {
-			srv.Blacklist.AddNonDuplicate(mask)
+			if err := srv.Blacklist.AddNonDuplicate(mask); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -101,7 +101,7 @@ func main() {
 			utils.Fatalf("%v", err)
 		}
 	} else {
-		if _, err := discover.ListenUDP(nodeKey, *listenAddr, natm, "", restrictList, nil, nil); err != nil {
+		if _, _, err := discover.ListenUDP(nodeKey, *listenAddr, natm, "", restrictList, nil, nil); err != nil {
 			utils.Fatalf("%v", err)
 		}
 	}

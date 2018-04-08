@@ -185,6 +185,10 @@ type udp struct {
 	*Table
 }
 
+func (t *udp) SetBlacklist(blacklist *netutil.Netlist) {
+	t.blacklist = blacklist
+}
+
 // pending represents a pending reply.
 //
 // some implementations of the protocol wish to send more than one
@@ -223,21 +227,21 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, *udp, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, neighborChan)
+	tab, udp, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, neighborChan)
 	if err != nil {
-		return nil, err
+		return nil, udp, err
 	}
 	log.Info("UDP listener up", "self", tab.self)
-	return tab, nil
+	return tab, udp, nil
 }
 
 func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, *udp, error) {

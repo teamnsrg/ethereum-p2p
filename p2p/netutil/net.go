@@ -128,13 +128,18 @@ func (l *Netlist) Add(cidr string) {
 	*l = append(*l, *n)
 }
 
-func (l *Netlist) AddNonDuplicate(cidr string) {
+func (l *Netlist) AddNonDuplicate(cidr string) error {
+	_, n, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
 	for _, val := range *l {
-		if cidr == val.String() {
-			return
+		if n.String() == val.String() {
+			return nil
 		}
 	}
-	l.Add(cidr)
+	*l = append(*l, *n)
+	return nil
 }
 
 // Contains reports whether the given IP is contained in the list.

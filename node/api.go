@@ -108,7 +108,7 @@ func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
 }
 
 func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
-	return api.node.Server().SetBlacklist(cidrs)
+	return api.node.Server().AddBlacklist(cidrs)
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new
