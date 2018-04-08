@@ -397,11 +397,11 @@ func (srv *Server) Stop() {
 		return
 	}
 	srv.running = false
+	close(srv.quit)
 	if srv.listener != nil {
 		// this unblocks listener Accept
 		srv.listener.Close()
 	}
-	close(srv.quit)
 	srv.loopWG.Wait()
 
 	srv.closeSql()
