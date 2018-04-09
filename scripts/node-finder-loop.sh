@@ -38,6 +38,7 @@ do
     --redialfreq 1800 \
     --redialcheckfreq 5 \
     --maxnumfile 20480 \
+    --maxredial 1000 \
     --pushfreq 1 >>${ERRFILE} 2>&1
   echo "${NODEFINDER_NAME}-${i} stopped. restarting in ${SLEEP} seconds..."
   sleep ${SLEEP}

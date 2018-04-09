@@ -64,6 +64,7 @@ do
     --redialfreq 1800 \
     --redialcheckfreq 5 \
     --maxnumfile 20480 \
+    --maxredial 1000 \
     --pushfreq 1"
   docker run -dit --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} --net host -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
  echo "${NODEFINDER_NAME}-${i} started"
