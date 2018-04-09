@@ -73,29 +73,29 @@ func (api *PrivateAdminAPI) Logrotate() error {
 	return nil
 }
 
-func (api *PrivateAdminAPI) RedialFreq() (int, error) {
+func (api *PrivateAdminAPI) RedialFreq() (float64, error) {
 	return api.node.Server().RedialFreq, nil
 }
 
-func (api *PrivateAdminAPI) SetRedialFreq(redialFreq int) error {
+func (api *PrivateAdminAPI) SetRedialFreq(redialFreq float64) error {
 	api.node.Server().SetRedialFreq(redialFreq)
 	return nil
 }
 
-func (api *PrivateAdminAPI) RedialCheckFreq() (int, error) {
+func (api *PrivateAdminAPI) RedialCheckFreq() (float64, error) {
 	return api.node.Server().RedialCheckFreq, nil
 }
 
-func (api *PrivateAdminAPI) SetRedialCheckFreq(redialCheckFreq int) error {
+func (api *PrivateAdminAPI) SetRedialCheckFreq(redialCheckFreq float64) error {
 	api.node.Server().SetRedialCheckFreq(redialCheckFreq)
 	return nil
 }
 
-func (api *PrivateAdminAPI) PushFreq() (int, error) {
+func (api *PrivateAdminAPI) PushFreq() (float64, error) {
 	return api.node.Server().PushFreq, nil
 }
 
-func (api *PrivateAdminAPI) SetPushFreq(pushFreq int) error {
+func (api *PrivateAdminAPI) SetPushFreq(pushFreq float64) error {
 	api.node.Server().SetPushFreq(pushFreq)
 	return nil
 }

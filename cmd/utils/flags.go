@@ -127,20 +127,20 @@ var (
 		Name:  "blacklist",
 		Usage: "Reject network communication from/to the given IP networks (comma-separated CIDR masks)",
 	}
-	RedialFreqFlag = cli.IntFlag{
+	RedialFreqFlag = cli.Float64Flag{
 		Name:  "redialfreq",
 		Usage: "Frequency of re-dialing static nodes (in seconds)",
-		Value: 30,
+		Value: 30.0,
 	}
-	RedialCheckFreqFlag = cli.IntFlag{
+	RedialCheckFreqFlag = cli.Float64Flag{
 		Name:  "redialcheckfreq",
 		Usage: "Frequency of checking static nodes ready for re-dial (in seconds)",
-		Value: 5,
+		Value: 5.0,
 	}
-	PushFreqFlag = cli.IntFlag{
+	PushFreqFlag = cli.Float64Flag{
 		Name:  "pushfreq",
 		Usage: "Frequency of pushing updates to MySQL database (in seconds)",
-		Value: 1,
+		Value: 1.0,
 	}
 	MySQLFlag = cli.StringFlag{
 		Name:  "mysql",
@@ -834,13 +834,13 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodesV5(ctx, cfg)
 
 	if ctx.GlobalIsSet(RedialFreqFlag.Name) {
-		cfg.RedialFreq = ctx.GlobalInt(RedialFreqFlag.Name)
+		cfg.RedialFreq = ctx.GlobalFloat64(RedialFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(RedialCheckFreqFlag.Name) {
-		cfg.RedialCheckFreq = ctx.GlobalInt(RedialCheckFreqFlag.Name)
+		cfg.RedialCheckFreq = ctx.GlobalFloat64(RedialCheckFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(PushFreqFlag.Name) {
-		cfg.PushFreq = ctx.GlobalInt(PushFreqFlag.Name)
+		cfg.PushFreq = ctx.GlobalFloat64(PushFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(MySQLFlag.Name) {
 		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)

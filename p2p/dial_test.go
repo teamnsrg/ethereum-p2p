@@ -100,7 +100,7 @@ func (t fakeTable) ReadRandomNodes(buf []*discover.Node) int { return copy(buf, 
 // This test checks that dynamic dials are launched from discovery results.
 func TestDialStateDynDial(t *testing.T) {
 	dialer := newDialState(nil, fakeTable{}, 5, nil)
-	dialer.dialFreq = 30 * time.Second
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
@@ -249,7 +249,7 @@ func TestDialStateDynDialFromTable(t *testing.T) {
 	}
 
 	dialer := newDialState(nil, table, 10, nil)
-	dialer.dialFreq = 30 * time.Second
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
@@ -349,7 +349,7 @@ func TestDialStateNetRestrict(t *testing.T) {
 	restrict.Add("127.0.2.0/24")
 
 	dialer := newDialState(nil, table, 10, restrict)
-	dialer.dialFreq = 30 * time.Second
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
@@ -374,7 +374,7 @@ func TestDialStateStaticDial(t *testing.T) {
 	}
 
 	dialer := newDialState(wantStatic, fakeTable{}, 0, nil)
-	dialer.dialFreq = 30 * time.Second
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
@@ -457,7 +457,7 @@ func TestDialStateCache(t *testing.T) {
 	}
 
 	dialer := newDialState(wantStatic, fakeTable{}, 0, nil)
-	dialer.dialFreq = 30 * time.Second
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
@@ -522,7 +522,7 @@ func TestDialResolve(t *testing.T) {
 	resolved := discover.NewNode(uintID(1), net.IP{127, 0, 55, 234}, 3333, 4444)
 	table := &resolveMock{answer: resolved}
 	state := newDialState(nil, table, 0, nil)
-	state.dialFreq = 30 * time.Second
+	state.redialFreq = 30 * time.Second
 
 	// Check that the task is generated with an incomplete ID.
 	dest := discover.NewNode(uintID(1), nil, 0, 0)

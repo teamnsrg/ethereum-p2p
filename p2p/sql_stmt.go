@@ -518,7 +518,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 func (srv *Server) dbPushLoop() {
 	defer srv.loopWG.Done()
 	log.Sql("Starting database update push loop")
-	srv.pushTicker = mticker.NewMutableTicker(time.Duration(srv.PushFreq) * time.Second)
+	srv.pushTicker = mticker.NewMutableTicker(time.Duration(srv.PushFreq * float64(time.Second)))
 	defer srv.pushTicker.Stop()
 	for {
 		select {

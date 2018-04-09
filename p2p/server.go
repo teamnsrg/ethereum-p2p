@@ -67,13 +67,13 @@ type Config struct {
 	Blacklist *netutil.Netlist `toml:",omitempty"`
 
 	// RedialFreq is the frequency of re-dialing static nodes (in seconds).
-	RedialFreq int
+	RedialFreq float64
 
 	// RedialCheckFreq is the frequency of checking static nodes ready for redial (in seconds).
-	RedialCheckFreq int
+	RedialCheckFreq float64
 
 	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
-	PushFreq int
+	PushFreq float64
 
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
@@ -420,11 +420,11 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
-	if srv.Config.RedialCheckFreq <= 0 {
-		srv.Config.RedialCheckFreq = 5
+	if srv.Config.RedialCheckFreq <= 0.0 {
+		srv.Config.RedialCheckFreq = 5.0
 	}
-	if srv.Config.PushFreq <= 0 {
-		srv.Config.PushFreq = 1
+	if srv.Config.PushFreq <= 0.0 {
+		srv.Config.PushFreq = 1.0
 	}
 
 	srv.running = true
@@ -543,19 +543,19 @@ type dialer interface {
 	removeStatic(*discover.Node)
 }
 
-func (srv *Server) SetRedialFreq(dialFreq int) {
-	srv.RedialFreq = dialFreq
-	srv.dialstate.dialFreq = time.Duration(dialFreq) * time.Second
+func (srv *Server) SetRedialFreq(redialFreq float64) {
+	srv.RedialFreq = redialFreq
+	srv.dialstate.redialFreq = time.Duration(redialFreq * float64(time.Second))
 }
 
-func (srv *Server) SetRedialCheckFreq(dialCheckFreq int) {
-	srv.RedialCheckFreq = dialCheckFreq
-	srv.redialCheckTicker.UpdateInterval(time.Duration(dialCheckFreq) * time.Second)
+func (srv *Server) SetRedialCheckFreq(redialCheckFreq float64) {
+	srv.RedialCheckFreq = redialCheckFreq
+	srv.redialCheckTicker.UpdateInterval(time.Duration(redialCheckFreq * float64(time.Second)))
 }
 
-func (srv *Server) SetPushFreq(pushFreq int) {
+func (srv *Server) SetPushFreq(pushFreq float64) {
 	srv.PushFreq = pushFreq
-	srv.pushTicker.UpdateInterval(time.Duration(pushFreq) * time.Second)
+	srv.pushTicker.UpdateInterval(time.Duration(pushFreq * float64(time.Second)))
 }
 
 func (srv *Server) AddBlacklist(cidrs string) error {
@@ -670,7 +670,7 @@ func (srv *Server) run(dialstate dialer) {
 	}
 
 	// start redial check timer
-	srv.redialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.RedialCheckFreq) * time.Second)
+	srv.redialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.RedialCheckFreq * float64(time.Second)))
 	// initial static dials
 	scheduleRedialTasks()
 

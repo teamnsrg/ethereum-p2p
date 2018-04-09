@@ -65,7 +65,7 @@ type dialstate struct {
 	ntab        discoverTable
 	netrestrict *netutil.Netlist
 	blacklist   *netutil.Netlist
-	dialFreq    time.Duration
+	redialFreq  time.Duration
 
 	lookupRunning bool
 	dialing       map[discover.NodeID]connFlag
@@ -275,7 +275,7 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 func (s *dialstate) taskDone(t task, now time.Time) {
 	switch t := t.(type) {
 	case *dialTask:
-		s.hist.add(t.dest.ID, now.Add(s.dialFreq))
+		s.hist.add(t.dest.ID, now.Add(s.redialFreq))
 		delete(s.dialing, t.dest.ID)
 	case *discoverTask:
 		s.lookupRunning = false
