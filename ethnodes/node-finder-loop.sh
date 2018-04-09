@@ -13,30 +13,32 @@ i=$1
 WORKING_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd ${WORKING_DIR}
 source .env
+MYSQL_PORT=3306
+NODEFINDER_NAME="geth-node-finder"
 URL="research-scan.sprai.org"
 NODEFINDER_PORT=30310
 PORT=$(( ${NODEFINDER_PORT}+${i} ))
-MYSQL_PORT=3300
-DATADIR="${ROOT_DIR}-${i}/ethereum"
+DATADIR="${ROOT_DIR}/${i}"
 mkdir -p ${DATADIR}
-LOGFILE="${DATADIR}/node-finder.log"
-IDENTITY="uiuc-node-finder-${i} (${URL})"
-MYSQL_URL="${MYSQL_USERNAME}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:$(( ${MYSQL_PORT}+${i} )))/${MYSQL_DB}"
+ERRFILE="${DATADIR}/${NODEFINDER_NAME}-error.log"
+IDENTITY="uiuc-${i}(${URL})"
+MYSQL_URL="${MYSQL_USERNAME}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:${MYSQL_PORT})/${MYSQL_DB}"
 SLEEP=3
-echo "starting node-finder-${i}..."
+echo "starting ${NODEFINDER_NAME}-${i}..."
 while true
 do
   geth \
     --identity "${IDENTITY}" \
     --datadir "${DATADIR}" \
     --port ${PORT} \
-    --mysql "${MYSQL_URL}" \
-    --nomaxpeers \
     --verbosity 5 \
-    --dialfreq 1800 \
+    --mysql "${MYSQL_URL}" \
+    --logtofile \
+    --redialfreq 1800 \
+    --redialcheckfreq 5 \
     --maxnumfile 20480 \
-    --backupsql >>${LOGFILE} 2>&1
-  echo "node-finder-${i} stopped. restarting in ${SLEEP} seconds..."
+    --pushfreq 1 >>${ERRFILE} 2>&1
+  echo "${NODEFINDER_NAME}-${i} stopped. restarting in ${SLEEP} seconds..."
   sleep ${SLEEP}
-  echo "restarting node-finder-${i}..."
+  echo "restarting ${NODEFINDER_NAME}-${i}..."
 done

@@ -3,12 +3,12 @@
 - Source: https://github.com/docker-library/mysql/tree/7b6d186052e268079972b4ea8c871f89161a899e/5.7
 ## Required software:
 - Docker
-- Docker Compose
+- ~~Docker Compose~~
 ## Usage:
 1. Configure `.env`
     1. `MYSQL_USERNAME`
     2. `MYSQL_PASSWORD`
-    3. `MYSQL_DB`
-    4. `MYSQL_DIR`
-    5. `BACKUP_DIR`
-2. Run: `docker-compose up -d`
+    3. `MYSQL_HOST`
+    4. `MYSQL_DB`
+    5. `ROOT_DIR`
+2. Run: `sudo ./run.sh num_instance`
