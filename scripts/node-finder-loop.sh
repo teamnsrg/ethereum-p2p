@@ -1,4 +1,5 @@
 #!/bin/bash
+# check if root
 if [ "$EUID" -ne 0 ]; then
   echo "please run as root"
   exit 1
@@ -18,8 +19,8 @@ NODEFINDER_NAME="geth-node-finder"
 URL="research-scan.sprai.org"
 NODEFINDER_PORT=30310
 PORT=$(( ${NODEFINDER_PORT}+${i} ))
-DATADIR="${ROOT_DIR}/${i}"
-mkdir -p ${DATADIR}
+DATADIR="${ROOT_DIR}/${NODEFINDER_NAME}/${i}"
+mkdir -p -m 755 ${DATADIR}
 ERRFILE="${DATADIR}/${NODEFINDER_NAME}-error.log"
 IDENTITY="uiuc-${i}(${URL})"
 MYSQL_URL="${MYSQL_USERNAME}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:${MYSQL_PORT})/${MYSQL_DB}"

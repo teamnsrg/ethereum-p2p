@@ -6,7 +6,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: sudo ./run-no-docker.sh scale-size"
+  echo "usage: sudo ./run-no-docker.sh num-instance"
   exit 1
 fi
 
@@ -27,7 +27,7 @@ MYSQL_PORT=3306
 echo "starting ${MYSQL_NAME} container..."
 MYSQL_DIR="${ROOT_DIR}/ethnodes"
 BACKUP_DIR="${ROOT_DIR}/ethnodes-backup"
-mkdir -p -m 777 ${BACKUP_DIR}
+mkdir -p -m 755 ${BACKUP_DIR}
 docker run -d --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name ${MYSQL_NAME} \
   --env MYSQL_DATABASE=${MYSQL_DB} \
   --env MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD} \
@@ -45,9 +45,12 @@ cd ${WORKING_DIR}/..
 make geth
 cp ${WORKING_DIR}/../build/bin/geth /usr/bin/geth
 
+cd ${WORKING_DIR}
+DATADIR="${ROOT_DIR}/${NODEFINDER_NAME}"
+mkdir -p -m 755 ${DATADIR}
 # run node-finders
 for i in `seq 0 ${n}`;
 do
-  ${WORKING_DIR}/node-finder-loop.sh ${i} >>${ROOT_DIR}/${i}/${NODEFINDER_NAME}-loop.log 2>&1 &
+  ./node-finder-loop.sh ${i} >>${DATADIR}/${NODEFINDER_NAME}-${i}-loop.log 2>&1 &
   echo "${NODEFINDER_NAME}-${i} loop started"
 done

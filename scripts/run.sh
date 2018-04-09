@@ -6,7 +6,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: sudo ./run.sh scale-size"
+  echo "usage: sudo ./run.sh num-instance"
   exit 1
 fi
 
@@ -22,12 +22,12 @@ docker build -t ${MYSQL_IMAGE} -f ethnodes-dockerfile .
 # get env variables
 source .env
 
-# run mysql containers
+# run mysql container
 MYSQL_PORT=3306
 echo "starting ${MYSQL_NAME} container..."
 MYSQL_DIR="${ROOT_DIR}/ethnodes"
 BACKUP_DIR="${ROOT_DIR}/ethnodes-backup"
-mkdir -p -m 777 ${BACKUP_DIR}
+mkdir -p -m 755 ${BACKUP_DIR}
 docker run -d --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name ${MYSQL_NAME} \
   --env MYSQL_DATABASE=${MYSQL_DB} \
   --env MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD} \
@@ -54,7 +54,8 @@ echo "starting ${NODEFINDER_NAME} containers..."
 for i in `seq 0 ${n}`;
 do
   IDENTITY="uiuc-${i}(${URL})"
-  NODEFINDER_DIR="${ROOT_DIR}/${i}"
+  NODEFINDER_DIR="${ROOT_DIR}/${NODEFINDER_NAME}/${i}"
+  [ -d "${NODEFINDER_DIR}" ] || mkdir -p -m 755 ${NODEFINDER_DIR}
   MYSQL_URL="${MYSQL_USERNAME}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:${MYSQL_PORT})/${MYSQL_DB}"
   PORT=$(( ${NODEFINDER_PORT}+${i} ))
   CMD="geth \
