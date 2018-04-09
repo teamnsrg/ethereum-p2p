@@ -62,6 +62,7 @@ var (
 		utils.BlacklistFlag,
 		utils.RedialFreqFlag,
 		utils.RedialCheckFreqFlag,
+		utils.RedialExpFlag,
 		utils.PushFreqFlag,
 		utils.MySQLFlag,
 		utils.BackupSQLFlag,

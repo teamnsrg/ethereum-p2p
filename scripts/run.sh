@@ -63,6 +63,7 @@ do
     --logtofile \
     --redialfreq 1800 \
     --redialcheckfreq 5 \
+    --redialexp 24 \
     --maxnumfile 20480 \
     --maxredial 1000 \
     --pushfreq 1"

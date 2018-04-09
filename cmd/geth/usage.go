@@ -71,6 +71,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LogToFileFlag,
 			utils.RedialFreqFlag,
 			utils.RedialCheckFreqFlag,
+			utils.RedialExpFlag,
 			utils.MaxNumFileFlag,
 			utils.MaxRedialFlag,
 			utils.BlacklistFlag,

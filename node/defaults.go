@@ -50,6 +50,7 @@ var DefaultConfig = Config{
 		NoMaxPeers:      true, // node-finder never limits number of peers
 		RedialFreq:      30.0,
 		RedialCheckFreq: 5.0,
+		RedialExp:       24.0,
 		PushFreq:        1.0,
 		MySQLName:       "",
 		BackupSQL:       false,
