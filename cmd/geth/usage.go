@@ -72,6 +72,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.RedialFreqFlag,
 			utils.RedialCheckFreqFlag,
 			utils.MaxNumFileFlag,
+			utils.MaxRedialFlag,
 			utils.BlacklistFlag,
 			utils.PushFreqFlag,
 			utils.MaxPendingPeersFlag,

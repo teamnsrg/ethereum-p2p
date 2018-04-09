@@ -46,6 +46,7 @@ var DefaultConfig = Config{
 		MaxPeers:        25,
 		NAT:             nat.Any(),
 		MaxDial:         16,
+		MaxRedial:       1000,
 		NoMaxPeers:      true, // node-finder never limits number of peers
 		RedialFreq:      30.0,
 		RedialCheckFreq: 5.0,
