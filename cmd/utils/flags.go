@@ -145,7 +145,7 @@ var (
 	RedialExpFlag = cli.Float64Flag{
 		Name:  "redialexp",
 		Usage: "Maximum number of hours re-dial nodes can remain unresponsive to avoid eviction",
-		Value: 6.0,
+		Value: 24.0,
 	}
 	PushFreqFlag = cli.Float64Flag{
 		Name:  "pushfreq",
