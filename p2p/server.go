@@ -75,6 +75,9 @@ type Config struct {
 	// RedialCheckFreq is the frequency of checking static nodes ready for redial (in seconds).
 	RedialCheckFreq float64
 
+	// RedialExp is the maximum number of hours re-dial nodes can remain unresponsive to avoid eviction.
+	RedialExp float64
+
 	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
 	PushFreq float64
 
@@ -493,6 +496,7 @@ func (srv *Server) Start() (err error) {
 	dialer.blacklist = srv.Blacklist
 	srv.dialstate = dialer
 	srv.SetRedialFreq(srv.RedialFreq)
+	srv.SetRedialExp(srv.RedialExp)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -554,6 +558,30 @@ func (srv *Server) SetRedialFreq(redialFreq float64) {
 func (srv *Server) SetRedialCheckFreq(redialCheckFreq float64) {
 	srv.RedialCheckFreq = redialCheckFreq
 	srv.redialCheckTicker.UpdateInterval(time.Duration(redialCheckFreq * float64(time.Second)))
+}
+
+func (srv *Server) SetRedialExp(redialExp float64) {
+	srv.RedialExp = redialExp
+	srv.dialstate.redialExp = time.Duration(redialExp * float64(time.Hour))
+}
+
+func (srv *Server) RedialList() []string {
+	var nodes []string
+	for id, t := range srv.dialstate.static {
+		node := t.dest
+		addr := &net.TCPAddr{IP: node.IP, Port: int(node.TCP)}
+		lastSuccess := fmt.Sprintf("%.6f", float64(t.lastSuccess.UnixNano())/1e9)
+		var lastResolved string
+		if t.lastResolved.IsZero() {
+			lastResolved = "nil"
+		} else {
+			lastResolved = fmt.Sprintf("%.6f", float64(t.lastResolved.UnixNano())/1e9)
+		}
+		nodeStr := fmt.Sprintf("ID:%s Addr:%v LastSuccess:%s LastResolveTry:%s ResolveDelay:%v",
+			id.String(), addr, lastSuccess, lastResolved, t.resolveDelay.Seconds())
+		nodes = append(nodes, nodeStr)
+	}
+	return nodes
 }
 
 func (srv *Server) SetPushFreq(pushFreq float64) {

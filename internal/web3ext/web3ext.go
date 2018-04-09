@@ -174,6 +174,11 @@ web3._extend({
 			params: 1,
 		}),
 		new web3._extend.Method({
+			name: 'setRedialExp',
+			call: 'admin_setRedialExp',
+			params: 1,
+		}),
+		new web3._extend.Method({
 			name: 'setPushFreq',
 			call: 'admin_setPushFreq',
 			params: 1,
@@ -208,6 +213,14 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'redialCheckFreq',
 			getter: 'admin_redialCheckFreq'
+		}),
+		new web3._extend.Property({
+			name: 'redialExp',
+			getter: 'admin_redialExp'
+		}),
+		new web3._extend.Property({
+			name: 'redialList',
+			getter: 'admin_redialList'
 		}),
 		new web3._extend.Property({
 			name: 'pushFreq',

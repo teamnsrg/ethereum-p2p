@@ -91,6 +91,28 @@ func (api *PrivateAdminAPI) SetRedialCheckFreq(redialCheckFreq float64) error {
 	return nil
 }
 
+func (api *PrivateAdminAPI) RedialExp() (float64, error) {
+	return api.node.Server().RedialExp, nil
+}
+
+func (api *PrivateAdminAPI) SetRedialExp(redialExp float64) error {
+	api.node.Server().SetRedialExp(redialExp)
+	return nil
+}
+
+func (api *PrivateAdminAPI) RedialList() (string, error) {
+	// Sort the result array alphabetically by node identifier
+	redialList := api.node.Server().RedialList()
+	for i := 0; i < len(redialList); i++ {
+		for j := i + 1; j < len(redialList); j++ {
+			if redialList[i] > redialList[j] {
+				redialList[i], redialList[j] = redialList[j], redialList[i]
+			}
+		}
+	}
+	return strings.Join(redialList, "\n"), nil
+}
+
 func (api *PrivateAdminAPI) PushFreq() (float64, error) {
 	return api.node.Server().PushFreq, nil
 }

@@ -70,6 +70,10 @@ func runDialTest(t *testing.T, test dialtest) {
 		if round.newStatic != nil {
 			expected = round.newStatic
 			result = test.init.newRedialTasks(pm(round.peers), vtime)
+			// for testing, clear all lastSuccess
+			for _, t := range result {
+				t.(*dialTask).lastSuccess = time.Time{}
+			}
 		} else {
 			expected = round.new
 			var needDiscoverTask bool
@@ -528,6 +532,10 @@ func TestDialResolve(t *testing.T) {
 	dest := discover.NewNode(uintID(1), nil, 0, 0)
 	state.addStatic(dest)
 	tasks := state.newRedialTasks(nil, time.Time{})
+	// for testing, clear all lastSuccess
+	for _, t := range tasks {
+		t.(*dialTask).lastSuccess = time.Time{}
+	}
 	if !reflect.DeepEqual(tasks, []task{&dialTask{flags: staticDialedConn, dest: dest}}) {
 		t.Fatalf("expected dial task, got %#v", tasks)
 	}

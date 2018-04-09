@@ -66,6 +66,7 @@ type dialstate struct {
 	netrestrict *netutil.Netlist
 	blacklist   *netutil.Netlist
 	redialFreq  time.Duration
+	redialExp   time.Duration
 
 	lookupRunning bool
 	dialing       map[discover.NodeID]connFlag
@@ -106,6 +107,7 @@ type dialTask struct {
 	dest         *discover.Node
 	lastResolved time.Time
 	resolveDelay time.Duration
+	lastSuccess  time.Time
 }
 
 // discoverTask runs discovery table operations.
@@ -140,7 +142,9 @@ func newDialState(static []*discover.Node, ntab discoverTable, maxdyn int, netre
 func (s *dialstate) addStatic(n *discover.Node) {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
-	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n}
+	// If being added as a static node, the node must have been responsive.
+	// Record current time as its lastSuccess time.
+	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
@@ -251,6 +255,7 @@ var (
 	errRecentlyDialed   = errors.New("recently dialed")
 	errNotWhitelisted   = errors.New("not contained in netrestrict whitelist")
 	errBlacklisted      = errors.New("contained in blacklist")
+	errRedialExpired    = errors.New("unresponsive for too long")
 )
 
 func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer) error {
@@ -277,6 +282,15 @@ func (s *dialstate) taskDone(t task, now time.Time) {
 	case *dialTask:
 		s.hist.add(t.dest.ID, now.Add(s.redialFreq))
 		delete(s.dialing, t.dest.ID)
+		// if static dial, check if it's been unresponsive for too long (> redialExp)
+		if t.flags&staticDialedConn != 0 && !t.lastSuccess.IsZero() {
+			currentTime := time.Now()
+			deadline := t.lastSuccess.Add(s.redialExp)
+			if deadline.Before(currentTime) || deadline.Equal(currentTime) {
+				log.Warn("Removing static dial candidate", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}, "err", errRedialExpired)
+				delete(s.static, t.dest.ID)
+			}
+		}
 	case *discoverTask:
 		s.lookupRunning = false
 		s.lookupBuf = append(s.lookupBuf, t.results...)
@@ -339,6 +353,10 @@ func (t *dialTask) dial(srv *Server, dest *discover.Node) bool {
 		log.Task("FAIL-DIAL", append(t.TaskInfoCtx(), "err", err))
 		return false
 	}
+	// if static dial, record current time as its lastSuccess time
+	if t.flags&staticDialedConn != 0 && !t.lastSuccess.IsZero() {
+		t.lastSuccess = time.Now()
+	}
 	mfd := newMeteredConn(fd, false)
 	srv.SetupConn(mfd, t.flags, dest)
 	return true
@@ -346,10 +364,17 @@ func (t *dialTask) dial(srv *Server, dest *discover.Node) bool {
 
 func (t *dialTask) TaskInfoCtx() []interface{} {
 	addr := &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}
+	var lastSuccess interface{}
+	if t.lastSuccess.IsZero() {
+		lastSuccess = nil
+	} else {
+		lastSuccess = t.lastSuccess
+	}
 	return []interface{}{
 		"task", t.flags,
 		"id", t.dest.ID.String(),
 		"addr", addr.String(),
+		"lastSuccess", lastSuccess,
 	}
 }
 

@@ -142,6 +142,11 @@ var (
 		Usage: "Frequency of checking static nodes ready for re-dial (in seconds)",
 		Value: 5.0,
 	}
+	RedialExpFlag = cli.Float64Flag{
+		Name:  "redialexp",
+		Usage: "Maximum number of hours re-dial nodes can remain unresponsive to avoid eviction",
+		Value: 6.0,
+	}
 	PushFreqFlag = cli.Float64Flag{
 		Name:  "pushfreq",
 		Usage: "Frequency of pushing updates to MySQL database (in seconds)",
@@ -843,6 +848,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(RedialCheckFreqFlag.Name) {
 		cfg.RedialCheckFreq = ctx.GlobalFloat64(RedialCheckFreqFlag.Name)
+	}
+	if ctx.GlobalIsSet(RedialExpFlag.Name) {
+		cfg.RedialExp = ctx.GlobalFloat64(RedialExpFlag.Name)
 	}
 	if ctx.GlobalIsSet(PushFreqFlag.Name) {
 		cfg.PushFreq = ctx.GlobalFloat64(PushFreqFlag.Name)
