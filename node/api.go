@@ -73,21 +73,21 @@ func (api *PrivateAdminAPI) Logrotate() error {
 	return nil
 }
 
-func (api *PrivateAdminAPI) DialFreq() (int, error) {
-	return api.node.Server().DialFreq, nil
+func (api *PrivateAdminAPI) RedialFreq() (int, error) {
+	return api.node.Server().RedialFreq, nil
 }
 
-func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
-	api.node.Server().SetDialFreq(dialFreq)
+func (api *PrivateAdminAPI) SetRedialFreq(redialFreq int) error {
+	api.node.Server().SetRedialFreq(redialFreq)
 	return nil
 }
 
-func (api *PrivateAdminAPI) DialCheckFreq() (int, error) {
-	return api.node.Server().DialCheckFreq, nil
+func (api *PrivateAdminAPI) RedialCheckFreq() (int, error) {
+	return api.node.Server().RedialCheckFreq, nil
 }
 
-func (api *PrivateAdminAPI) SetDialCheckFreq(dialCheckFreq int) error {
-	api.node.Server().SetDialCheckFreq(dialCheckFreq)
+func (api *PrivateAdminAPI) SetRedialCheckFreq(redialCheckFreq int) error {
+	api.node.Server().SetRedialCheckFreq(redialCheckFreq)
 	return nil
 }
 

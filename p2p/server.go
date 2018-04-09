@@ -66,11 +66,11 @@ type Config struct {
 	// Blacklist is the list of IP networks that we should not connect to
 	Blacklist *netutil.Netlist `toml:",omitempty"`
 
-	// DialFreq is the frequency of re-dialing static nodes (in seconds).
-	DialFreq int
+	// RedialFreq is the frequency of re-dialing static nodes (in seconds).
+	RedialFreq int
 
-	// DialCheckFreq is the frequency of checking static nodes ready for redial (in seconds).
-	DialCheckFreq int
+	// RedialCheckFreq is the frequency of checking static nodes ready for redial (in seconds).
+	RedialCheckFreq int
 
 	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
 	PushFreq int
@@ -180,7 +180,7 @@ type Server struct {
 	p2pInfoQueue      *infoQueue
 	ethInfoQueue      *infoQueue
 	pushTicker        *mticker.MutableTicker
-	dialCheckTicker   *mticker.MutableTicker
+	redialCheckTicker *mticker.MutableTicker
 
 	KnownNodeInfos *KnownNodeInfos // information on known nodes
 	StrReplacer    *strings.Replacer
@@ -420,8 +420,8 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
-	if srv.Config.DialCheckFreq <= 0 {
-		srv.Config.DialCheckFreq = 15
+	if srv.Config.RedialCheckFreq <= 0 {
+		srv.Config.RedialCheckFreq = 5
 	}
 	if srv.Config.PushFreq <= 0 {
 		srv.Config.PushFreq = 1
@@ -489,7 +489,7 @@ func (srv *Server) Start() (err error) {
 	dialer := newDialState(srv.StaticNodes, srv.ntab, dynPeers, srv.NetRestrict)
 	dialer.blacklist = srv.Blacklist
 	srv.dialstate = dialer
-	srv.SetDialFreq(srv.DialFreq)
+	srv.SetRedialFreq(srv.RedialFreq)
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -543,14 +543,14 @@ type dialer interface {
 	removeStatic(*discover.Node)
 }
 
-func (srv *Server) SetDialFreq(dialFreq int) {
-	srv.DialFreq = dialFreq
+func (srv *Server) SetRedialFreq(dialFreq int) {
+	srv.RedialFreq = dialFreq
 	srv.dialstate.dialFreq = time.Duration(dialFreq) * time.Second
 }
 
-func (srv *Server) SetDialCheckFreq(dialCheckFreq int) {
-	srv.DialCheckFreq = dialCheckFreq
-	srv.dialCheckTicker.UpdateInterval(time.Duration(dialCheckFreq) * time.Second)
+func (srv *Server) SetRedialCheckFreq(dialCheckFreq int) {
+	srv.RedialCheckFreq = dialCheckFreq
+	srv.redialCheckTicker.UpdateInterval(time.Duration(dialCheckFreq) * time.Second)
 }
 
 func (srv *Server) SetPushFreq(pushFreq int) {
@@ -670,7 +670,7 @@ func (srv *Server) run(dialstate dialer) {
 	}
 
 	// start redial check timer
-	srv.dialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.DialCheckFreq) * time.Second)
+	srv.redialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.RedialCheckFreq) * time.Second)
 	// initial static dials
 	scheduleRedialTasks()
 
@@ -682,7 +682,7 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
-		case <-srv.dialCheckTicker.C:
+		case <-srv.redialCheckTicker.C:
 			scheduleRedialTasks()
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
@@ -775,7 +775,7 @@ running:
 			delete(peers, pd.ID())
 		}
 	}
-	srv.dialCheckTicker.Stop()
+	srv.redialCheckTicker.Stop()
 
 	log.Trace("P2P networking is spinning down")
 

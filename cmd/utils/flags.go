@@ -125,17 +125,17 @@ var (
 	}
 	BlacklistFlag = cli.StringFlag{
 		Name:  "blacklist",
-		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
+		Usage: "Reject network communication from/to the given IP networks (comma-separated CIDR masks)",
 	}
-	DialFreqFlag = cli.IntFlag{
-		Name:  "dialfreq",
+	RedialFreqFlag = cli.IntFlag{
+		Name:  "redialfreq",
 		Usage: "Frequency of re-dialing static nodes (in seconds)",
 		Value: 30,
 	}
-	DialCheckFreqFlag = cli.IntFlag{
-		Name:  "dialcheckfreq",
-		Usage: "Frequency of checking static nodes ready for redial (in seconds)",
-		Value: 15,
+	RedialCheckFreqFlag = cli.IntFlag{
+		Name:  "redialcheckfreq",
+		Usage: "Frequency of checking static nodes ready for re-dial (in seconds)",
+		Value: 5,
 	}
 	PushFreqFlag = cli.IntFlag{
 		Name:  "pushfreq",
@@ -833,11 +833,11 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	if ctx.GlobalIsSet(DialFreqFlag.Name) {
-		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
+	if ctx.GlobalIsSet(RedialFreqFlag.Name) {
+		cfg.RedialFreq = ctx.GlobalInt(RedialFreqFlag.Name)
 	}
-	if ctx.GlobalIsSet(DialCheckFreqFlag.Name) {
-		cfg.DialCheckFreq = ctx.GlobalInt(DialCheckFreqFlag.Name)
+	if ctx.GlobalIsSet(RedialCheckFreqFlag.Name) {
+		cfg.RedialCheckFreq = ctx.GlobalInt(RedialCheckFreqFlag.Name)
 	}
 	if ctx.GlobalIsSet(PushFreqFlag.Name) {
 		cfg.PushFreq = ctx.GlobalInt(PushFreqFlag.Name)

@@ -164,13 +164,13 @@ web3._extend({
 			call: 'admin_logrotate'
 		}),
 		new web3._extend.Method({
-			name: 'setDialFreq',
-			call: 'admin_setDialFreq',
+			name: 'setRedialFreq',
+			call: 'admin_setRedialFreq',
 			params: 1,
 		}),
 		new web3._extend.Method({
-			name: 'setDialCheckFreq',
-			call: 'admin_setDialCheckFreq',
+			name: 'setRedialCheckFreq',
+			call: 'admin_setRedialCheckFreq',
 			params: 1,
 		}),
 		new web3._extend.Method({
@@ -202,12 +202,12 @@ web3._extend({
 			getter: 'admin_datadir'
 		}),
 		new web3._extend.Property({
-			name: 'dialFreq',
-			getter: 'admin_dialFreq'
+			name: 'redialFreq',
+			getter: 'admin_redialFreq'
 		}),
 		new web3._extend.Property({
-			name: 'dialCheckFreq',
-			getter: 'admin_dialCheckFreq'
+			name: 'redialCheckFreq',
+			getter: 'admin_redialCheckFreq'
 		}),
 		new web3._extend.Property({
 			name: 'pushFreq',
