@@ -303,7 +303,9 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 	// update or add a new entry to node_p2p_info
 	if srv.p2pInfoChan != nil {
 		log.Sql("Queueing NodeP2PInfo", connInfoCtx...)
-		srv.queueNodeP2PInfo(id, newInfo)
+		if err := srv.queueNodeP2PInfo(id, newInfo); err != nil {
+			log.Sql("Failed to queue NodeP2PInfo", connInfoCtx...)
+		}
 	}
 }
 

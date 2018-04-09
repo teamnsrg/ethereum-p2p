@@ -699,13 +699,19 @@ func (srv *Server) queueNodeMetaInfo(id discover.NodeID, hash string, dial bool,
 	}
 }
 
-func (srv *Server) queueNodeP2PInfo(id discover.NodeID, newInfo *Info) {
-	lastHelloAt := newInfo.LastHelloAt.Float64()
+func (srv *Server) queueNodeP2PInfo(id discover.NodeID, newInfo *Info) error {
+	if newInfo.FirstHelloAt == nil {
+		return fmt.Errorf("FirstHelloAt == nil")
+	}
+	if newInfo.LastHelloAt == nil {
+		return fmt.Errorf("LastHelloAt == nil")
+	}
 	srv.p2pInfoChan <- []interface{}{
 		id.String(), newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
 		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort,
-		lastHelloAt, lastHelloAt,
+		newInfo.FirstHelloAt.Float64(), newInfo.LastHelloAt.Float64(),
 	}
+	return nil
 }
 
 func boolToInt(b bool) int {
