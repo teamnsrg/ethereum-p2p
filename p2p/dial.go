@@ -18,7 +18,6 @@ package p2p
 
 import (
 	"container/heap"
-	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -35,10 +34,6 @@ const (
 	// once every few seconds.
 	lookupInterval = 4 * time.Second
 
-	// If no peers are found for this amount of time, the initial bootnodes are
-	// attempted to be connected.
-	fallbackInterval = 20 * time.Second
-
 	// Endpoint resolution is throttled with bounded backoff.
 	initialResolveDelay = 60 * time.Second
 	maxResolveDelay     = time.Hour
@@ -47,7 +42,7 @@ const (
 // NodeDialer is used to connect to nodes in the network, typically by using
 // an underlying net.Dialer but also using net.Pipe in tests
 type NodeDialer interface {
-	Dial(context.Context, *discover.Node) (net.Conn, error)
+	Dial(*discover.Node) (net.Conn, error)
 }
 
 // TCPDialer implements the NodeDialer interface by using a net.Dialer to
@@ -57,12 +52,9 @@ type TCPDialer struct {
 }
 
 // Dial creates a TCP connection to the node
-func (t TCPDialer) Dial(ctx context.Context, dest *discover.Node) (net.Conn, error) {
+func (t TCPDialer) Dial(dest *discover.Node) (net.Conn, error) {
 	addr := &net.TCPAddr{IP: dest.IP, Port: int(dest.TCP)}
-	if ctx == nil {
-		return t.Dialer.Dial("tcp", addr.String())
-	}
-	return t.Dialer.DialContext(ctx, "tcp", addr.String())
+	return t.Dialer.Dial("tcp", addr.String())
 }
 
 // dialstate schedules dials and discovery lookups.
@@ -104,13 +96,12 @@ type pastDial struct {
 
 type task interface {
 	Do(*Server)
+	TaskInfoCtx() []interface{}
 }
 
 // A dialTask is generated for each node that is dialed. Its
 // fields cannot be accessed while the task is running.
 type dialTask struct {
-	ctx          context.Context
-	cancel       context.CancelFunc
 	flags        connFlag
 	dest         *discover.Node
 	lastResolved time.Time
@@ -149,8 +140,7 @@ func newDialState(static []*discover.Node, ntab discoverTable, maxdyn int, netre
 func (s *dialstate) addStatic(n *discover.Node) {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
-	ctx, cancel := context.WithCancel(context.Background())
-	s.static[n.ID] = &dialTask{ctx: ctx, cancel: cancel, flags: staticDialedConn, dest: n}
+	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
@@ -158,12 +148,12 @@ func (s *dialstate) removeStatic(n *discover.Node) {
 	delete(s.static, n.ID)
 }
 
-func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now time.Time) ([]task, bool) {
 	if s.start == (time.Time{}) {
 		s.start = now
 	}
 
-	var newtasks []task
+	var newDynDialTasks []task
 	addDial := func(flag connFlag, n *discover.Node) bool {
 		if err := s.checkDial(n, peers); err != nil {
 			log.Trace("Skipping dial candidate", "id", n.ID, "addr", &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, "err", err)
@@ -173,8 +163,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 			return false
 		}
 		s.dialing[n.ID] = flag
-		ctx, cancel := context.WithCancel(context.Background())
-		newtasks = append(newtasks, &dialTask{ctx: ctx, cancel: cancel, flags: flag, dest: n})
+		newDynDialTasks = append(newDynDialTasks, &dialTask{flags: flag, dest: n})
 		return true
 	}
 
@@ -215,20 +204,19 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	}
 	s.lookupBuf = s.lookupBuf[:copy(s.lookupBuf, s.lookupBuf[i:])]
 	// Launch a discovery lookup if more candidates are needed.
-	if len(s.lookupBuf) < needDynDials && !s.lookupRunning {
-		s.lookupRunning = true
-		newtasks = append(newtasks, &discoverTask{})
-	}
+	needDiscoverTask := len(s.lookupBuf) < needDynDials && !s.lookupRunning
+	s.lookupRunning = s.lookupRunning || needDiscoverTask
 
 	// Launch a timer to wait for the next node to expire if all
 	// candidates have been tried and no task is currently active.
 	// This should prevent cases where the dialer logic is not ticked
 	// because there are no pending events.
-	if nRunning == 0 && len(newtasks) == 0 && s.hist.Len() > 0 {
+	if nRunning == 0 && len(newDynDialTasks) == 0 && !needDiscoverTask && s.hist.Len() > 0 {
 		t := &waitExpireTask{s.hist.min().exp.Sub(now)}
-		newtasks = append(newtasks, t)
+		newDynDialTasks = append(newDynDialTasks, t)
 	}
-	return newtasks
+
+	return newDynDialTasks, needDiscoverTask
 }
 
 func (s *dialstate) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
@@ -296,12 +284,17 @@ func (s *dialstate) taskDone(t task, now time.Time) {
 }
 
 func (t *dialTask) Do(srv *Server) {
-	if t.flags&dynDialedConn != 0 && t.dest.Incomplete() && !t.resolve(srv) {
-		return
+	if t.dest.Incomplete() {
+		if !t.resolve(srv) {
+			return
+		}
 	}
-	t.dial(t.ctx, srv, t.dest)
-	if t.cancel != nil {
-		t.cancel()
+	success := t.dial(srv, t.dest)
+	// Try resolving the ID of static nodes if dialing failed.
+	if !success && t.flags&staticDialedConn != 0 {
+		if t.resolve(srv) {
+			t.dial(srv, t.dest)
+		}
 	}
 }
 
@@ -312,9 +305,8 @@ func (t *dialTask) Do(srv *Server) {
 // discovery network with useless queries for nodes that don't exist.
 // The backoff delay resets when the node is found.
 func (t *dialTask) resolve(srv *Server) bool {
-	addr := &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}
 	if srv.ntab == nil {
-		log.Debug("Can't resolve node", "id", t.dest.ID, "addr", addr.String(), "conn", t.flags, "err", "discovery is disabled")
+		log.Task("FAIL-RESOLVE", append(t.TaskInfoCtx(), "err", "discovery is disabled"))
 		return false
 	}
 	if t.resolveDelay == 0 {
@@ -330,26 +322,48 @@ func (t *dialTask) resolve(srv *Server) bool {
 		if t.resolveDelay > maxResolveDelay {
 			t.resolveDelay = maxResolveDelay
 		}
-		log.Debug("Resolving node failed", "id", t.dest.ID, "addr", addr.String(), "conn", t.flags, "newdelay", t.resolveDelay)
+		log.Task("FAIL-RESOLVE", append(t.TaskInfoCtx(), t.ResolveInfoCtx()...))
 		return false
 	}
 	// The node was found.
 	t.resolveDelay = initialResolveDelay
 	t.dest = resolved
-	log.Debug("Resolved node", "id", t.dest.ID, "addr", addr.String(), "conn", t.flags)
+	log.Task("RESOLVED", append(t.TaskInfoCtx(), t.ResolveInfoCtx()...))
 	return true
 }
 
 // dial performs the actual connection attempt.
-func (t *dialTask) dial(ctx context.Context, srv *Server, dest *discover.Node) bool {
-	fd, err := srv.Dialer.Dial(ctx, dest)
+func (t *dialTask) dial(srv *Server, dest *discover.Node) bool {
+	fd, err := srv.Dialer.Dial(dest)
 	if err != nil {
-		log.Trace("Dial error", "task", t, "err", err)
+		log.Task("FAIL-DIAL", append(t.TaskInfoCtx(), "err", err))
 		return false
 	}
 	mfd := newMeteredConn(fd, false)
 	srv.SetupConn(mfd, t.flags, dest)
 	return true
+}
+
+func (t *dialTask) TaskInfoCtx() []interface{} {
+	addr := &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}
+	return []interface{}{
+		"task", t.flags,
+		"id", t.dest.ID.String(),
+		"addr", addr.String(),
+	}
+}
+
+func (t *dialTask) ResolveInfoCtx() []interface{} {
+	var lastResolved interface{}
+	if t.lastResolved.IsZero() {
+		lastResolved = nil
+	} else {
+		lastResolved = t.lastResolved
+	}
+	return []interface{}{
+		"lastResolveTry", lastResolved,
+		"resolveDelay", t.resolveDelay.Seconds(),
+	}
 }
 
 func (t *dialTask) String() string {
@@ -370,6 +384,13 @@ func (t *discoverTask) Do(srv *Server) {
 	t.results = srv.ntab.Lookup(target)
 }
 
+func (t *discoverTask) TaskInfoCtx() []interface{} {
+	return []interface{}{
+		"task", "discover",
+		"numResults", len(t.results),
+	}
+}
+
 func (t *discoverTask) String() string {
 	s := "discovery lookup"
 	if len(t.results) > 0 {
@@ -381,6 +402,14 @@ func (t *discoverTask) String() string {
 func (t waitExpireTask) Do(*Server) {
 	time.Sleep(t.Duration)
 }
+
+func (t *waitExpireTask) TaskInfoCtx() []interface{} {
+	return []interface{}{
+		"task", "wait",
+		"duration", t.Duration.Seconds(),
+	}
+}
+
 func (t waitExpireTask) String() string {
 	return fmt.Sprintf("wait for dial hist expire (%v)", t.Duration)
 }

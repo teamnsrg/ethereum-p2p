@@ -72,10 +72,11 @@ func (c *testTransport) close(err error) {
 
 func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	config := Config{
-		Name:       "test",
-		MaxPeers:   10,
-		ListenAddr: "127.0.0.1:0",
-		PrivateKey: newkey(),
+		Name:        "test",
+		MaxPeers:    10,
+		ListenAddr:  "127.0.0.1:0",
+		PrivateKey:  newkey(),
+		NoDiscovery: true,
 	}
 	server := &Server{
 		Config:       config,
@@ -96,6 +97,7 @@ func startTestConnectServer(listener net.Listener, t *testing.T, id discover.Nod
 		ListenAddr:  "127.0.0.1:0",
 		PrivateKey:  newkey(),
 		StaticNodes: []*discover.Node{{ID: id, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)}},
+		NoDiscovery: true,
 	}
 	server := &Server{
 		Config:       config,
@@ -213,9 +215,9 @@ func TestServerTaskScheduling(t *testing.T) {
 		quit, returned = make(chan struct{}), make(chan struct{})
 		tc             = 0
 		tg             = taskgen{
-			newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
+			newFunc: func(running int, peers map[discover.NodeID]*Peer) ([]task, bool) {
 				tc++
-				return []task{&testTask{index: tc - 1}}
+				return []task{&testTask{index: tc - 1}}, false
 			},
 			doneFunc: func(t task) {
 				select {
@@ -229,12 +231,11 @@ func TestServerTaskScheduling(t *testing.T) {
 	// The Server in this test isn't actually running
 	// because we're only interested in what run does.
 	srv := &Server{
-		Config:  Config{MaxPeers: 10},
+		Config:  Config{MaxPeers: 10, MaxDial: 16, DialCheckFreq: 15, PushFreq: 1},
 		quit:    make(chan struct{}),
 		ntab:    fakeTable{},
 		running: true,
 	}
-	srv.MaxDial = 16
 	srv.loopWG.Add(1)
 	go func() {
 		srv.run(tg)
@@ -279,15 +280,16 @@ func TestServerManyTasks(t *testing.T) {
 		start, end = 0, 0
 	)
 	srv.MaxDial = 16
+	srv.DialCheckFreq = 15
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
-		newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
+		newFunc: func(running int, peers map[discover.NodeID]*Peer) ([]task, bool) {
 			start, end = end, end+srv.MaxDial+10
 			if end > len(alltasks) {
 				end = len(alltasks)
 			}
-			return alltasks[start:end]
+			return alltasks[start:end], false
 		},
 		doneFunc: func(tt task) {
 			done <- tt.(*testTask)
@@ -317,11 +319,11 @@ func TestServerManyTasks(t *testing.T) {
 }
 
 type taskgen struct {
-	newFunc  func(running int, peers map[discover.NodeID]*Peer) []task
+	newFunc  func(running int, peers map[discover.NodeID]*Peer) ([]task, bool)
 	doneFunc func(task)
 }
 
-func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) ([]task, bool) {
 	return tg.newFunc(running, peers)
 }
 func (tg taskgen) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
@@ -352,6 +354,10 @@ type testTask struct {
 
 func (t *testTask) Do(srv *Server) {
 	t.called = true
+}
+
+func (t *testTask) TaskInfoCtx() []interface{} {
+	return nil
 }
 
 // This test checks that connections are disconnected

@@ -72,6 +72,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MaxNumFileFlag,
 			utils.BlacklistFlag,
 			utils.DialFreqFlag,
+			utils.DialCheckFreqFlag,
 			utils.PushFreqFlag,
 			utils.MySQLFlag,
 			utils.BackupSQLFlag,

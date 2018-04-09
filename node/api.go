@@ -61,6 +61,8 @@ func (api *PrivateAdminAPI) Logrotate() error {
 			log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlNeighbors, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTask, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlPeer, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlHello, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlDiscProto, logdir),
 			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, logdir),
@@ -77,6 +79,15 @@ func (api *PrivateAdminAPI) DialFreq() (int, error) {
 
 func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
 	api.node.Server().SetDialFreq(dialFreq)
+	return nil
+}
+
+func (api *PrivateAdminAPI) DialCheckFreq() (int, error) {
+	return api.node.Server().DialCheckFreq, nil
+}
+
+func (api *PrivateAdminAPI) SetDialCheckFreq(dialCheckFreq int) error {
+	api.node.Server().SetDialCheckFreq(dialCheckFreq)
 	return nil
 }
 
@@ -98,7 +109,7 @@ func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
 }
 
 func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
-	return api.node.Server().SetBlacklist(cidrs)
+	return api.node.Server().AddBlacklist(cidrs)
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new

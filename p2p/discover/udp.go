@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/teamnsrg/go-ethereum/crypto"
@@ -177,10 +178,15 @@ type udp struct {
 	addpending   chan *pending
 	gotreply     chan reply
 
+	loopWG  sync.WaitGroup
 	closing chan struct{}
 	nat     nat.Interface
 
 	*Table
+}
+
+func (t *udp) SetBlacklist(blacklist *netutil.Netlist) {
+	t.blacklist = blacklist
 }
 
 // pending represents a pending reply.
@@ -221,21 +227,21 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, *udp, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, neighborChan)
+	tab, udp, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist, neighborChan)
 	if err != nil {
-		return nil, err
+		return nil, udp, err
 	}
 	log.Info("UDP listener up", "self", tab.self)
-	return tab, nil
+	return tab, udp, nil
 }
 
 func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist, neighborChan chan<- []interface{}) (*Table, *udp, error) {
@@ -267,6 +273,7 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 	}
 	udp.Table = tab
 
+	udp.loopWG.Add(2)
 	go udp.loop()
 	go udp.readLoop()
 	return udp.Table, udp, nil
@@ -275,13 +282,12 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 func (t *udp) close() {
 	close(t.closing)
 	t.conn.Close()
+	t.loopWG.Wait()
 
 	// close Neighbor channel
 	if t.neighborChan != nil {
 		close(t.neighborChan)
 	}
-
-	// TODO: wait for the loops to end.
 }
 
 // ping sends a ping message to the given node and waits for a reply.
@@ -355,6 +361,7 @@ func (t *udp) handleReply(from NodeID, ptype byte, req packet) bool {
 // loop runs in its own goroutine. it keeps track of
 // the refresh timer and the pending reply queue.
 func (t *udp) loop() {
+	defer t.loopWG.Done()
 	var (
 		plist        = list.New()
 		timeout      = time.NewTimer(0)
@@ -516,7 +523,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) ([]byte, 
 
 // readLoop runs in its own goroutine. it handles incoming UDP packets.
 func (t *udp) readLoop() {
-	defer t.conn.Close()
+	defer t.loopWG.Done()
 	// Discovery packets are defined to be no larger than 1280 bytes.
 	// Packets larger than this size will be cut at the end and treated
 	// as invalid because their hash won't match.

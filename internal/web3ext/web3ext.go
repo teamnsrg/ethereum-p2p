@@ -169,6 +169,11 @@ web3._extend({
 			params: 1,
 		}),
 		new web3._extend.Method({
+			name: 'setDialCheckFreq',
+			call: 'admin_setDialCheckFreq',
+			params: 1,
+		}),
+		new web3._extend.Method({
 			name: 'setPushFreq',
 			call: 'admin_setPushFreq',
 			params: 1,
@@ -199,6 +204,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'dialFreq',
 			getter: 'admin_dialFreq'
+		}),
+		new web3._extend.Property({
+			name: 'dialCheckFreq',
+			getter: 'admin_dialCheckFreq'
 		}),
 		new web3._extend.Property({
 			name: 'pushFreq',

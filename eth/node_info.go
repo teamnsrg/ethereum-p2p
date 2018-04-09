@@ -61,7 +61,9 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 	// queue updated/new entry to node_eth_info
 	if pm.ethInfoChan != nil {
 		log.Sql("Queueing NodeEthInfo", connInfoCtx...)
-		pm.queueNodeEthInfo(id, newInfo, true)
+		if err := pm.queueNodeEthInfo(id, newInfo, true); err != nil {
+			log.Sql("Failed to queue NodeEthInfo", connInfoCtx...)
+		}
 	}
 }
 
@@ -116,6 +118,24 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoFor
 	defer currentInfo.Unlock()
 	// daoForkSupport hasn't changed
 	// log but don't update database
+
+	// If currentInfo is missing status info for whatever reason, fill them up now
+	// For first/last received TD and timestamps, use the peer's current TD
+	// and the DAO fork block header message received time.
+	if currentInfo.FirstStatusAt == nil {
+		_, _, genesis := pm.blockchain.Status()
+		peerInfo := p.Info()
+		receivedTd := p2p.NewTd(peerInfo.Difficulty)
+		receivedAt := &p2p.UnixTime{Time: &msg.ReceivedAt}
+		currentInfo.ProtocolVersion = uint64(peerInfo.Version)
+		currentInfo.NetworkId = pm.networkId
+		currentInfo.FirstReceivedTd = receivedTd
+		currentInfo.LastReceivedTd = receivedTd
+		currentInfo.BestHash = peerInfo.Head
+		currentInfo.GenesisHash = genesis.String()[2:]
+		currentInfo.FirstStatusAt = receivedAt
+		currentInfo.LastStatusAt = receivedAt
+	}
 	if currentInfo.DAOForkSupport == daoForkSupport {
 		log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
 		return
@@ -127,6 +147,8 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoFor
 	// queue updated/new entry to node_eth_info
 	if pm.ethInfoChan != nil {
 		log.Sql("Queueing NodeEthInfo", connInfoCtx...)
-		pm.queueNodeEthInfo(id, currentInfo, false)
+		if err := pm.queueNodeEthInfo(id, currentInfo, false); err != nil {
+			log.Sql("Failed to queue NodeEthInfo", connInfoCtx...)
+		}
 	}
 }

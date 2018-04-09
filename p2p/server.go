@@ -40,8 +40,6 @@ import (
 )
 
 const (
-	redialCheckInterval = 60 * time.Second
-
 	defaultDialTimeout = 15 * time.Second
 
 	// Maximum number of concurrently handshaking inbound connections.
@@ -70,6 +68,9 @@ type Config struct {
 
 	// DialFreq is the frequency of re-dialing static nodes (in seconds).
 	DialFreq int
+
+	// DialCheckFreq is the frequency of checking static nodes ready for redial (in seconds).
+	DialCheckFreq int
 
 	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
 	PushFreq int
@@ -179,6 +180,7 @@ type Server struct {
 	p2pInfoQueue      *infoQueue
 	ethInfoQueue      *infoQueue
 	pushTicker        *mticker.MutableTicker
+	dialCheckTicker   *mticker.MutableTicker
 
 	KnownNodeInfos *KnownNodeInfos // information on known nodes
 	StrReplacer    *strings.Replacer
@@ -196,6 +198,7 @@ type Server struct {
 	running bool
 
 	ntab         discoverTable
+	udp          udp
 	listener     net.Listener
 	ourHandshake *protoHandshake
 	lastLookup   time.Time
@@ -213,6 +216,10 @@ type Server struct {
 	delpeer       chan peerDrop
 	loopWG        sync.WaitGroup // loop, listenLoop
 	peerFeed      event.Feed
+}
+
+type udp interface {
+	SetBlacklist(blacklist *netutil.Netlist)
 }
 
 type peerOpFunc func(map[discover.NodeID]*Peer)
@@ -395,11 +402,11 @@ func (srv *Server) Stop() {
 		return
 	}
 	srv.running = false
+	close(srv.quit)
 	if srv.listener != nil {
 		// this unblocks listener Accept
 		srv.listener.Close()
 	}
-	close(srv.quit)
 	srv.loopWG.Wait()
 
 	srv.closeSql()
@@ -412,6 +419,12 @@ func (srv *Server) Start() (err error) {
 	defer srv.lock.Unlock()
 	if srv.running {
 		return errors.New("server already running")
+	}
+	if srv.Config.DialCheckFreq <= 0 {
+		srv.Config.DialCheckFreq = 15
+	}
+	if srv.Config.PushFreq <= 0 {
+		srv.Config.PushFreq = 1
 	}
 
 	srv.running = true
@@ -456,7 +469,7 @@ func (srv *Server) Start() (err error) {
 
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.NeighborChan)
+		ntab, udp, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist, srv.NeighborChan)
 		if err != nil {
 			srv.closeSql()
 			return err
@@ -466,6 +479,7 @@ func (srv *Server) Start() (err error) {
 			return err
 		}
 		srv.ntab = ntab
+		srv.udp = udp
 	}
 
 	dynPeers := (srv.MaxPeers + 1) / 2
@@ -522,7 +536,7 @@ func (srv *Server) startListening() error {
 }
 
 type dialer interface {
-	newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task
+	newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) ([]task, bool)
 	newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
@@ -534,25 +548,32 @@ func (srv *Server) SetDialFreq(dialFreq int) {
 	srv.dialstate.dialFreq = time.Duration(dialFreq) * time.Second
 }
 
+func (srv *Server) SetDialCheckFreq(dialCheckFreq int) {
+	srv.DialCheckFreq = dialCheckFreq
+	srv.dialCheckTicker.UpdateInterval(time.Duration(dialCheckFreq) * time.Second)
+}
+
 func (srv *Server) SetPushFreq(pushFreq int) {
 	srv.PushFreq = pushFreq
 	srv.pushTicker.UpdateInterval(time.Duration(pushFreq) * time.Second)
 }
 
-func (srv *Server) SetBlacklist(cidrs string) error {
-	// TODO: update udp's list as well
+func (srv *Server) AddBlacklist(cidrs string) error {
 	if srv.Blacklist == nil {
 		if list, err := netutil.ParseNetlist(cidrs); err != nil {
 			return err
 		} else {
 			srv.Blacklist = list
 			srv.dialstate.blacklist = list
+			srv.udp.SetBlacklist(list)
 		}
 	} else {
 		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
 		masks := strings.Split(ws.Replace(cidrs), ",")
 		for _, mask := range masks {
-			srv.Blacklist.AddNonDuplicate(mask)
+			if err := srv.Blacklist.AddNonDuplicate(mask); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -561,13 +582,15 @@ func (srv *Server) SetBlacklist(cidrs string) error {
 func (srv *Server) run(dialstate dialer) {
 	defer srv.loopWG.Done()
 	var (
-		peers                  = make(map[discover.NodeID]*Peer)
-		trusted                = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
-		taskdone               = make(chan task, srv.MaxDial)
-		staticdialtaskdone     = make(chan task)
-		runningTasks           []task
-		runningStaticDialTasks []task
-		queuedTasks            []task // tasks that can't run yet
+		peers             = make(map[discover.NodeID]*Peer)
+		trusted           = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
+		discoverdone      = make(chan task)
+		dyndialdone       = make(chan task, srv.MaxDial)
+		staticdialdone    = make(chan task)
+		runningDiscover   []task
+		runningDynDial    []task
+		runningStaticDial []task
+		queuedTasks       []task // tasks that can't run yet
 	)
 	// Put trusted nodes into a map to speed up checks.
 	// Trusted peers are loaded on startup and cannot be
@@ -578,64 +601,88 @@ func (srv *Server) run(dialstate dialer) {
 
 	// removes t from runningTasks
 	delTask := func(t task) {
-		for i := range runningTasks {
-			if runningTasks[i] == t {
-				runningTasks = append(runningTasks[:i], runningTasks[i+1:]...)
-				break
+		log.Task("DONE", t.TaskInfoCtx())
+		dialstate.taskDone(t, time.Now())
+		switch t := t.(type) {
+		case *dialTask:
+			if t.flags&staticDialedConn != 0 {
+				for i := range runningStaticDial {
+					if runningStaticDial[i] == t {
+						runningStaticDial = append(runningStaticDial[:i], runningStaticDial[i+1:]...)
+						return
+					}
+				}
+			} else {
+				for i := range runningDynDial {
+					if runningDynDial[i] == t {
+						runningDynDial = append(runningDynDial[:i], runningDynDial[i+1:]...)
+						return
+					}
+				}
 			}
-		}
-	}
-	delStaticDialTask := func(t task) {
-		for i := range runningStaticDialTasks {
-			if runningStaticDialTasks[i] == t {
-				runningStaticDialTasks = append(runningStaticDialTasks[:i], runningStaticDialTasks[i+1:]...)
-				break
+		case *discoverTask:
+			// there is 1 running discoverTask at most or nothing
+			runningDiscover = runningDiscover[:0]
+			return
+		default: // for testing
+			for i := range runningDynDial {
+				if runningDynDial[i] == t {
+					runningDynDial = append(runningDynDial[:i], runningDynDial[i+1:]...)
+					return
+				}
 			}
 		}
 	}
 	// starts until max number of active tasks is satisfied
-	startTasks := func(ts []task) (rest []task) {
+	startDynDialTasks := func(ts []task) (rest []task) {
 		i := 0
-		for ; len(runningTasks) < srv.MaxDial && i < len(ts); i++ {
+		for ; len(runningDynDial) < srv.MaxDial && i < len(ts); i++ {
 			t := ts[i]
-			log.Trace("New dial task", "task", t)
-			go func() { t.Do(srv); taskdone <- t }()
-			runningTasks = append(runningTasks, t)
+			log.Task("NEW", t.TaskInfoCtx())
+			go func() { t.Do(srv); dyndialdone <- t }()
+			runningDynDial = append(runningDynDial, t)
 		}
 		return ts[i:]
 	}
-	scheduleTasks := func() {
+	scheduleDynDialTasks := func() {
 		// Start from queue first.
-		queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
+		queuedTasks = append(queuedTasks[:0], startDynDialTasks(queuedTasks)...)
 		// Query dialer for new tasks and start as many as possible now.
-		if len(runningTasks) < srv.MaxDial {
-			nt := dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())
-			queuedTasks = append(queuedTasks, startTasks(nt)...)
+		if len(runningDynDial) < srv.MaxDial {
+			nRunning := len(runningDynDial) + len(queuedTasks) + len(runningDiscover)
+			nt, needDiscoverTask := dialstate.newTasks(nRunning, peers, time.Now())
+			queuedTasks = append(queuedTasks, startDynDialTasks(nt)...)
+			if needDiscoverTask {
+				t := &discoverTask{}
+				log.Task("NEW", t.TaskInfoCtx())
+				go func() { t.Do(srv); discoverdone <- t }()
+				runningDiscover = append(runningDiscover, t)
+			}
 		}
 	}
 	scheduleRedialTasks := func() {
 		// Query dialer for new static tasks and start all
 		for _, t := range dialstate.newRedialTasks(peers, time.Now()) {
-			log.Trace("New dial task", "task", t)
-			go func(t task) { t.Do(srv); staticdialtaskdone <- t }(t)
-			runningStaticDialTasks = append(runningStaticDialTasks, t)
+			log.Task("NEW", t.TaskInfoCtx())
+			go func(t task) { t.Do(srv); staticdialdone <- t }(t)
+			runningStaticDial = append(runningStaticDial, t)
 		}
 	}
 
 	// start redial check timer
-	forceRedial := time.NewTicker(redialCheckInterval)
+	srv.dialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.DialCheckFreq) * time.Second)
 	// initial static dials
 	scheduleRedialTasks()
 
 running:
 	for {
-		scheduleTasks()
+		scheduleDynDialTasks()
 
 		select {
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
-		case <-forceRedial.C:
+		case <-srv.dialCheckTicker.C:
 			scheduleRedialTasks()
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
@@ -656,19 +703,12 @@ running:
 			// This channel is used by Peers and PeerCount.
 			op(peers)
 			srv.peerOpDone <- struct{}{}
-		case t := <-taskdone:
-			// A task got done. Tell dialstate about it so it
-			// can update its state and remove it from the active
-			// tasks list.
-			log.Trace("Dial task done", "task", t)
-			dialstate.taskDone(t, time.Now())
+		case t := <-discoverdone:
 			delTask(t)
-		case t := <-staticdialtaskdone:
-			// A redial task got done. Tell dialstate about it so it
-			// can update its state
-			log.Trace("Dial task done", "task", t)
-			dialstate.taskDone(t, time.Now())
-			delStaticDialTask(t)
+		case t := <-dyndialdone:
+			delTask(t)
+		case t := <-staticdialdone:
+			delTask(t)
 		case c := <-srv.posthandshake:
 			// A connection has passed the encryption handshake so
 			// the remote identity is known (but hasn't been verified yet).
@@ -730,20 +770,18 @@ running:
 				}
 			}
 			d := common.PrettyDuration(mclock.Now() - pd.created)
+			log.Peer("REMOVE|DEVP2P", pd.ConnInfoCtx(), pd.Rtt(), time.Duration(d).Seconds())
 			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
 		}
 	}
-	forceRedial.Stop()
+	srv.dialCheckTicker.Stop()
 
 	log.Trace("P2P networking is spinning down")
 
 	// Terminate discovery. If there is a running lookup it will terminate soon.
 	if srv.ntab != nil {
 		srv.ntab.Close()
-	}
-	if srv.DiscV5 != nil {
-		srv.DiscV5.Close()
 	}
 	// Disconnect all peers.
 	for _, p := range peers {
@@ -757,33 +795,6 @@ running:
 	if srv.p2pInfoChan != nil {
 		close(srv.p2pInfoChan)
 	}
-
-	// Wait for peers and tasks to shut down.
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		for len(peers) > 0 {
-			p := <-srv.delpeer
-			delete(peers, p.ID())
-			p.log.Trace("<-delpeer (spindown)", "remainingPeers", len(peers))
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		allRunningTasks := append(runningStaticDialTasks, runningTasks...)
-		n := len(allRunningTasks)
-		for _, t := range allRunningTasks {
-			if d, ok := t.(*dialTask); ok {
-				d.cancel()
-			} else {
-				<-taskdone
-			}
-			n--
-			log.Trace("<-taskdone (cancelled)", "task", t, "remainingTasks", n)
-		}
-	}()
-	wg.Wait()
 }
 
 func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
@@ -957,6 +968,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	}
 	// If the checks completed successfully, runPeer has now been
 	// launched by run.
+	log.Peer("ADD|DEVP2P", c.connInfoCtx, msg.PeerRtt, msg.PeerDuration)
 }
 
 func truncateName(s string) string {

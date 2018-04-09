@@ -26,6 +26,8 @@ const (
 	LvlMessageRx
 	LvlMessageTx
 	LvlNeighbors
+	LvlTask
+	LvlPeer
 	LvlHello
 	LvlDiscProto
 	LvlDiscPeer
@@ -46,6 +48,10 @@ func (l Lvl) AlignedString() string {
 		return "DISCPROTO"
 	case LvlHello:
 		return "HELLO"
+	case LvlPeer:
+		return "PEER"
+	case LvlTask:
+		return "TASK"
 	case LvlNeighbors:
 		return "NEIGHBORS"
 	case LvlMessageTx:
@@ -84,6 +90,10 @@ func (l Lvl) String() string {
 		return "disc-proto"
 	case LvlHello:
 		return "hello"
+	case LvlPeer:
+		return "peer"
+	case LvlTask:
+		return "task"
 	case LvlNeighbors:
 		return "neighbors"
 	case LvlMessageTx:
@@ -123,6 +133,10 @@ func LvlFromString(lvlString string) (Lvl, error) {
 		return LvlDiscProto, nil
 	case "hello":
 		return LvlHello, nil
+	case "peer":
+		return LvlPeer, nil
+	case "task":
+		return LvlTask, nil
 	case "neighbors":
 		return LvlNeighbors, nil
 	case "message-sent", "message-tx", "msg-tx":
@@ -185,6 +199,8 @@ type Logger interface {
 	DiscPeer(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string)
 	DiscProto(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string)
 	Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string)
+	Peer(msg string, connInfoCtx []interface{}, rtt float64, duration float64)
+	Task(msg string, taskInfoCtx []interface{})
 	Neighbors(t time.Time, ctx []interface{})
 	MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
 	MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
@@ -295,6 +311,19 @@ func (l *logger) Hello(t time.Time, connInfoCtx []interface{}, rtt float64, dura
 	}
 	ctx = append(connInfoCtx, ctx...)
 	l.writeTime(LvlHello, t, ctx)
+}
+
+func (l *logger) Peer(msg string, connInfoCtx []interface{}, rtt float64, duration float64) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.write(msg, LvlPeer, ctx)
+}
+
+func (l *logger) Task(msg string, taskInfoCtx []interface{}) {
+	l.write(msg, LvlTask, taskInfoCtx)
 }
 
 func (l *logger) Neighbors(t time.Time, ctx []interface{}) {

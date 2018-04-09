@@ -156,6 +156,13 @@ func (p *Peer) Caps() []Cap {
 	return p.rw.caps
 }
 
+func (p *Peer) Rtt() float64 {
+	if p.rw.transport == nil {
+		return 0.0
+	}
+	return p.rw.Rtt()
+}
+
 func (p *Peer) Duration() float64 {
 	return monotime.Since(uint64(p.created)).Seconds()
 }
@@ -493,7 +500,7 @@ func (p *Peer) Info() *PeerInfo {
 		Protocols: make(map[string]interface{}),
 	}
 	if p.rw.transport != nil {
-		info.Rtt = p.rw.Rtt()
+		info.Rtt = p.Rtt()
 	}
 	info.Network.LocalAddress = p.LocalAddr().String()
 	info.Network.RemoteAddress = p.RemoteAddr().String()
