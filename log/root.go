@@ -81,6 +81,15 @@ func Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64
 	root.writeTime(LvlHello, t, ctx)
 }
 
+func Peer(msg string, connInfoCtx []interface{}, rtt float64, duration float64) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.write(msg, LvlPeer, ctx)
+}
+
 func Task(msg string, taskInfoCtx []interface{}) {
 	root.write(msg, LvlTask, taskInfoCtx)
 }

@@ -23,11 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/fatih/set.v0"
+
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/core/types"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
-	"gopkg.in/fatih/set.v0"
 )
 
 var (
@@ -245,6 +246,7 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 	statusWrapper.Status = &status
 	statusWrapper.PeerRtt = msg.PeerRtt
 	statusWrapper.PeerDuration = msg.PeerDuration
+	log.Peer("ADD|ETHEREUM", p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration)
 
 	if status.GenesisBlock != genesis {
 		statusWrapper.ErrorCode = ErrGenesisBlockMismatch
@@ -258,6 +260,7 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 		statusWrapper.ErrorCode = ErrProtocolVersionMismatch
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", status.ProtocolVersion, p.version)
 	}
+	log.Peer("ADD|MAINNET", p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration)
 	return nil
 }
 

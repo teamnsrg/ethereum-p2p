@@ -149,6 +149,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if peer == nil {
 		return
 	}
+	log.Peer("REMOVE|ETHEREUM", peer.ConnInfoCtx(), peer.Rtt(), peer.Duration())
 	log.Debug("Removing Ethereum peer", "id", id)
 
 	// Unregister the peer from the Ethereum peer set

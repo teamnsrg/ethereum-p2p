@@ -770,6 +770,7 @@ running:
 				}
 			}
 			d := common.PrettyDuration(mclock.Now() - pd.created)
+			log.Peer("REMOVE|DEVP2P", pd.ConnInfoCtx(), pd.Rtt(), time.Duration(d).Seconds())
 			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
 		}
@@ -967,6 +968,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	}
 	// If the checks completed successfully, runPeer has now been
 	// launched by run.
+	log.Peer("ADD|DEVP2P", c.connInfoCtx, msg.PeerRtt, msg.PeerDuration)
 }
 
 func truncateName(s string) string {
