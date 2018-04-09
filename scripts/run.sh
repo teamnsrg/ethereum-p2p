@@ -26,8 +26,8 @@ MYSQL_PORT=3306
 echo "starting ${MYSQL_NAME} container..."
 MYSQL_DIR="${ROOT_DIR}/ethnodes"
 BACKUP_DIR="${ROOT_DIR}/ethnodes-backup"
-mkdir -p -m 755 ${BACKUP_DIR}
-docker run -d --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name ${MYSQL_NAME} \
+mkdir -p -m 755 ${MYSQL_DIR} ${BACKUP_DIR}
+docker run -dit --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name ${MYSQL_NAME} \
   --env MYSQL_DATABASE=${MYSQL_DB} \
   --env MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD} \
   --env MYSQL_USER=${MYSQL_USERNAME} \
@@ -51,7 +51,7 @@ for i in `seq 0 ${n}`;
 do
   IDENTITY="uiuc-${i}(${URL})"
   NODEFINDER_DIR="${ROOT_DIR}/${NODEFINDER_NAME}/${i}"
-  [ -d "${NODEFINDER_DIR}" ] || mkdir -p -m 755 ${NODEFINDER_DIR}
+  [ -d "${NODEFINDER_DIR}" ] || mkdir -p -m 755 ${NODEFINDER_DIR}/${NODEFINDER_NAME}
   MYSQL_URL="${MYSQL_USERNAME}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:${MYSQL_PORT})/${MYSQL_DB}"
   PORT=$(( ${NODEFINDER_PORT}+${i} ))
   CMD="geth \
@@ -65,6 +65,6 @@ do
     --redialcheckfreq 5 \
     --maxnumfile 20480 \
     --pushfreq 1"
-  docker run -d --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} --net host -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
+  docker run -dit --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} --net host -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
  echo "${NODEFINDER_NAME}-${i} started"
 done

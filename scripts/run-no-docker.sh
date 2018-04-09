@@ -28,7 +28,7 @@ MYSQL_PORT=3306
 echo "starting ${MYSQL_NAME} container..."
 MYSQL_DIR="${ROOT_DIR}/ethnodes"
 BACKUP_DIR="${ROOT_DIR}/ethnodes-backup"
-mkdir -p -m 755 ${BACKUP_DIR}
+mkdir -p -m 755 ${MYSQL_DIR} ${BACKUP_DIR}
 docker run -d --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name ${MYSQL_NAME} \
   --env MYSQL_DATABASE=${MYSQL_DB} \
   --env MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD} \
