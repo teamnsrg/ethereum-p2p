@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script assumes required docker images are already built.
 # check if root
 if [ "$EUID" -ne 0 ]; then
   echo "please run as root"

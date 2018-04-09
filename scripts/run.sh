@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script assumes required docker images are already built.
 # check if root
 if [ "$EUID" -ne 0 ]; then
   echo "please run as root"
@@ -15,9 +16,7 @@ WORKING_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MYSQL_NAME="ethnodes-mysql"
 NODEFINDER_NAME="geth-node-finder"
 
-# build mysql container image
 MYSQL_IMAGE="mysql:5.7-ethnodes"
-docker build -t ${MYSQL_IMAGE} -f ethnodes-dockerfile .
 
 # get env variables
 source .env
@@ -41,10 +40,7 @@ echo "${MYSQL_NAME} started"
 
 read -p "Press any key to continue... "
 
-# make node-finder container image
-cd ${WORKING_DIR}/..
 NODEFINDER_IMAGE="geth:node-finder"
-docker build -t ${NODEFINDER_IMAGE} .
 
 # run node-finders
 URL="research-scan.sprai.org"
