@@ -57,6 +57,12 @@ func NewGlogHandler(h Handler) *GlogHandler {
 	}
 }
 
+func (h *GlogHandler) SetHandler(newh Handler) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	h.origin = newh
+}
+
 // pattern contains a filter for the Vmodule option, holding a verbosity level
 // and a file pattern to match.
 type pattern struct {

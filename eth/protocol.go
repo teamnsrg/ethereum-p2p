@@ -64,7 +64,7 @@ const (
 	ReceiptsMsg    = 0x10
 )
 
-var ethCodeToString = [...]string{
+var ethCodeToString = map[uint64]string{
 	// Protocol messages belonging to eth/62
 	StatusMsg:          "ETH_STATUS",
 	NewBlockHashesMsg:  "ETH_NEW_BLOCK_HASHES",
@@ -146,11 +146,7 @@ type newBlockHashesData []struct {
 }
 
 func (msg newBlockHashesData) GoString() string {
-	var msgs []interface{}
-	for _, blockHash := range msg {
-		msgs = append(msgs, common.MarshalObj(blockHash))
-	}
-	return common.MarshalObj(msgs)
+	return common.MarshalObj(msg)
 }
 
 // getBlockHeadersData represents a block header query.

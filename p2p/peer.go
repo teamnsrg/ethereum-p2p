@@ -17,6 +17,7 @@
 package p2p
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -24,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"encoding/json"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
@@ -53,7 +53,7 @@ const (
 	peersMsg     = 0x05
 )
 
-var devp2pCodeToString = [...]string{
+var devp2pCodeToString = map[uint64]string{
 	handshakeMsg: "DEVP2P_HELLO",
 	discMsg:      "DEVP2P_DISC",
 	pingMsg:      "DEVP2P_PING",
@@ -62,7 +62,10 @@ var devp2pCodeToString = [...]string{
 	peersMsg:     "DEVP2P_PEERS",
 }
 
-var ethCodeToString = [...]string{
+// ethCodeToString should be the same as the one in eth/protocol.go
+// We re-define it here so that we can use it when logging sent messages.
+// Make sure the eth message codes match
+var ethCodeToString = map[uint64]string{
 	// Protocol messages belonging to eth/62
 	0x00: "ETH_STATUS",
 	0x01: "ETH_NEW_BLOCK_HASHES",
@@ -148,6 +151,11 @@ type Peer struct {
 func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	conn := &conn{fd: pipe, transport: nil, id: id, caps: caps, name: name}
+	conn.connInfoCtx = []interface{}{
+		"id", conn.id.String(),
+		"addr", conn.fd.RemoteAddr().String(),
+		"conn", conn.flags.String(),
+	}
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
@@ -156,7 +164,7 @@ func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 func (phs *protoHandshake) GoString() string {
 	j, err := json.Marshal(phs)
 	if err != nil {
-		log.Crit(err.Error())
+		return "<" + err.Error() + ">"
 	}
 	return string(j)
 }
@@ -215,6 +223,10 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
+func (p *Peer) ConnInfoCtx() []interface{} {
+	return p.rw.connInfoCtx
+}
+
 func (p *Peer) Log() log.Logger {
 	return p.log
 }
@@ -263,7 +275,7 @@ loop:
 	}
 
 	close(p.closed)
-	p.rw.close(reason, p.ID())
+	p.rw.close(reason, p.ConnInfoCtx()...)
 	p.wg.Wait()
 	return remoteRequested, err
 }
@@ -275,7 +287,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendDEVp2p(p.rw, pingMsg, make([]interface{}, 0), p.ID()); err != nil {
+			if err := SendItems(p.rw, pingMsg, p.ConnInfoCtx()); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -304,34 +316,35 @@ func (p *Peer) readLoop(errc chan<- error) {
 
 func (p *Peer) handle(msg Msg) error {
 	var emptyMsgObj []interface{}
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	switch {
 	case msg.Code == pingMsg:
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), emptyMsgObj, nil)
 		msg.Discard()
-		go SendDEVp2p(p.rw, pongMsg, make([]interface{}, 0), p.ID())
+		go SendItems(p.rw, pongMsg, connInfoCtx)
 	case msg.Code == pongMsg:
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", emptyMsgObj, "size", int(msg.Size), "peer", p.ID())
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), emptyMsgObj, nil)
 		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
-		rlp.Decode(msg.Payload, &reason)
-		p.log.Proto("<<"+devp2pCodeToString[msg.Code], "obj", discReasonToString[reason[0]], "size", int(msg.Size), "peer", p.ID())
+		err := rlp.Decode(msg.Payload, &reason)
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), discReasonToString[reason[0]], err)
 		return reason[0]
 	case msg.Code < baseProtocolLength:
+		log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, "<<"+msgType, int(msg.Size), "<OMITTED>", nil)
 		// ignore other base protocol messages
-		if int(msg.Code) < len(devp2pCodeToString) {
-			log.Proto("<<UNEXPECTED_"+devp2pCodeToString[msg.Code], "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
-		} else {
-			log.Proto(fmt.Sprintf("<<UNEXPECTED_UNKNOWN_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
-		}
 		return msg.Discard()
 	default:
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
-			p.log.Proto(fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), "obj", "<OMITTED>", "size", int(msg.Size), "peer", p.ID())
+			log.DEVp2pRx(msg.ReceivedAt, connInfoCtx, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), int(msg.Size), "<OMITTED>", nil)
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {
@@ -474,7 +487,7 @@ type PeerInfo struct {
 func (pi *PeerInfo) GoString() string {
 	j, err := json.Marshal(pi)
 	if err != nil {
-		log.Crit(err.Error())
+		return "<" + err.Error() + ">"
 	}
 	return string(j)
 }

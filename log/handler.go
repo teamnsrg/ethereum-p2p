@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 
@@ -191,6 +192,19 @@ func LvlFilterHandler(maxLvl Lvl, h Handler) Handler {
 	return FilterHandler(func(r *Record) (pass bool) {
 		return r.Lvl <= maxLvl
 	}, h)
+}
+
+// LvlMatchFilterFileHandler returns a Handler that only writes
+// records which are equal to the given verbosity
+// level to a FileHandler. For example, to only
+// log Error records to datadir/eror.log:
+//
+//     log.LvlMatchFilterFileHandler(log.LvlError, datadir)
+//
+func LvlMatchFilterFileHandler(targetLvl Lvl, logDir string) Handler {
+	return FilterHandler(func(r *Record) (pass bool) {
+		return r.Lvl == targetLvl
+	}, Must.FileHandler(filepath.Join(logDir, targetLvl.String()+".log"), TerminalFormat(false)))
 }
 
 // A MultiHandler dispatches any write to each of its handlers.

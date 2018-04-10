@@ -154,7 +154,7 @@ func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 	go func() {
 		for range time.Tick(10 * time.Second) {
 			log.Info("sending ping")
-			if err := p2p.Send(rw, pingMsgCode, "PING"); err != nil {
+			if err := p2p.SendDEVp2p(rw, pingMsgCode, "PING"); err != nil {
 				errC <- err
 				return
 			}
@@ -176,7 +176,7 @@ func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 			atomic.AddInt64(&p.received, 1)
 			if msg.Code == pingMsgCode {
 				log.Info("sending pong")
-				go p2p.Send(rw, pongMsgCode, "PONG")
+				go p2p.SendDEVp2p(rw, pongMsgCode, "PONG")
 			}
 		}
 	}()
