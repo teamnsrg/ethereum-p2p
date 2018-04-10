@@ -359,6 +359,20 @@ loop:
 	close(tab.closed)
 }
 
+// Buckets function for RLPX table logging
+func (tab *Table) Buckets() string {
+        fmt.Print("RLPX_TABLE\n")
+        outStr := ""
+        for i, b := range tab.buckets {
+                for j, node := range b.entries {
+                        outStr += fmt.Sprintf("%d,%d,%v,%x,%v,%v,%v\n", i, j, node.ID, node.sha, node.IP, node.TCP, node.UDP)
+                }
+        }
+        fmt.Print(outStr)
+        return outStr
+}
+
+
 // doRefresh performs a lookup for a random target to keep buckets
 // full. seed nodes are inserted if the table is empty (initial
 // bootstrap or discarded faulty peers).
@@ -578,6 +592,11 @@ func (tab *Table) add(new *Node) {
 		}
 	}
 	added := b.replace(new, oldest)
+	// Added this if statment to check for updates
+	if added == true {
+		tab.Buckets()
+	}
+
 	if added && tab.nodeAddedHook != nil {
 		tab.nodeAddedHook(new)
 	}
