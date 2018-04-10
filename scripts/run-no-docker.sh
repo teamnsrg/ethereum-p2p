@@ -40,7 +40,7 @@ docker run -d --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name ${M
   ${MYSQL_IMAGE}
 echo "${MYSQL_NAME} started"
 
-read -p "Press any key to continue... "
+sleep 10
 
 cd ${WORKING_DIR}/..
 make geth

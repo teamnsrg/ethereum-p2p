@@ -38,7 +38,7 @@ docker run -dit --restart=always -p ${MYSQL_PORT}:3306 -h ${MYSQL_NAME} --name $
   ${MYSQL_IMAGE}
 echo "${MYSQL_NAME} started"
 
-read -p "Press any key to continue... "
+sleep 10
 
 NODEFINDER_IMAGE="geth:node-finder"
 
