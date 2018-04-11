@@ -28,7 +28,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 )
 
 func init() {
@@ -215,9 +214,9 @@ func TestServerTaskScheduling(t *testing.T) {
 		quit, returned = make(chan struct{}), make(chan struct{})
 		tc             = 0
 		tg             = taskgen{
-			newFunc: func(running int, peers map[discover.NodeID]*Peer) ([]task, bool) {
+			newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
 				tc++
-				return []task{&testTask{index: tc - 1}}, false
+				return []task{&testTask{index: tc - 1}}
 			},
 			doneFunc: func(t task) {
 				select {
@@ -231,9 +230,8 @@ func TestServerTaskScheduling(t *testing.T) {
 	// The Server in this test isn't actually running
 	// because we're only interested in what run does.
 	srv := &Server{
-		Config:  Config{MaxPeers: 10, MaxDial: 16, RedialCheckFreq: 5.0, PushFreq: 1.0},
+		Config:  Config{MaxPeers: 10},
 		quit:    make(chan struct{}),
-		ntab:    fakeTable{},
 		running: true,
 	}
 	srv.loopWG.Add(1)
@@ -275,21 +273,19 @@ func TestServerManyTasks(t *testing.T) {
 	}
 
 	var (
-		srv        = &Server{quit: make(chan struct{}), ntab: fakeTable{}, running: true}
+		srv        = &Server{quit: make(chan struct{}), running: true}
 		done       = make(chan *testTask)
 		start, end = 0, 0
 	)
-	srv.MaxDial = 16
-	srv.RedialCheckFreq = 5.0
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
-		newFunc: func(running int, peers map[discover.NodeID]*Peer) ([]task, bool) {
+		newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
 			start, end = end, end+srv.MaxDial+10
 			if end > len(alltasks) {
 				end = len(alltasks)
 			}
-			return alltasks[start:end], false
+			return alltasks[start:end]
 		},
 		doneFunc: func(tt task) {
 			done <- tt.(*testTask)
@@ -319,32 +315,26 @@ func TestServerManyTasks(t *testing.T) {
 }
 
 type taskgen struct {
-	newFunc  func(running int, peers map[discover.NodeID]*Peer) ([]task, bool)
+	newFunc  func(running int, peers map[discover.NodeID]*Peer) []task
 	doneFunc func(task)
 }
 
 func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) ([]task, bool) {
-	return tg.newFunc(running, peers)
+	return tg.newFunc(running, peers), false
 }
+
 func (tg taskgen) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
-	return nil
+	return []task{}
 }
+
 func (tg taskgen) taskDone(t task, now time.Time) {
 	tg.doneFunc(t)
 }
+
 func (tg taskgen) addStatic(*discover.Node) {
 }
+
 func (tg taskgen) removeStatic(*discover.Node) {
-}
-func (tg taskgen) GetDialFreq() time.Duration {
-	return 0
-}
-func (tg taskgen) SetDialFreq(f int) {
-}
-func (tg taskgen) GetBlacklist() *netutil.Netlist {
-	return nil
-}
-func (tg taskgen) SetBlacklist(blacklist *netutil.Netlist) {
 }
 
 type testTask struct {

@@ -426,12 +426,6 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
-	if srv.Config.RedialCheckFreq <= 0.0 {
-		srv.Config.RedialCheckFreq = 5.0
-	}
-	if srv.Config.PushFreq <= 0.0 {
-		srv.Config.PushFreq = 1.0
-	}
 
 	srv.running = true
 	log.Info("Starting P2P networking")
@@ -612,9 +606,24 @@ func (srv *Server) AddBlacklist(cidrs string) error {
 
 func (srv *Server) run(dialstate dialer) {
 	defer srv.loopWG.Done()
-	// MaxRedial is at least MaxDial
+	// Make sure configs are set correctly
+	if srv.MaxDial <= 0 {
+		srv.MaxDial = 16
+	}
 	if srv.MaxRedial < srv.MaxDial {
 		srv.MaxRedial = srv.MaxDial
+	}
+	if srv.RedialFreq <= 0.0 {
+		srv.RedialFreq = 30.0
+	}
+	if srv.RedialCheckFreq <= 0.0 {
+		srv.RedialCheckFreq = 5.0
+	}
+	if srv.RedialExp <= 0.0 {
+		srv.RedialExp = 24.0
+	}
+	if srv.PushFreq <= 0.0 {
+		srv.PushFreq = 1.0
 	}
 	var (
 		peers             = make(map[discover.NodeID]*Peer)
@@ -641,14 +650,14 @@ func (srv *Server) run(dialstate dialer) {
 			return
 		}
 		// remove staticDialTasks from runningStaticDial
-		if t, ok := t.(*dialTask); ok && t.flags&staticDialedConn != 0 {
+		if tt, ok := t.(*dialTask); ok && tt.flags&staticDialedConn != 0 {
 			for i := range runningStaticDial {
-				if runningStaticDial[i] == t {
+				if runningStaticDial[i] == tt {
 					runningStaticDial = append(runningStaticDial[:i], runningStaticDial[i+1:]...)
 					return
 				}
 			}
-		} else { // everything else (dynDialTask, waitExpireTask should be removed from runningDynDial
+		} else { // everything else (dynDialTask, waitExpireTask, testTask) should be removed from runningDynDial
 			for i := range runningDynDial {
 				if runningDynDial[i] == t {
 					runningDynDial = append(runningDynDial[:i], runningDynDial[i+1:]...)

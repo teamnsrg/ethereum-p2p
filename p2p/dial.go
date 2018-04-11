@@ -208,7 +208,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	}
 	s.lookupBuf = s.lookupBuf[:copy(s.lookupBuf, s.lookupBuf[i:])]
 	// Launch a discovery lookup if more candidates are needed.
-	needDiscoverTask := s.ntab != nil && !s.lookupRunning && (len(s.lookupBuf) < needDynDials)
+	needDiscoverTask := !s.lookupRunning && (len(s.lookupBuf) < needDynDials)
 	s.lookupRunning = s.lookupRunning || needDiscoverTask
 
 	// Launch a timer to wait for the next node to expire if all
