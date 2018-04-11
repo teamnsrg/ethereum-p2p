@@ -198,9 +198,6 @@ func doInstall(cmdline []string) {
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
 
-	// Exclude packages
-	packages = build.FilterPackages(packages)
-
 	if *arch == "" || *arch == runtime.GOARCH {
 		goinstall := goTool("install", buildFlags(env)...)
 		goinstall.Args = append(goinstall.Args, "-v")

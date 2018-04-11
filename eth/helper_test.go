@@ -70,7 +70,7 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 	if err != nil {
 		return nil, err
 	}
-	pm.Start()
+	pm.Start(1000)
 	return pm, nil
 }
 

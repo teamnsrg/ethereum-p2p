@@ -11,12 +11,13 @@ import (
 )
 
 // Srtt in seconds (originally milliseconds)
-func (rw *rlpxFrameRW) updateRtt() {
+func (rw *rlpxFrameRW) Rtt() float64 {
 	tcpInfo := rw.GetTCPInfo()
 	if tcpInfo == nil {
-		return
+		return rw.rtt
 	}
-	rw.rtt = float64(tcpInfo.Srtt) / 1000
+	rw.rtt = float64(tcpInfo.Srtt) / 1e3
+	return rw.rtt
 }
 
 func (rw *rlpxFrameRW) GetTCPInfo() *tcpinfo.TCPConnectionInfo {

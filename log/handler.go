@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 
@@ -203,7 +204,7 @@ func LvlFilterHandler(maxLvl Lvl, h Handler) Handler {
 func LvlMatchFilterFileHandler(targetLvl Lvl, logDir string) Handler {
 	return FilterHandler(func(r *Record) (pass bool) {
 		return r.Lvl == targetLvl
-	}, Must.FileHandler(fmt.Sprintf("%s/%s.log", logDir, targetLvl.String()), TerminalFormat(false)))
+	}, Must.FileHandler(filepath.Join(logDir, targetLvl.String()+".log"), TerminalFormat(false)))
 }
 
 // A MultiHandler dispatches any write to each of its handlers.

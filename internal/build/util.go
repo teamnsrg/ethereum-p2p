@@ -198,10 +198,5 @@ func FilterPackages(packages []string) []string {
 }
 
 func includePackage(line string) bool {
-	return strings.Contains(line, "/cmd/geth") ||
-		strings.Contains(line, "/cmd/utils") ||
-		(!strings.Contains(line, "/accounts/keystore") &&
-			!strings.Contains(line, "/contracts") &&
-			!strings.Contains(line, "/cmd") &&
-			!strings.Contains(line, "/swarm"))
+	return !strings.Contains(line, "/accounts/keystore") && !strings.Contains(line, "/contracts/")
 }

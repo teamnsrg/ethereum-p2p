@@ -65,6 +65,11 @@ func runDialTest(t *testing.T, test dialtest) {
 		}
 
 		new := test.init.newTasks(running, pm(round.peers), vtime)
+		for _, t := range new {
+			if t, ok := t.(*dialTask); ok {
+				t.lastSuccess = time.Time{}
+			}
+		}
 		if !sametasks(new, round.new) {
 			t.Errorf("round %d: new tasks mismatch:\ngot %v\nwant %v\nstate: %v\nrunning: %v\n",
 				i, spew.Sdump(new), spew.Sdump(round.new), spew.Sdump(test.init), spew.Sdump(running))
@@ -93,22 +98,21 @@ func TestDialStateNetRestrict(t *testing.T) {
 		{ID: uintID(2), IP: net.ParseIP("127.0.0.2")},
 		{ID: uintID(3), IP: net.ParseIP("127.0.0.3")},
 		{ID: uintID(4), IP: net.ParseIP("127.0.0.4")},
-		{ID: uintID(5), IP: net.ParseIP("127.0.1.5")},
-		{ID: uintID(6), IP: net.ParseIP("127.0.1.6")},
-		{ID: uintID(7), IP: net.ParseIP("127.0.1.7")},
-		{ID: uintID(8), IP: net.ParseIP("127.0.2.8")},
+		{ID: uintID(5), IP: net.ParseIP("127.0.2.5")},
+		{ID: uintID(6), IP: net.ParseIP("127.0.2.6")},
 	}
 	restrict := new(netutil.Netlist)
 	restrict.Add("127.0.2.0/24")
 
-	dialer := newDialState(nil, fakeTable{}, restrict)
-	dialer.SetDialFreq(30)
+	dialer := newDialState(static, fakeTable{}, restrict)
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
 			{
 				new: []task{
-					&dialTask{flags: staticDialedConn, dest: static[7]},
+					&dialTask{flags: staticDialedConn, dest: static[4]},
+					&dialTask{flags: staticDialedConn, dest: static[5]},
 				},
 			},
 		},
@@ -126,7 +130,7 @@ func TestDialStateStaticDial(t *testing.T) {
 	}
 
 	dialer := newDialState(wantStatic, fakeTable{}, nil)
-	dialer.SetDialFreq(30)
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{
@@ -208,7 +212,7 @@ func TestDialStateCache(t *testing.T) {
 		{ID: uintID(3)},
 	}
 	dialer := newDialState(wantStatic, fakeTable{}, nil)
-	dialer.SetDialFreq(30)
+	dialer.redialFreq = 30 * time.Second
 	runDialTest(t, dialtest{
 		init: dialer,
 		rounds: []round{

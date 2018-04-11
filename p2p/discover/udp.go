@@ -30,6 +30,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rlp"
+	"sync"
 )
 
 const Version = 4
@@ -176,10 +177,15 @@ type udp struct {
 	addpending chan *pending
 	gotreply   chan reply
 
+	loopWG  sync.WaitGroup
 	closing chan struct{}
 	nat     nat.Interface
 
 	*Table
+}
+
+func (t *udp) SetBlacklist(blacklist *netutil.Netlist) {
+	t.blacklist = blacklist
 }
 
 // pending represents a pending reply.
@@ -220,21 +226,21 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, *udp, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	tab, _, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist)
+	tab, udp, err := newUDP(priv, conn, natm, nodeDBPath, netrestrict, blacklist)
 	if err != nil {
-		return nil, err
+		return nil, udp, err
 	}
 	log.Info("UDP listener up", "self", tab.self)
-	return tab, nil
+	return tab, udp, nil
 }
 
 func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath string, netrestrict *netutil.Netlist, blacklist *netutil.Netlist) (*Table, *udp, error) {
@@ -265,6 +271,7 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 	}
 	udp.Table = tab
 
+	udp.loopWG.Add(2)
 	go udp.loop()
 	go udp.readLoop()
 	return udp.Table, udp, nil
@@ -273,7 +280,7 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, natm nat.Interface, nodeDBPath strin
 func (t *udp) close() {
 	close(t.closing)
 	t.conn.Close()
-	// TODO: wait for the loops to end.
+	t.loopWG.Wait()
 }
 
 // ping sends a ping message to the given node and waits for a reply.
@@ -285,7 +292,7 @@ func (t *udp) ping(toid NodeID, toaddr *net.UDPAddr) error {
 		From:       t.ourEndpoint,
 		To:         makeEndpoint(toaddr, 0), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, toid)
 	return <-errc
 }
 
@@ -314,7 +321,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID) ([]*Node
 	t.send(toaddr, findnodePacket, &findnode{
 		Target:     target,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, toid)
 	err := <-errc
 	return nodes, err
 }
@@ -347,6 +354,7 @@ func (t *udp) handleReply(from NodeID, ptype byte, req packet) bool {
 // loop runs in its own goroutine. it keeps track of
 // the refresh timer and the pending reply queue.
 func (t *udp) loop() {
+	defer t.loopWG.Done()
 	var (
 		plist        = list.New()
 		timeout      = time.NewTimer(0)
@@ -469,13 +477,18 @@ func init() {
 	}
 }
 
-func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
+func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) error {
 	packet, err := encodePacket(t.priv, ptype, req)
 	if err != nil {
 		return err
 	}
+	currentTime := time.Now()
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Trace(">>"+req.name(), "addr", toaddr, "err", err)
+	connInfoCtx := []interface{}{
+		"id", peer.String(),
+		"addr", toaddr.String(),
+	}
+	log.MessageTx(currentTime, ">>"+req.name(), len(packet), connInfoCtx, err)
 	return err
 }
 
@@ -503,7 +516,7 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) ([]byte, 
 
 // readLoop runs in its own goroutine. it handles incoming UDP packets.
 func (t *udp) readLoop() {
-	defer t.conn.Close()
+	defer t.loopWG.Done()
 	// Discovery packets are defined to be no larger than 1280 bytes.
 	// Packets larger than this size will be cut at the end and treated
 	// as invalid because their hash won't match.
@@ -529,14 +542,13 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		log.Debug("Bad discv4 packet", "addr", from, "err", err)
 		return err
 	}
-	err = packet.handle(t, from, fromID, hash)
-	unixTime := float64(time.Now().UnixNano()) / 1000000000
-	log.Trace("<<"+packet.name(), "addr", from, "err", err)
-	if packet.name() == "RLPX_NEIGHBORS" {
-		for _, node := range packet.(*neighbors).Nodes {
-			log.Neighbors(fmt.Sprintf("%f", unixTime), "id", fromID.String(), "addr", from.String(), "neighbor", &node)
-		}
+	currentTime := time.Now()
+	connInfoCtx := []interface{}{
+		"id", fromID.String(),
+		"addr", from.String(),
 	}
+	log.MessageRx(currentTime, "<<"+packet.name(), len(buf), connInfoCtx, nil)
+	err = packet.handle(t, from, fromID, hash)
 	return err
 }
 
@@ -579,7 +591,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte) er
 		To:         makeEndpoint(from, req.From.TCP),
 		ReplyTok:   mac,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-	})
+	}, fromID)
 	if !t.handleReply(fromID, pingPacket, req) {
 		// Note: we're ignoring the provided IP address right now
 		go t.bond(true, fromID, from, req.From.TCP)
@@ -629,7 +641,7 @@ func (req *findnode) handle(t *udp, from *net.UDPAddr, fromID NodeID, mac []byte
 		}
 		p.Nodes = append(p.Nodes, nodeToRPC(n))
 		if len(p.Nodes) == maxNeighbors || i == len(closest)-1 {
-			t.send(from, neighborsPacket, &p)
+			t.send(from, neighborsPacket, &p, fromID)
 			p.Nodes = p.Nodes[:0]
 		}
 	}

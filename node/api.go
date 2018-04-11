@@ -19,6 +19,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/rpc"
 )
 
@@ -48,47 +48,76 @@ func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 
 func (api *PrivateAdminAPI) Logrotate() error {
 	var (
-		datadir = api.node.DataDir()
-		glogger = log.Root().GetGlogger()
+		logdir           = filepath.Join(api.node.InstanceDir(), "logs")
+		clientIdentifier = api.node.config.Name
+		glogger          = log.Root().GetGlogger()
 	)
 	if api.node.config.LogToFile {
-		glogger.SetHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+		glogger.SetHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
 		log.Root().SetHandler(log.MultiHandler(
 			// default logging for any lvl <= verbosity
 			glogger,
 			// lvl specific logging
-			log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlTxData, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlTxRx, datadir),
-			//log.LvlMatchFilterFileHandler(log.LvlTxTx, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlNewBlockData, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, datadir),
-			//log.LvlMatchFilterFileHandler(log.LvlNewBlockTx, datadir),
-			log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesRx, datadir),
-			//log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesTx, datadir),
+			// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlSql, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTask, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTxData, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTxRx, logdir),
+			//log.LvlMatchFilterFileHandler(log.LvlTxTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlNewBlockData, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, logdir),
+			//log.LvlMatchFilterFileHandler(log.LvlNewBlockTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesRx, logdir),
+			//log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesTx, logdir),
 		))
 	}
 	return nil
 }
 
-func (api *PrivateAdminAPI) DialFreq() (int, error) {
-	return int(api.node.Server().GetDialstate().GetDialFreq().Seconds()), nil
+func (api *PrivateAdminAPI) RedialFreq() (float64, error) {
+	return api.node.Server().RedialFreq, nil
 }
 
-func (api *PrivateAdminAPI) SetDialFreq(dialFreq int) error {
-	server := api.node.Server()
-	server.DialFreq = dialFreq
-	server.GetDialstate().SetDialFreq(dialFreq)
+func (api *PrivateAdminAPI) SetRedialFreq(redialFreq float64) error {
+	api.node.Server().SetRedialFreq(redialFreq)
 	return nil
 }
 
+func (api *PrivateAdminAPI) RedialCheckFreq() (float64, error) {
+	return api.node.Server().RedialCheckFreq, nil
+}
+
+func (api *PrivateAdminAPI) SetRedialCheckFreq(redialCheckFreq float64) error {
+	api.node.Server().SetRedialCheckFreq(redialCheckFreq)
+	return nil
+}
+
+func (api *PrivateAdminAPI) RedialExp() (float64, error) {
+	return api.node.Server().RedialExp, nil
+}
+
+func (api *PrivateAdminAPI) SetRedialExp(redialExp float64) error {
+	api.node.Server().SetRedialExp(redialExp)
+	return nil
+}
+
+func (api *PrivateAdminAPI) RedialList() (string, error) {
+	// Sort the result array alphabetically by node identifier
+	redialList := api.node.Server().RedialList()
+	for i := 0; i < len(redialList); i++ {
+		for j := i + 1; j < len(redialList); j++ {
+			if redialList[i] > redialList[j] {
+				redialList[i], redialList[j] = redialList[j], redialList[i]
+			}
+		}
+	}
+	return strings.Join(redialList, "\n"), nil
+}
+
 func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
-	blacklist := api.node.Server().GetDialstate().GetBlacklist()
+	blacklist := api.node.Server().Blacklist
 	if blacklist != nil {
 		return blacklist.MarshalTOML(), nil
 	}
@@ -96,22 +125,7 @@ func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
 }
 
 func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
-	server := api.node.Server()
-	if server.Blacklist == nil {
-		if list, err := netutil.ParseNetlist(cidrs); err != nil {
-			return err
-		} else {
-			server.Blacklist = list
-			server.GetDialstate().SetBlacklist(list)
-		}
-	} else {
-		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
-		masks := strings.Split(ws.Replace(cidrs), ",")
-		for _, mask := range masks {
-			server.Blacklist.AddNonDuplicate(mask)
-		}
-	}
-	return nil
+	return api.node.Server().AddBlacklist(cidrs)
 }
 
 // PeersList retrieves all the information we know about each individual peer at the
@@ -134,7 +148,7 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 		remoteAddr := info.Network.RemoteAddress
 		rtt := info.Rtt
 		duration := info.Duration
-		p2pInfoStr := fmt.Sprintf("%v|%v|%v|%v|%v|%v|%v", id, remoteAddr, localAddr, rtt, duration, name, caps)
+		p2pInfoStr := fmt.Sprintf("%s %v %v %v %v %v %v", id, remoteAddr, localAddr, rtt, duration, name, caps)
 		var ethInfoStr string
 		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
 			r := reflect.ValueOf(ethInfo)
@@ -149,10 +163,10 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 					case reflect.Ptr:
 						ptrV := elem.Elem()
 						if ptrV.IsValid() {
-							ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+							ethInfoStr += fmt.Sprintf(" %v", elem.Interface())
 						}
 					case reflect.Int, reflect.String:
-						ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+						ethInfoStr += fmt.Sprintf(" %v", elem.Interface())
 					default:
 						continue
 					}

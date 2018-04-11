@@ -41,6 +41,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto/ecies"
 	"github.com/teamnsrg/go-ethereum/crypto/secp256k1"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -56,7 +57,7 @@ const (
 	authMsgLen  = sigLen + shaLen + pubLen + shaLen + 1
 	authRespLen = pubLen + shaLen + 1
 
-	eciesOverhead = 65 /* pubkey */ + 16 /* IV */ + 32 /* MAC */
+	eciesOverhead = 65 + 16 + 32 /* pubkey + IV + MAC */
 
 	encAuthMsgLen  = authMsgLen + eciesOverhead  // size of encrypted pre-EIP-8 initiator handshake
 	encAuthRespLen = authRespLen + eciesOverhead // size of encrypted pre-EIP-8 handshake reply
@@ -124,33 +125,37 @@ func (t *rlpx) close(err error) {
 // messages. the protocol handshake is the first authenticated message
 // and also verifies whether the encryption handshake 'worked' and the
 // remote side actually provided the right public key.
-func (t *rlpx) doProtoHandshake(our *protoHandshake) (their *protoHandshake, msg Msg, err error) {
+func (t *rlpx) doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (their *protoHandshake, err error) {
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
 	// as the error so it can be tracked elsewhere.
 	werr := make(chan error, 1)
 	go func() { werr <- Send(t.rw, handshakeMsg, our) }()
-	if their, msg, err = readProtocolHandshake(t.rw, our); err != nil {
+	if their, err = readProtocolHandshake(t.rw, our, connInfoCtx...); err != nil {
 		<-werr // make sure the write terminates too
-		return nil, msg, err
+		return nil, err
 	}
 	if err := <-werr; err != nil {
-		return nil, msg, fmt.Errorf("write error: %v", err)
+		return nil, fmt.Errorf("write error: %v", err)
 	}
 	// If the protocol version supports Snappy encoding, upgrade immediately
 	t.rw.snappy = their.Version >= snappyProtocolVersion
 
-	return their, msg, nil
+	return their, nil
 }
 
-func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, Msg, error) {
+func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error) {
 	msg, err := rw.ReadMsg()
 	if err != nil {
-		return nil, msg, err
+		return nil, err
 	}
 	if msg.Size > baseProtocolMaxMsgSize {
-		return nil, msg, fmt.Errorf("message too big")
+		return nil, fmt.Errorf("message too big")
+	}
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
 	}
 	if msg.Code == discMsg {
 		// Disconnect before protocol handshake is valid according to the
@@ -158,20 +163,26 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake) (*protoHandshake, 
 		// We can't return the reason directly, though, because it is echoed
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
-		rlp.Decode(msg.Payload, &reason)
-		return nil, msg, reason[0]
+		err := rlp.Decode(msg.Payload, &reason)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
-		return nil, msg, fmt.Errorf("expected handshake, got %x", msg.Code)
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
+		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		return nil, msg, err
+		log.MessageRx(msg.ReceivedAt, "<<FAIL_"+msgType, int(msg.Size), connInfoCtx, nil)
+		return nil, err
 	}
+
+	log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+
 	if (hs.ID == discover.NodeID{}) {
-		return nil, msg, DiscInvalidIdentity
+		return nil, DiscInvalidIdentity
 	}
-	return &hs, msg, nil
+	return &hs, nil
 }
 
 func (t *rlpx) doEncHandshake(prv *ecdsa.PrivateKey, dial *discover.Node) (discover.NodeID, error) {
@@ -701,8 +712,7 @@ func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
 	msg.ReceivedAt = time.Now()
 	// get the most recent rtt and duration of the peer
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		rw.updateRtt()
-		msg.PeerRtt = rw.rtt
+		msg.PeerRtt = rw.Rtt()
 	}
 
 	// if snappy is enabled, verify and decompress message

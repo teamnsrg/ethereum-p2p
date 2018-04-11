@@ -20,11 +20,15 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"time"
 
+	cli "gopkg.in/urfave/cli.v1"
+
+	"github.com/prometheus/prometheus/util/flock"
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/cmd/utils"
@@ -36,14 +40,14 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/metrics"
 	"github.com/teamnsrg/go-ethereum/node"
-	"gopkg.in/urfave/cli.v1"
 )
 
 const (
-	clientIdentifier = "geth" // Client identifier to advertise over the network
+	clientIdentifier = "geth-eth-monitor" // Client identifier to advertise over the network
 )
 
 var (
+	instanceDirLock flock.Releaser
 	// Git SHA1 commit hash of the release (set via linker flags)
 	gitCommit = ""
 	// Ethereum address of the Geth release oracle.
@@ -52,10 +56,12 @@ var (
 	app = utils.NewApp(gitCommit, "the go-ethereum command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
-		utils.MaxAcceptConnsFlag,
+		utils.MaxRedialFlag,
 		utils.MaxNumFileFlag,
 		utils.BlacklistFlag,
-		utils.DialFreqFlag,
+		utils.RedialFreqFlag,
+		utils.RedialCheckFreqFlag,
+		utils.RedialExpFlag,
 		utils.MySQLFlag,
 		utils.LogToFileFlag,
 		utils.IdentityFlag,
@@ -142,6 +148,35 @@ var (
 	}
 )
 
+func openInstanceDir(ctx *cli.Context) (string, error) {
+	var datadir string
+	switch {
+	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
+		datadir = ctx.GlobalString(utils.DataDirFlag.Name)
+	case ctx.GlobalBool(utils.DeveloperFlag.Name):
+		datadir = os.TempDir()
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "testnet")
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	}
+	if datadir == "" {
+		datadir = node.DefaultDataDir()
+	}
+	instancedir := filepath.Join(datadir, clientIdentifier)
+	if err := os.MkdirAll(instancedir, 0700); err != nil {
+		return instancedir, err
+	}
+	// Lock the instance directory to prevent concurrent use by another instance as well as
+	// accidental use of the instance directory as a database.
+	release, _, err := flock.New(filepath.Join(instancedir, "LOCK"))
+	if err != nil {
+		return instancedir, node.ConvertFileLockError(err)
+	}
+	instanceDirLock = release
+	return instancedir, nil
+}
+
 func init() {
 	// Initialize the CLI app and start Geth
 	app.Action = geth
@@ -182,18 +217,17 @@ func init() {
 
 	app.Before = func(ctx *cli.Context) error {
 		runtime.GOMAXPROCS(runtime.NumCPU())
-		var isCommand bool
-		name := ctx.Args().First()
-		for _, command := range app.Commands {
-			if name == command.Name {
-				isCommand = true
-				break
-			}
-		}
 		var glogger *log.GlogHandler
-		datadir := ctx.GlobalString(utils.DataDirFlag.Name)
-		if !isCommand && ctx.GlobalBool(utils.LogToFileFlag.Name) {
-			newgl := log.NewGlogHandler(log.Must.FileHandler(datadir+"/eth-monitor.log", log.TerminalFormat(false)))
+		if ctx.GlobalBool(utils.LogToFileFlag.Name) {
+			instancedir, err := openInstanceDir(ctx)
+			if err != nil {
+				return err
+			}
+			logdir := filepath.Join(instancedir, "logs")
+			if err := os.MkdirAll(logdir, 0755); err != nil {
+				return err
+			}
+			newgl := log.NewGlogHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
 			if gl, err := debug.Setup(newgl, ctx); err != nil {
 				return err
 			} else {
@@ -202,19 +236,18 @@ func init() {
 					// default logging for any lvl <= verbosity
 					glogger,
 					// lvl specific logging
-					log.LvlMatchFilterFileHandler(log.LvlNeighbors, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlHello, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlDiscProto, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlDiscPeer, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlStatus, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlDaoFork, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlTxData, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlTxRx, datadir),
-					//log.LvlMatchFilterFileHandler(log.LvlTxTx, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlNewBlockData, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, datadir),
+					// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlSql, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlTask, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlTxData, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlTxRx, logdir),
+					//log.LvlMatchFilterFileHandler(log.LvlTxTx, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlNewBlockData, logdir),
+					log.LvlMatchFilterFileHandler(log.LvlNewBlockRx, logdir),
 					//log.LvlMatchFilterFileHandler(log.LvlNewBlockTx, datadir),
-					log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesRx, datadir),
+					log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesRx, logdir),
 					//log.LvlMatchFilterFileHandler(log.LvlNewBlockHashesTx, datadir),
 				))
 			}

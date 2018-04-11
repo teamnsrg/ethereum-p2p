@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/urfave/cli.v1"
+
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/common"
@@ -55,7 +57,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/params"
-	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -112,10 +113,10 @@ func NewApp(gitCommit, usage string) *cli.App {
 
 var (
 	// Eth Monitor settings
-	MaxAcceptConnsFlag = cli.IntFlag{
-		Name:  "maxacceptconns",
-		Usage: "Maximum number of concurrently handshaking inbound connections",
-		Value: 50,
+	MaxRedialFlag = cli.IntFlag{
+		Name:  "maxredial",
+		Usage: "Maximum number of concurrently re-dialing outbound connections",
+		Value: 1000,
 	}
 	MaxNumFileFlag = cli.Uint64Flag{
 		Name:  "maxnumfile",
@@ -124,12 +125,22 @@ var (
 	}
 	BlacklistFlag = cli.StringFlag{
 		Name:  "blacklist",
-		Usage: "Reject network communication from/to the given IP networks (CIDR masks)",
+		Usage: "Reject network communication from/to the given IP networks (comma-separated CIDR masks)",
 	}
-	DialFreqFlag = cli.IntFlag{
-		Name:  "dialfreq",
+	RedialFreqFlag = cli.Float64Flag{
+		Name:  "redialfreq",
 		Usage: "Frequency of re-dialing static nodes (in seconds)",
-		Value: 30,
+		Value: 30.0,
+	}
+	RedialCheckFreqFlag = cli.Float64Flag{
+		Name:  "redialcheckfreq",
+		Usage: "Frequency of checking static nodes ready for re-dial (in seconds)",
+		Value: 5.0,
+	}
+	RedialExpFlag = cli.Float64Flag{
+		Name:  "redialexp",
+		Usage: "Maximum number of hours re-dial nodes can remain unresponsive to avoid eviction",
+		Value: 24.0,
 	}
 	MySQLFlag = cli.StringFlag{
 		Name:  "mysql",
@@ -814,14 +825,20 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	if ctx.GlobalIsSet(MaxAcceptConnsFlag.Name) {
-		cfg.MaxAcceptConns = ctx.GlobalInt(MaxAcceptConnsFlag.Name)
+	if ctx.GlobalIsSet(RedialFreqFlag.Name) {
+		cfg.RedialFreq = ctx.GlobalFloat64(RedialFreqFlag.Name)
 	}
-	if ctx.GlobalIsSet(DialFreqFlag.Name) {
-		cfg.DialFreq = ctx.GlobalInt(DialFreqFlag.Name)
+	if ctx.GlobalIsSet(RedialCheckFreqFlag.Name) {
+		cfg.RedialCheckFreq = ctx.GlobalFloat64(RedialCheckFreqFlag.Name)
+	}
+	if ctx.GlobalIsSet(RedialExpFlag.Name) {
+		cfg.RedialExp = ctx.GlobalFloat64(RedialExpFlag.Name)
 	}
 	if ctx.GlobalIsSet(MySQLFlag.Name) {
 		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)
+	}
+	if ctx.GlobalIsSet(MaxRedialFlag.Name) {
+		cfg.MaxRedial = ctx.GlobalInt(MaxRedialFlag.Name)
 	}
 
 	if ctx.GlobalIsSet(MaxPeersFlag.Name) {

@@ -66,12 +66,15 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "ETH MONITOR",
 		Flags: []cli.Flag{
-			utils.MaxAcceptConnsFlag,
-			utils.MaxNumFileFlag,
-			utils.BlacklistFlag,
-			utils.DialFreqFlag,
 			utils.MySQLFlag,
 			utils.LogToFileFlag,
+			utils.RedialFreqFlag,
+			utils.RedialCheckFreqFlag,
+			utils.RedialExpFlag,
+			utils.MaxNumFileFlag,
+			utils.MaxRedialFlag,
+			utils.BlacklistFlag,
+			utils.MaxPendingPeersFlag,
 		},
 	},
 	{
