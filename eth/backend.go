@@ -377,8 +377,20 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 	// Start the RPC service
 	s.netRPCService = ethapi.NewPublicNetAPI(srvr, s.NetVersion())
 
+	// Figure out a max peers count based on the server limits
+	maxPeers := srvr.MaxPeers
+	if s.config.LightServ > 0 {
+		maxPeers -= s.config.LightPeers
+		if maxPeers < srvr.MaxPeers/2 {
+			maxPeers = srvr.MaxPeers / 2
+		}
+	}
+	s.protocolManager.maxPeers = maxPeers
+
+	s.protocolManager.noMaxPeers = srvr.NoMaxPeers
+
 	// Start the networking layer and the light server if requested
-	s.protocolManager.Start()
+	s.protocolManager.Start(maxPeers)
 	if s.lesServer != nil {
 		s.lesServer.Start(srvr)
 	}

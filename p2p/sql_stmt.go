@@ -10,43 +10,44 @@ import (
 )
 
 const (
-	tableName = "node_info"
+	tableName = "node_eth_info"
 )
 
 func (srv *Server) initSql() error {
 	if srv.MySQLName == "" {
-		log.Trace("No sql db connection info provided")
+		log.Sql("No sql db connection info provided")
 	} else {
 		db, err := sql.Open("mysql", srv.MySQLName)
 		if err != nil {
-			log.Error("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
+			log.Sql("Failed to open sql db handle", "database", srv.MySQLName, "err", err)
 			return err
 		}
-		log.Trace("Opened sql db handle", "database", srv.MySQLName)
+		log.Sql("Opened sql db handle", "database", srv.MySQLName)
 		if err := db.Ping(); err != nil {
-			log.Error("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
+			log.Sql("Sql db connection failed ping test", "database", srv.MySQLName, "err", err)
 			return err
 		}
-		log.Trace("Sql db connection passed ping test", "database", srv.MySQLName)
-		srv.DB = db
+		log.Sql("Sql db connection passed ping test", "database", srv.MySQLName)
+		srv.db = db
 
 		// check if table exists
 		sqlNameParsed := strings.Split(srv.MySQLName, "/")
 		dbName := sqlNameParsed[len(sqlNameParsed)-1]
 		if result, err := srv.checkIfTableExists(dbName, tableName); err != nil {
-			log.Error(fmt.Sprintf("Failed to check if %s table exists", tableName), "database", srv.MySQLName, "err", err)
+			log.Sql(fmt.Sprintf("Failed to check if %s table exists", tableName), "database", srv.MySQLName, "err", err)
 			return err
 		} else if result == 0 {
+			log.Sql(tableName+" table not found", "database", srv.MySQLName)
 			return fmt.Errorf(tableName+" table not found at %v", srv.MySQLName)
 		}
-		log.Trace(tableName+" table exists", "database", srv.MySQLName)
+		log.Sql(tableName+" table exists", "database", srv.MySQLName)
 	}
 	return nil
 }
 
 func (srv *Server) checkIfTableExists(dbName string, tableName string) (int, error) {
 	var result int
-	err := srv.DB.QueryRow(`
+	err := srv.db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM information_schema.TABLES 
 		WHERE (TABLE_SCHEMA = ?) AND (TABLE_NAME = ?)
@@ -54,16 +55,12 @@ func (srv *Server) checkIfTableExists(dbName string, tableName string) (int, err
 	return result, err
 }
 
-func (srv *Server) CloseSql() {
-	if srv.DB != nil {
-		// close db handle
-		srv.closeDB(srv.DB)
+func (srv *Server) closeSql() {
+	if srv.db == nil {
+		return
 	}
-}
-
-func (srv *Server) closeDB(db *sql.DB) {
-	if err := db.Close(); err != nil {
-		log.Error("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
+	if err := srv.db.Close(); err != nil {
+		log.Sql("Failed to close sql db handle", "database", srv.MySQLName, "err", err)
 	}
-	log.Trace("Closed sql db handle", "database", srv.MySQLName)
+	log.Sql("Closed sql db handle", "database", srv.MySQLName)
 }

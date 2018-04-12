@@ -64,6 +64,24 @@ const (
 	ReceiptsMsg    = 0x10
 )
 
+var ethCodeToString = map[uint64]string{
+	// Protocol messages belonging to eth/62
+	StatusMsg:          "ETH_STATUS",
+	NewBlockHashesMsg:  "ETH_NEW_BLOCK_HASHES",
+	TxMsg:              "ETH_TX",
+	GetBlockHeadersMsg: "ETH_GET_BLOCK_HEADERS",
+	BlockHeadersMsg:    "ETH_BLOCK_HEADERS",
+	GetBlockBodiesMsg:  "ETH_GET_BLOCK_BODIES",
+	BlockBodiesMsg:     "ETH_BLOCK_BODIES",
+	NewBlockMsg:        "ETH_NEW_BLOCK",
+
+	// Protocol messages belonging to eth/63
+	GetNodeDataMsg: "ETH_GET_NODE_DATA",
+	NodeDataMsg:    "ETH_NODE_DATA",
+	GetReceiptsMsg: "ETH_GET_RECEIPTS",
+	ReceiptsMsg:    "ETH_RECEIPTS",
+}
+
 type errCode int
 
 const (

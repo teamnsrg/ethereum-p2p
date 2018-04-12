@@ -45,8 +45,11 @@ var DefaultConfig = Config{
 		DiscoveryV5Addr: ":30304",
 		MaxPeers:        25,
 		NAT:             nat.Any(),
-		MaxAcceptConns:  50,
-		DialFreq:        30,
+		MaxRedial:       1000,
+		NoMaxPeers:      true, // node-finder never limits number of peers
+		RedialFreq:      30.0,
+		RedialCheckFreq: 0.0,
+		RedialExp:       24.0,
 		MySQLName:       "",
 	},
 }

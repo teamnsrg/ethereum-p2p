@@ -28,7 +28,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/crypto/sha3"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 )
 
 func init() {
@@ -61,8 +60,8 @@ func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover
 	return c.id, nil
 }
 
-func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error) {
-	return &protoHandshake{ID: c.id, Name: "test"}, Msg{}, nil
+func (c *testTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error) {
+	return &protoHandshake{ID: c.id, Name: "test"}, nil
 }
 
 func (c *testTransport) close(err error) {
@@ -72,11 +71,10 @@ func (c *testTransport) close(err error) {
 
 func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	config := Config{
-		Name:           "test",
-		MaxPeers:       10,
-		ListenAddr:     "127.0.0.1:0",
-		PrivateKey:     newkey(),
-		MaxAcceptConns: 50,
+		Name:       "test",
+		MaxPeers:   10,
+		ListenAddr: "127.0.0.1:0",
+		PrivateKey: newkey(),
 	}
 	server := &Server{
 		Config:       config,
@@ -127,63 +125,6 @@ func TestServerListen(t *testing.T) {
 	}
 }
 
-func TestServerDial(t *testing.T) {
-	// run a one-shot TCP server to handle the connection.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("could not setup listener: %v", err)
-	}
-	defer listener.Close()
-	accepted := make(chan net.Conn)
-	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			t.Error("accept error:", err)
-			return
-		}
-		accepted <- conn
-	}()
-
-	// start the server
-	connected := make(chan *Peer)
-	remid := randomID()
-	srv := startTestServer(t, remid, func(p *Peer) { connected <- p })
-	defer close(connected)
-	defer srv.Stop()
-
-	// tell the server to connect
-	tcpAddr := listener.Addr().(*net.TCPAddr)
-	srv.AddPeer(&discover.Node{ID: remid, IP: tcpAddr.IP, TCP: uint16(tcpAddr.Port)})
-
-	select {
-	case conn := <-accepted:
-		defer conn.Close()
-
-		select {
-		case peer := <-connected:
-			if peer.ID() != remid {
-				t.Errorf("peer has wrong id")
-			}
-			if peer.Name() != "test" {
-				t.Errorf("peer has wrong name")
-			}
-			if peer.RemoteAddr().String() != conn.LocalAddr().String() {
-				t.Errorf("peer started with wrong conn: got %v, want %v",
-					peer.RemoteAddr(), conn.LocalAddr())
-			}
-			peers := srv.Peers()
-			if !reflect.DeepEqual(peers, []*Peer{peer}) {
-				t.Errorf("Peers mismatch: got %v, want %v", peers, []*Peer{peer})
-			}
-		case <-time.After(1 * time.Second):
-			t.Error("server did not launch peer within one second")
-		}
-
-	case <-time.After(1 * time.Second):
-		t.Error("server did not connect within one second")
-	}
-}
-
 // This test checks that Server doesn't drop tasks,
 // even if newTasks returns more than the maximum number of tasks.
 func TestServerManyTasks(t *testing.T) {
@@ -193,15 +134,19 @@ func TestServerManyTasks(t *testing.T) {
 	}
 
 	var (
-		srv  = &Server{quit: make(chan struct{}), running: true}
-		done = make(chan *testTask)
+		srv        = &Server{quit: make(chan struct{}), running: true}
+		done       = make(chan *testTask)
+		start, end = 0, 0
 	)
-	srv.MaxAcceptConns = 50
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
 		newFunc: func(running int, peers map[discover.NodeID]*Peer) []task {
-			return alltasks
+			start, end = end, end+srv.MaxRedial+10
+			if end > len(alltasks) {
+				end = len(alltasks)
+			}
+			return alltasks[start:end]
 		},
 		doneFunc: func(tt task) {
 			done <- tt.(*testTask)
@@ -235,26 +180,22 @@ type taskgen struct {
 	doneFunc func(task)
 }
 
+func (tg taskgen) newDiscoverTask() task {
+	return nil
+}
+
 func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return tg.newFunc(running, peers)
 }
+
 func (tg taskgen) taskDone(t task, now time.Time) {
 	tg.doneFunc(t)
 }
-func (tg taskgen) addStatic(*discover.Node) *dialTask {
-	return nil
+
+func (tg taskgen) addStatic(*discover.Node) {
 }
+
 func (tg taskgen) removeStatic(*discover.Node) {
-}
-func (tg taskgen) GetDialFreq() time.Duration {
-	return 0
-}
-func (tg taskgen) SetDialFreq(f int) {
-}
-func (tg taskgen) GetBlacklist() *netutil.Netlist {
-	return nil
-}
-func (tg taskgen) SetBlacklist(blacklist *netutil.Netlist) {
 }
 
 type testTask struct {
@@ -264,6 +205,10 @@ type testTask struct {
 
 func (t *testTask) Do(srv *Server) {
 	t.called = true
+}
+
+func (t *testTask) TaskInfoCtx() []interface{} {
+	return nil
 }
 
 func TestServerSetupConn(t *testing.T) {
@@ -352,7 +297,8 @@ func TestServerSetupConn(t *testing.T) {
 }
 
 type setupTransport struct {
-	id              discover.NodeID
+	id discover.NodeID
+	*rlpx
 	encHandshakeErr error
 
 	phs               *protoHandshake
@@ -362,20 +308,16 @@ type setupTransport struct {
 	closeErr error
 }
 
-func (c *setupTransport) Rtt() float64 {
-	return 0.0
-}
-
 func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
 }
-func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, Msg, error) {
+func (c *setupTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error) {
 	c.calls += "doProtoHandshake,"
 	if c.protoHandshakeErr != nil {
-		return nil, Msg{}, c.protoHandshakeErr
+		return nil, c.protoHandshakeErr
 	}
-	return c.phs, Msg{}, nil
+	return c.phs, nil
 }
 func (c *setupTransport) close(err error) {
 	c.calls += "close,"

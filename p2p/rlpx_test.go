@@ -175,7 +175,7 @@ func TestProtocolHandshake(t *testing.T) {
 			return
 		}
 
-		phs, _, err := rlpx.doProtoHandshake(hs0)
+		phs, err := rlpx.doProtoHandshake(hs0)
 		if err != nil {
 			t.Errorf("dial side proto handshake error: %v", err)
 			return
@@ -201,7 +201,7 @@ func TestProtocolHandshake(t *testing.T) {
 			return
 		}
 
-		phs, _, err := rlpx.doProtoHandshake(hs1)
+		phs, err := rlpx.doProtoHandshake(hs1)
 		if err != nil {
 			t.Errorf("listen side proto handshake error: %v", err)
 			return
@@ -256,7 +256,7 @@ func TestProtocolHandshakeErrors(t *testing.T) {
 	for i, test := range tests {
 		p1, p2 := MsgPipe()
 		go Send(p1, test.code, test.msg)
-		_, _, err := readProtocolHandshake(p2, our)
+		_, err := readProtocolHandshake(p2, our)
 		if !reflect.DeepEqual(err, test.err) {
 			t.Errorf("test %d: error mismatch: got %q, want %q", i, err, test.err)
 		}

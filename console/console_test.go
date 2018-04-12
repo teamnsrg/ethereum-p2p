@@ -255,7 +255,7 @@ func TestPrettyPrint(t *testing.T) {
 	// Define some specially formatted fields
 	var (
 		one   = jsre.NumberColor("1")
-		two   = jsre.StringColor("two")
+		two   = jsre.StringColor("\"two\"")
 		three = jsre.NumberColor("3")
 		null  = jsre.SpecialColor("null")
 		fun   = jsre.FunctionColor("function()")

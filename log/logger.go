@@ -22,12 +22,10 @@ const (
 	LvlInfo
 	LvlDebug
 	LvlTrace
-	LvlNeighbors
-	LvlHello
-	LvlDiscProto
-	LvlDiscPeer
-	LvlStatus
-	LvlDaoFork
+	LvlSql
+	LvlMessageRx
+	LvlMessageTx
+	LvlTask
 	LvlTxData
 	LvlTxRx
 	LvlTxTx
@@ -41,6 +39,30 @@ const (
 // Aligned returns a 5-character string containing the name of a Lvl.
 func (l Lvl) AlignedString() string {
 	switch l {
+	case LvlNewBlockHashesTx:
+		return "NHTX"
+	case LvlNewBlockHashesRx:
+		return "NHRX"
+	case LvlNewBlockTx:
+		return "NBTX"
+	case LvlNewBlockRx:
+		return "NBRX"
+	case LvlNewBlockData:
+		return "NBDATA"
+	case LvlTxTx:
+		return "TXTX"
+	case LvlTxRx:
+		return "TXRX"
+	case LvlTxData:
+		return "TXDATA"
+	case LvlTask:
+		return "TASK"
+	case LvlMessageTx:
+		return "MSGTX"
+	case LvlMessageRx:
+		return "MSGRX"
+	case LvlSql:
+		return "SQL"
 	case LvlTrace:
 		return "TRACE"
 	case LvlDebug:
@@ -53,34 +75,6 @@ func (l Lvl) AlignedString() string {
 		return "ERROR"
 	case LvlCrit:
 		return "CRIT"
-	case LvlNeighbors:
-		return "NEIGHBORS"
-	case LvlHello:
-		return "HELLO"
-	case LvlDiscProto:
-		return "DISCPROTO"
-	case LvlDiscPeer:
-		return "DISCPEER"
-	case LvlStatus:
-		return "STATUS"
-	case LvlDaoFork:
-		return "DAOFORK"
-	case LvlTxData:
-		return "TXDATA"
-	case LvlTxRx:
-		return "TXRX"
-	case LvlTxTx:
-		return "TXTX"
-	case LvlNewBlockData:
-		return "NBDATA"
-	case LvlNewBlockRx:
-		return "NBRX"
-	case LvlNewBlockTx:
-		return "NBTX"
-	case LvlNewBlockHashesRx:
-		return "NHRX"
-	case LvlNewBlockHashesTx:
-		return "NHTX"
 	default:
 		panic("bad level")
 	}
@@ -89,6 +83,30 @@ func (l Lvl) AlignedString() string {
 // Strings returns the name of a Lvl.
 func (l Lvl) String() string {
 	switch l {
+	case LvlNewBlockHashesTx:
+		return "newblockhashes-tx"
+	case LvlNewBlockHashesRx:
+		return "newblockhashes-rx"
+	case LvlNewBlockTx:
+		return "newblock-tx"
+	case LvlNewBlockRx:
+		return "newblock-rx"
+	case LvlNewBlockData:
+		return "newblock-data"
+	case LvlTxTx:
+		return "tx-tx"
+	case LvlTxRx:
+		return "tx-rx"
+	case LvlTxData:
+		return "tx-data"
+	case LvlTask:
+		return "task"
+	case LvlMessageTx:
+		return "message-sent"
+	case LvlMessageRx:
+		return "message-received"
+	case LvlSql:
+		return "sql"
 	case LvlTrace:
 		return "trce"
 	case LvlDebug:
@@ -101,34 +119,6 @@ func (l Lvl) String() string {
 		return "eror"
 	case LvlCrit:
 		return "crit"
-	case LvlNeighbors:
-		return "neighbors"
-	case LvlHello:
-		return "hello"
-	case LvlDiscProto:
-		return "disc-proto"
-	case LvlDiscPeer:
-		return "disc-peer"
-	case LvlStatus:
-		return "status"
-	case LvlDaoFork:
-		return "daofork"
-	case LvlTxData:
-		return "tx-data"
-	case LvlTxRx:
-		return "tx-rx"
-	case LvlTxTx:
-		return "tx-tx"
-	case LvlNewBlockData:
-		return "newblock-data"
-	case LvlNewBlockRx:
-		return "newblock-rx"
-	case LvlNewBlockTx:
-		return "newblock-tx"
-	case LvlNewBlockHashesRx:
-		return "newblockhashes-rx"
-	case LvlNewBlockHashesTx:
-		return "newblockhashes-tx"
 	default:
 		panic("bad level")
 	}
@@ -138,6 +128,30 @@ func (l Lvl) String() string {
 // Useful for parsing command line args and configuration files.
 func LvlFromString(lvlString string) (Lvl, error) {
 	switch lvlString {
+	case "newblockhashes-tx":
+		return LvlNewBlockHashesTx, nil
+	case "newblockhashes-rx":
+		return LvlNewBlockHashesRx, nil
+	case "newblock-tx":
+		return LvlNewBlockTx, nil
+	case "newblock-rx":
+		return LvlNewBlockRx, nil
+	case "newblock-data":
+		return LvlNewBlockData, nil
+	case "tx-tx":
+		return LvlTxTx, nil
+	case "tx-rx":
+		return LvlTxRx, nil
+	case "tx-data":
+		return LvlTxData, nil
+	case "task":
+		return LvlTask, nil
+	case "message-sent", "message-tx", "msg-tx":
+		return LvlMessageTx, nil
+	case "message-received", "message-rx", "msg-rx":
+		return LvlMessageRx, nil
+	case "sql":
+		return LvlSql, nil
 	case "trace", "trce":
 		return LvlTrace, nil
 	case "debug", "dbug":
@@ -150,34 +164,6 @@ func LvlFromString(lvlString string) (Lvl, error) {
 		return LvlError, nil
 	case "crit":
 		return LvlCrit, nil
-	case "neighbors":
-		return LvlNeighbors, nil
-	case "hello":
-		return LvlHello, nil
-	case "disc-proto":
-		return LvlDiscProto, nil
-	case "disc-peer":
-		return LvlDiscPeer, nil
-	case "status":
-		return LvlStatus, nil
-	case "daofork":
-		return LvlDaoFork, nil
-	case "tx-data":
-		return LvlTxData, nil
-	case "tx-rx":
-		return LvlTxRx, nil
-	case "tx-tx":
-		return LvlTxTx, nil
-	case "newblock-data":
-		return LvlNewBlockData, nil
-	case "newblock-rx":
-		return LvlNewBlockRx, nil
-	case "newblock-tx":
-		return LvlNewBlockTx, nil
-	case "newblockhashes-rx":
-		return LvlNewBlockHashesRx, nil
-	case "newblockhashes-tx":
-		return LvlNewBlockHashesTx, nil
 	default:
 		return LvlDebug, fmt.Errorf("Unknown level: %v", lvlString)
 	}
@@ -215,26 +201,24 @@ type Logger interface {
 	GetGlogger() *GlogHandler
 
 	// Log a message at the given level with context key/value pairs
+	NewBlockHashesTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
+	NewBlockHashesRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
+	NewBlockTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
+	NewBlockRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
+	NewBlockData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, block string)
+	TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string)
+	TxRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string)
+	TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string)
+	Task(msg string, taskInfoCtx []interface{})
+	MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
+	MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
+	Sql(msg string, ctx ...interface{})
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
 	Info(msg string, ctx ...interface{})
 	Warn(msg string, ctx ...interface{})
 	Error(msg string, ctx ...interface{})
 	Crit(msg string, ctx ...interface{})
-	Neighbors(msg string, ctx ...interface{})
-	Hello(msg string, ctx ...interface{})
-	DiscProto(msg string, ctx ...interface{})
-	DiscPeer(msg string, ctx ...interface{})
-	Status(msg string, ctx ...interface{})
-	DaoFork(msg string, ctx ...interface{})
-	TxData(msg string, ctx ...interface{})
-	TxRx(msg string, ctx ...interface{})
-	TxTx(msg string, ctx ...interface{})
-	NewBlockData(msg string, ctx ...interface{})
-	NewBlockRx(msg string, ctx ...interface{})
-	NewBlockTx(msg string, ctx ...interface{})
-	NewBlockHashesRx(msg string, ctx ...interface{})
-	NewBlockHashesTx(msg string, ctx ...interface{})
 }
 
 type logger struct {
@@ -273,6 +257,121 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	return newCtx
 }
 
+func (l *logger) writeTimeMsgType(lvl Lvl, t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	ctx := []interface{}{
+		"size", size,
+	}
+	ctx = append(ctx, connInfoCtx...)
+	if err != nil {
+		ctx = append(ctx, "err", err)
+	}
+	l.write(fmt.Sprintf("%.6f|%s", float64(t.UnixNano())/1e9, msgType), lvl, ctx)
+}
+
+func (l *logger) writeTime(lvl Lvl, t time.Time, ctx []interface{}) {
+	l.write(fmt.Sprintf("%.6f", float64(t.UnixNano())/1e9), lvl, ctx)
+}
+
+func (l *logger) NewBlockHashesTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"blockHash", blockHash,
+		"blockNumber", blockNumber,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlNewBlockHashesTx, t, ctx)
+}
+
+func (l *logger) NewBlockHashesRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"blockHash", blockHash,
+		"blockNumber", blockNumber,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlNewBlockHashesRx, t, ctx)
+}
+
+func (l *logger) NewBlockTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"blockHash", blockHash,
+		"blockNumber", blockNumber,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlNewBlockTx, t, ctx)
+}
+
+func (l *logger) NewBlockRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"blockHash", blockHash,
+		"blockNumber", blockNumber,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlNewBlockRx, t, ctx)
+}
+
+func (l *logger) NewBlockData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, block string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"block", block,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlNewBlockData, t, ctx)
+}
+
+func (l *logger) TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"txHash", txHash,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlTxTx, t, ctx)
+}
+
+func (l *logger) TxRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"txHash", txHash,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlTxRx, t, ctx)
+}
+
+func (l *logger) TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"tx", tx,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlTxData, t, ctx)
+}
+
+func (l *logger) Task(msg string, taskInfoCtx []interface{}) {
+	l.write(msg, LvlTask, taskInfoCtx)
+}
+
+func (l *logger) MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	l.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
+}
+
+func (l *logger) MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	l.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
+}
+
+func (l *logger) Sql(msg string, ctx ...interface{}) {
+	l.write(msg, LvlSql, ctx)
+}
+
 func (l *logger) Trace(msg string, ctx ...interface{}) {
 	l.write(msg, LvlTrace, ctx)
 }
@@ -296,62 +395,6 @@ func (l *logger) Error(msg string, ctx ...interface{}) {
 func (l *logger) Crit(msg string, ctx ...interface{}) {
 	l.write(msg, LvlCrit, ctx)
 	os.Exit(1)
-}
-
-func (l *logger) Neighbors(msg string, ctx ...interface{}) {
-	l.write(msg, LvlNeighbors, ctx)
-}
-
-func (l *logger) Hello(msg string, ctx ...interface{}) {
-	l.write(msg, LvlHello, ctx)
-}
-
-func (l *logger) DiscProto(msg string, ctx ...interface{}) {
-	l.write(msg, LvlDiscProto, ctx)
-}
-
-func (l *logger) DiscPeer(msg string, ctx ...interface{}) {
-	l.write(msg, LvlDiscPeer, ctx)
-}
-
-func (l *logger) Status(msg string, ctx ...interface{}) {
-	l.write(msg, LvlStatus, ctx)
-}
-
-func (l *logger) DaoFork(msg string, ctx ...interface{}) {
-	l.write(msg, LvlDaoFork, ctx)
-}
-
-func (l *logger) TxData(msg string, ctx ...interface{}) {
-	l.write(msg, LvlTxData, ctx)
-}
-
-func (l *logger) TxRx(msg string, ctx ...interface{}) {
-	l.write(msg, LvlTxRx, ctx)
-}
-
-func (l *logger) TxTx(msg string, ctx ...interface{}) {
-	l.write(msg, LvlTxTx, ctx)
-}
-
-func (l *logger) NewBlockData(msg string, ctx ...interface{}) {
-	l.write(msg, LvlNewBlockData, ctx)
-}
-
-func (l *logger) NewBlockRx(msg string, ctx ...interface{}) {
-	l.write(msg, LvlNewBlockRx, ctx)
-}
-
-func (l *logger) NewBlockTx(msg string, ctx ...interface{}) {
-	l.write(msg, LvlNewBlockTx, ctx)
-}
-
-func (l *logger) NewBlockHashesRx(msg string, ctx ...interface{}) {
-	l.write(msg, LvlNewBlockHashesRx, ctx)
-}
-
-func (l *logger) NewBlockHashesTx(msg string, ctx ...interface{}) {
-	l.write(msg, LvlNewBlockHashesTx, ctx)
 }
 
 func (l *logger) GetHandler() Handler {

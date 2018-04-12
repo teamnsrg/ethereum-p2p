@@ -18,6 +18,7 @@ package p2p
 
 import (
 	"container/heap"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net"
@@ -26,6 +27,12 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
+)
+
+const (
+	// Discovery lookups are throttled and can only run
+	// once every few seconds.
+	lookupInterval = 4 * time.Second
 )
 
 // NodeDialer is used to connect to nodes in the network, typically by using
@@ -53,11 +60,13 @@ type dialstate struct {
 	ntab        discoverTable
 	netrestrict *netutil.Netlist
 	blacklist   *netutil.Netlist
-	dialFreq    time.Duration
+	redialFreq  time.Duration
+	redialExp   time.Duration
 
-	dialing map[discover.NodeID]connFlag
-	static  map[discover.NodeID]*dialTask
-	hist    *dialHistory
+	lookupRunning bool
+	dialing       map[discover.NodeID]connFlag
+	static        map[discover.NodeID]*dialTask
+	hist          *dialHistory
 
 	start     time.Time        // time when the dialer was first used
 	bootnodes []*discover.Node // default dials when there are no peers
@@ -66,9 +75,7 @@ type dialstate struct {
 type discoverTable interface {
 	Self() *discover.Node
 	Close()
-	Resolve(target discover.NodeID) *discover.Node
 	Lookup(target discover.NodeID) []*discover.Node
-	ReadRandomNodes([]*discover.Node) int
 }
 
 // the dial history remembers recent dials.
@@ -82,6 +89,7 @@ type pastDial struct {
 
 type task interface {
 	Do(*Server)
+	TaskInfoCtx() []interface{}
 }
 
 // A dialTask is generated for each node that is dialed. Its
@@ -91,6 +99,14 @@ type dialTask struct {
 	dest         *discover.Node
 	lastResolved time.Time
 	resolveDelay time.Duration
+	lastSuccess  time.Time
+}
+
+// discoverTask runs discovery table operations.
+// Only one discoverTask is active at any time.
+// discoverTask.Do performs a random lookup.
+type discoverTask struct {
+	results []*discover.Node
 }
 
 // A waitExpireTask is generated if there are no other tasks
@@ -113,33 +129,25 @@ func newDialState(static []*discover.Node, ntab discoverTable, netrestrict *netu
 	return s
 }
 
-func (s *dialstate) GetDialFreq() time.Duration {
-	return s.dialFreq
-}
-
-func (s *dialstate) SetDialFreq(f int) {
-	s.dialFreq = time.Duration(f) * time.Second
-}
-
-func (s *dialstate) GetBlacklist() *netutil.Netlist {
-	return s.blacklist
-}
-
-func (s *dialstate) SetBlacklist(blacklist *netutil.Netlist) {
-	s.blacklist = blacklist
-}
-
-func (s *dialstate) addStatic(n *discover.Node) *dialTask {
+func (s *dialstate) addStatic(n *discover.Node) {
 	// This overwites the task instead of updating an existing
 	// entry, giving users the opportunity to force a resolve operation.
-	t := &dialTask{flags: staticDialedConn, dest: n}
-	s.static[n.ID] = t
-	return t
+	// If being added as a static node, the node must have been responsive.
+	// Record current time as its lastSuccess time.
+	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
 	// This removes a task so future attempts to connect will not be made.
 	delete(s.static, n.ID)
+}
+
+func (s *dialstate) newDiscoverTask() task {
+	if s.ntab != nil && !s.lookupRunning {
+		s.lookupRunning = true
+		return &discoverTask{}
+	}
+	return nil
 }
 
 func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now time.Time) []task {
@@ -183,6 +191,7 @@ var (
 	errRecentlyDialed   = errors.New("recently dialed")
 	errNotWhitelisted   = errors.New("not contained in netrestrict whitelist")
 	errBlacklisted      = errors.New("contained in blacklist")
+	errRedialExpired    = errors.New("unresponsive for too long")
 )
 
 func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer) error {
@@ -207,8 +216,18 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 func (s *dialstate) taskDone(t task, now time.Time) {
 	switch t := t.(type) {
 	case *dialTask:
-		s.hist.add(t.dest.ID, now.Add(s.dialFreq))
+		s.hist.add(t.dest.ID, now.Add(s.redialFreq))
 		delete(s.dialing, t.dest.ID)
+		if !t.lastSuccess.IsZero() {
+			currentTime := time.Now()
+			deadline := t.lastSuccess.Add(s.redialExp)
+			if deadline.Before(currentTime) || deadline.Equal(currentTime) {
+				log.Warn("Removing static dial candidate", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}, "err", errRedialExpired)
+				delete(s.static, t.dest.ID)
+			}
+		}
+	case *discoverTask:
+		s.lookupRunning = false
 	}
 }
 
@@ -220,21 +239,77 @@ func (t *dialTask) Do(srv *Server) {
 func (t *dialTask) dial(srv *Server, dest *discover.Node) bool {
 	fd, err := srv.Dialer.Dial(dest)
 	if err != nil {
-		log.Trace("Dial error", "task", t, "err", err)
+		log.Task("FAIL-DIAL", append(t.TaskInfoCtx(), "err", err))
 		return false
+	}
+	// record current time as its lastSuccess time
+	if !t.lastSuccess.IsZero() {
+		t.lastSuccess = time.Now()
 	}
 	mfd := newMeteredConn(fd, false)
 	srv.SetupConn(mfd, t.flags, dest)
 	return true
 }
 
+func (t *dialTask) TaskInfoCtx() []interface{} {
+	addr := &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}
+	var lastSuccess interface{}
+	if t.lastSuccess.IsZero() {
+		lastSuccess = nil
+	} else {
+		lastSuccess = t.lastSuccess
+	}
+	return []interface{}{
+		"task", t.flags,
+		"id", t.dest.ID.String(),
+		"addr", addr.String(),
+		"lastSuccess", lastSuccess,
+	}
+}
+
 func (t *dialTask) String() string {
 	return fmt.Sprintf("%v %x %v:%d", t.flags, t.dest.ID[:8], t.dest.IP, t.dest.TCP)
+}
+
+func (t *discoverTask) Do(srv *Server) {
+	// Lookups need to take some time, otherwise the
+	// event loop spins too fast.
+	next := srv.lastLookup.Add(lookupInterval)
+	if now := time.Now(); now.Before(next) {
+		time.Sleep(next.Sub(now))
+	}
+	srv.lastLookup = time.Now()
+	var target discover.NodeID
+	rand.Read(target[:])
+	t.results = srv.ntab.Lookup(target)
+}
+
+func (t *discoverTask) TaskInfoCtx() []interface{} {
+	return []interface{}{
+		"task", "discover",
+		"numResults", len(t.results),
+	}
+}
+
+func (t *discoverTask) String() string {
+	s := "discovery lookup"
+	if len(t.results) > 0 {
+		s += fmt.Sprintf(" (%d results)", len(t.results))
+	}
+	return s
 }
 
 func (t waitExpireTask) Do(*Server) {
 	time.Sleep(t.Duration)
 }
+
+func (t *waitExpireTask) TaskInfoCtx() []interface{} {
+	return []interface{}{
+		"task", "wait",
+		"duration", t.Duration.Seconds(),
+	}
+}
+
 func (t waitExpireTask) String() string {
 	return fmt.Sprintf("wait for dial hist expire (%v)", t.Duration)
 }
