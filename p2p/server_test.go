@@ -135,11 +135,9 @@ func TestServerManyTasks(t *testing.T) {
 
 	var (
 		srv        = &Server{quit: make(chan struct{}), running: true}
-		done       = make(chan *testTask, 300)
+		done       = make(chan *testTask)
 		start, end = 0, 0
 	)
-	srv.MaxRedial = 300
-	srv.RedialCheckFreq = 5.0
 	defer srv.Stop()
 	srv.loopWG.Add(1)
 	go srv.run(taskgen{
@@ -185,14 +183,18 @@ type taskgen struct {
 func (tg taskgen) newDiscoverTask() task {
 	return nil
 }
+
 func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return tg.newFunc(running, peers)
 }
+
 func (tg taskgen) taskDone(t task, now time.Time) {
 	tg.doneFunc(t)
 }
+
 func (tg taskgen) addStatic(*discover.Node) {
 }
+
 func (tg taskgen) removeStatic(*discover.Node) {
 }
 

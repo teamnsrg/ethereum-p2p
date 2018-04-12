@@ -39,6 +39,10 @@ import (
 )
 
 const (
+	defaultRedialCheckFreq = 5 * time.Second
+
+	defaultPushFreq = time.Nanosecond
+
 	defaultDialTimeout = 15 * time.Second
 
 	// Maximum number of concurrently handshaking inbound connections.
@@ -397,9 +401,6 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
-	if srv.Config.RedialCheckFreq <= 0.0 {
-		srv.Config.RedialCheckFreq = 5.0
-	}
 
 	srv.running = true
 	log.Info("Starting P2P networking")
@@ -510,16 +511,27 @@ type dialer interface {
 }
 
 func (srv *Server) SetRedialFreq(redialFreq float64) {
+	if redialFreq <= 0.0 {
+		redialFreq = 0.0
+	}
 	srv.RedialFreq = redialFreq
 	srv.dialstate.redialFreq = time.Duration(redialFreq * float64(time.Second))
 }
 
 func (srv *Server) SetRedialCheckFreq(redialCheckFreq float64) {
-	srv.RedialCheckFreq = redialCheckFreq
-	srv.redialCheckTicker.UpdateInterval(time.Duration(redialCheckFreq * float64(time.Second)))
+	if redialCheckFreq <= 0.0 {
+		srv.RedialCheckFreq = 0.0
+		srv.redialCheckTicker.UpdateInterval(defaultRedialCheckFreq)
+	} else {
+		srv.RedialCheckFreq = redialCheckFreq
+		srv.redialCheckTicker.UpdateInterval(time.Duration(redialCheckFreq * float64(time.Second)))
+	}
 }
 
 func (srv *Server) SetRedialExp(redialExp float64) {
+	if redialExp <= 0.0 {
+		redialExp = 0.0
+	}
 	srv.RedialExp = redialExp
 	srv.dialstate.redialExp = time.Duration(redialExp * float64(time.Hour))
 }
@@ -570,6 +582,15 @@ func (srv *Server) run(dialstate dialer) {
 	if srv.MaxRedial < maxActiveDialTasks {
 		srv.MaxRedial = maxActiveDialTasks
 	}
+	if srv.RedialFreq <= 0.0 {
+		srv.RedialFreq = 30.0
+	}
+	if srv.RedialCheckFreq <= 0.0 {
+		srv.RedialCheckFreq = 0.0
+	}
+	if srv.RedialExp <= 0.0 {
+		srv.RedialExp = 24.0
+	}
 	var (
 		peers        = make(map[discover.NodeID]*Peer)
 		trusted      = make(map[discover.NodeID]bool, len(srv.TrustedNodes))
@@ -588,6 +609,7 @@ func (srv *Server) run(dialstate dialer) {
 	delTask := func(t task) {
 		log.Task("DONE", t.TaskInfoCtx())
 		dialstate.taskDone(t, time.Now())
+		// discoverTask doesn't need anything else to be done
 		if _, ok := t.(*discoverTask); ok {
 			return
 		}
@@ -599,7 +621,7 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 	// starts until max number of active staticdial tasks is satisfied
-	startTasks := func(ts []task) (rest []task) {
+	startTasks := func(ts []task) []task {
 		i := 0
 		for ; len(runningTasks) < srv.MaxRedial && i < len(ts); i++ {
 			t := ts[i]
@@ -610,11 +632,8 @@ func (srv *Server) run(dialstate dialer) {
 		return ts[i:]
 	}
 	scheduleTasks := func() {
-		queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
-		// Query dialer for new tasks.
-		if len(runningTasks) < srv.MaxRedial {
-			queuedTasks = append(queuedTasks, startTasks(dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now()))...)
-		}
+		// Query dialer for new tasks and start as many as possible now.
+		queuedTasks = startTasks(append(queuedTasks, dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())...))
 	}
 	scheduleDiscoverTask := func() {
 		t := dialstate.newDiscoverTask()
@@ -624,18 +643,31 @@ func (srv *Server) run(dialstate dialer) {
 		}
 	}
 
-	// start redial check timer
-	srv.redialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.RedialCheckFreq * float64(time.Second)))
+	// initial static dials, if redialCheckTicker is used
+	if srv.RedialCheckFreq > 0.0 {
+		srv.redialCheckTicker = mticker.NewMutableTicker(time.Duration(srv.RedialCheckFreq * float64(time.Second)))
+		scheduleTasks()
+	} else {
+		// if redialCheckTicker is 0, then set the ticker to the default value just to keep the ticker running
+		srv.redialCheckTicker = mticker.NewMutableTicker(defaultRedialCheckFreq)
+	}
 
 running:
 	for {
 		scheduleDiscoverTask()
-		scheduleTasks()
+		queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
+		if srv.RedialCheckFreq <= 0.0 {
+			scheduleTasks()
+		}
 
 		select {
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
+		case <-srv.redialCheckTicker.C:
+			if srv.RedialCheckFreq > 0.0 {
+				scheduleTasks()
+			}
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
