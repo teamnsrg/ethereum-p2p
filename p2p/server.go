@@ -41,8 +41,6 @@ import (
 const (
 	defaultRedialCheckFreq = 5 * time.Second
 
-	defaultPushFreq = time.Nanosecond
-
 	defaultDialTimeout = 15 * time.Second
 
 	// Maximum number of concurrently handshaking inbound connections.
