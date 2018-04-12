@@ -140,7 +140,7 @@ var (
 	RedialCheckFreqFlag = cli.Float64Flag{
 		Name:  "redialcheckfreq",
 		Usage: "Frequency of checking static nodes ready for re-dial (in seconds)",
-		Value: 5.0,
+		Value: 0.0,
 	}
 	RedialExpFlag = cli.Float64Flag{
 		Name:  "redialexp",
