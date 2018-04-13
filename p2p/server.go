@@ -41,6 +41,8 @@ import (
 const (
 	defaultRedialCheckFreq = 5 * time.Second
 
+	defaultQueryFreq = 30 * time.Second
+
 	defaultDialTimeout = 15 * time.Second
 
 	// Maximum number of concurrently handshaking inbound connections.
@@ -78,6 +80,9 @@ type Config struct {
 
 	// RedialExp is the maximum number of hours re-dial nodes can remain unresponsive to avoid eviction.
 	RedialExp float64
+
+	// QueryFreq is the frequency of querying MySQL database for node addresses (in seconds).
+	QueryFreq float64
 
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
@@ -168,6 +173,7 @@ type Server struct {
 	dialstate         *dialstate
 	StrReplacer       *strings.Replacer
 	redialCheckTicker *mticker.MutableTicker
+	queryTicker       *mticker.MutableTicker
 
 	// Config fields may not be modified while the server is running.
 	Config
@@ -191,14 +197,15 @@ type Server struct {
 	peerOp     chan peerOpFunc
 	peerOpDone chan struct{}
 
-	quit          chan struct{}
-	addstatic     chan *discover.Node
-	removestatic  chan *discover.Node
-	posthandshake chan *conn
-	addpeer       chan *conn
-	delpeer       chan peerDrop
-	loopWG        sync.WaitGroup // loop, listenLoop
-	peerFeed      event.Feed
+	quit           chan struct{}
+	addstatic      chan *discover.Node
+	addstaticbatch chan []*discover.Node
+	removestatic   chan *discover.Node
+	posthandshake  chan *conn
+	addpeer        chan *conn
+	delpeer        chan peerDrop
+	loopWG         sync.WaitGroup // loop, listenLoop
+	peerFeed       event.Feed
 }
 
 type udp interface {
@@ -318,6 +325,13 @@ func (srv *Server) PeerCount() int {
 	return count
 }
 
+func (srv *Server) AddPeers(nodes []*discover.Node) {
+	select {
+	case srv.addstaticbatch <- nodes:
+	case <-srv.quit:
+	}
+}
+
 // AddPeer connects to the given node and maintains the connection until the
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
@@ -418,6 +432,7 @@ func (srv *Server) Start() (err error) {
 	srv.delpeer = make(chan peerDrop)
 	srv.posthandshake = make(chan *conn)
 	srv.addstatic = make(chan *discover.Node)
+	srv.addstaticbatch = make(chan []*discover.Node)
 	srv.removestatic = make(chan *discover.Node)
 	srv.peerOp = make(chan peerOpFunc)
 	srv.peerOpDone = make(chan struct{})
@@ -534,6 +549,16 @@ func (srv *Server) SetRedialExp(redialExp float64) {
 	srv.dialstate.redialExp = time.Duration(redialExp * float64(time.Hour))
 }
 
+func (srv *Server) SetQueryFreq(queryFreq float64) {
+	if queryFreq <= 0.0 {
+		srv.QueryFreq = 0.0
+		srv.queryTicker.UpdateInterval(defaultQueryFreq)
+	} else {
+		srv.QueryFreq = queryFreq
+		srv.queryTicker.UpdateInterval(time.Duration(queryFreq * float64(time.Second)))
+	}
+}
+
 func (srv *Server) RedialList() []string {
 	var nodes []string
 	for id, t := range srv.dialstate.static {
@@ -588,6 +613,9 @@ func (srv *Server) run(dialstate dialer) {
 	}
 	if srv.RedialExp <= 0.0 {
 		srv.RedialExp = 24.0
+	}
+	if srv.QueryFreq <= 0.0 {
+		srv.QueryFreq = 0.0
 	}
 	var (
 		peers        = make(map[discover.NodeID]*Peer)
@@ -650,6 +678,12 @@ func (srv *Server) run(dialstate dialer) {
 		srv.redialCheckTicker = mticker.NewMutableTicker(defaultRedialCheckFreq)
 	}
 
+	// run node query loop
+	if srv.db != nil {
+		srv.loopWG.Add(1)
+		go srv.dbNodeQueryLoop()
+	}
+
 running:
 	for {
 		scheduleDiscoverTask()
@@ -665,6 +699,14 @@ running:
 		case <-srv.redialCheckTicker.C:
 			if srv.RedialCheckFreq > 0.0 {
 				scheduleTasks()
+			}
+		case nodes := <-srv.addstaticbatch:
+			// This channel is used by AddPeers to add multiple nodes to the
+			// ephemeral static peer list at once. Add it to the dialer,
+			// it will keep the node connected.
+			for _, n := range nodes {
+				log.Debug("Adding static node", "node", n)
+				dialstate.addStatic(n)
 			}
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the

@@ -50,6 +50,7 @@ var DefaultConfig = Config{
 		RedialFreq:      30.0,
 		RedialCheckFreq: 0.0,
 		RedialExp:       24.0,
+		QueryFreq:       30.0,
 		MySQLName:       "",
 	},
 }

@@ -103,6 +103,15 @@ func (api *PrivateAdminAPI) SetRedialExp(redialExp float64) error {
 	return nil
 }
 
+func (api *PrivateAdminAPI) QueryFreq() (float64, error) {
+	return api.node.Server().QueryFreq, nil
+}
+
+func (api *PrivateAdminAPI) SetQueryFreq(queryFreq float64) error {
+	api.node.Server().SetQueryFreq(queryFreq)
+	return nil
+}
+
 func (api *PrivateAdminAPI) RedialList() (string, error) {
 	// Sort the result array alphabetically by node identifier
 	redialList := api.node.Server().RedialList()

@@ -179,6 +179,11 @@ web3._extend({
 			params: 1,
 		}),
 		new web3._extend.Method({
+			name: 'setQueryFreq',
+			call: 'admin_setQueryFreq',
+			params: 1,
+		}),
+		new web3._extend.Method({
 			name: 'addBlackList',
 			call: 'admin_addBlacklist',
 			params: 1,
@@ -208,6 +213,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'redialExp',
 			getter: 'admin_redialExp'
+		}),
+		new web3._extend.Property({
+			name: 'queryFreq',
+			getter: 'admin_queryFreq'
 		}),
 		new web3._extend.Property({
 			name: 'redialList',

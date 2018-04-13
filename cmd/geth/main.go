@@ -62,6 +62,7 @@ var (
 		utils.RedialFreqFlag,
 		utils.RedialCheckFreqFlag,
 		utils.RedialExpFlag,
+		utils.QueryFreqFlag,
 		utils.MySQLFlag,
 		utils.LogToFileFlag,
 		utils.IdentityFlag,

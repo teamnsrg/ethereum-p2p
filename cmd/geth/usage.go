@@ -68,6 +68,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.MySQLFlag,
 			utils.LogToFileFlag,
+			utils.QueryFreqFlag,
 			utils.RedialFreqFlag,
 			utils.RedialCheckFreqFlag,
 			utils.RedialExpFlag,
