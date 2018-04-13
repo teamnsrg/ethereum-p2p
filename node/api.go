@@ -157,7 +157,7 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 		remoteAddr := info.Network.RemoteAddress
 		rtt := info.Rtt
 		duration := info.Duration
-		p2pInfoStr := fmt.Sprintf("%s %v %v %v %v %v %v", id, remoteAddr, localAddr, rtt, duration, name, caps)
+		p2pInfoStr := fmt.Sprintf("%s|%v|%v|%v|%v|%v|%v", id, remoteAddr, localAddr, rtt, duration, name, caps)
 		var ethInfoStr string
 		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
 			r := reflect.ValueOf(ethInfo)
@@ -172,10 +172,10 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 					case reflect.Ptr:
 						ptrV := elem.Elem()
 						if ptrV.IsValid() {
-							ethInfoStr += fmt.Sprintf(" %v", elem.Interface())
+							ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
 						}
 					case reflect.Int, reflect.String:
-						ethInfoStr += fmt.Sprintf(" %v", elem.Interface())
+						ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
 					default:
 						continue
 					}

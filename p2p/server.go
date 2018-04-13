@@ -571,7 +571,7 @@ func (srv *Server) RedialList() []string {
 		} else {
 			lastResolved = fmt.Sprintf("%.6f", float64(t.lastResolved.UnixNano())/1e9)
 		}
-		nodeStr := fmt.Sprintf("ID:%s Addr:%v LastSuccess:%s LastResolveTry:%s ResolveDelay:%v",
+		nodeStr := fmt.Sprintf("%s|%v|%s|%s|%v",
 			id.String(), addr, lastSuccess, lastResolved, t.resolveDelay.Seconds())
 		nodes = append(nodes, nodeStr)
 	}
