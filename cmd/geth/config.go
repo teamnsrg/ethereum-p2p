@@ -30,7 +30,9 @@ import (
 
 	"github.com/naoina/toml"
 	"github.com/teamnsrg/go-ethereum/cmd/utils"
+	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/contracts/release"
+	"github.com/teamnsrg/go-ethereum/core"
 	"github.com/teamnsrg/go-ethereum/dashboard"
 	"github.com/teamnsrg/go-ethereum/eth"
 	"github.com/teamnsrg/go-ethereum/node"
@@ -146,6 +148,18 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
 
 	utils.RegisterEthService(stack, &cfg.Eth)
+	stack.Config.P2P.NetworkID = cfg.Eth.NetworkId
+	genesisHash := common.Hash{}
+	if cfg.Eth.Genesis != nil {
+		if block, _ := cfg.Eth.Genesis.ToBlock(); block != nil {
+			genesisHash = block.Hash()
+		}
+	} else {
+		if block, _ := core.DefaultGenesisBlock().ToBlock(); block != nil {
+			genesisHash = block.Hash()
+		}
+	}
+	stack.Config.P2P.GenesisHash = genesisHash
 
 	if ctx.GlobalBool(utils.DashboardEnabledFlag.Name) {
 		utils.RegisterDashboardService(stack, &cfg.Dashboard)

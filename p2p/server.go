@@ -63,6 +63,10 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	NetworkID uint64
+
+	GenesisHash common.Hash
+
 	// MaxRedial is the maximum number of concurrently redialing outbound connections.
 	MaxRedial int
 

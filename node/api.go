@@ -49,10 +49,10 @@ func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 func (api *PrivateAdminAPI) Logrotate() error {
 	var (
 		logdir           = filepath.Join(api.node.InstanceDir(), "logs")
-		clientIdentifier = api.node.config.Name
+		clientIdentifier = api.node.Config.Name
 		glogger          = log.Root().GetGlogger()
 	)
-	if api.node.config.LogToFile {
+	if api.node.Config.LogToFile {
 		glogger.SetHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
 		log.Root().SetHandler(log.MultiHandler(
 			// default logging for any lvl <= verbosity
@@ -269,16 +269,16 @@ func (api *PrivateAdminAPI) StartRPC(host *string, port *int, cors *string, apis
 
 	if host == nil {
 		h := DefaultHTTPHost
-		if api.node.config.HTTPHost != "" {
-			h = api.node.config.HTTPHost
+		if api.node.Config.HTTPHost != "" {
+			h = api.node.Config.HTTPHost
 		}
 		host = &h
 	}
 	if port == nil {
-		port = &api.node.config.HTTPPort
+		port = &api.node.Config.HTTPPort
 	}
 
-	allowedOrigins := api.node.config.HTTPCors
+	allowedOrigins := api.node.Config.HTTPCors
 	if cors != nil {
 		allowedOrigins = nil
 		for _, origin := range strings.Split(*cors, ",") {
@@ -323,16 +323,16 @@ func (api *PrivateAdminAPI) StartWS(host *string, port *int, allowedOrigins *str
 
 	if host == nil {
 		h := DefaultWSHost
-		if api.node.config.WSHost != "" {
-			h = api.node.config.WSHost
+		if api.node.Config.WSHost != "" {
+			h = api.node.Config.WSHost
 		}
 		host = &h
 	}
 	if port == nil {
-		port = &api.node.config.WSPort
+		port = &api.node.Config.WSPort
 	}
 
-	origins := api.node.config.WSOrigins
+	origins := api.node.Config.WSOrigins
 	if allowedOrigins != nil {
 		origins = nil
 		for _, origin := range strings.Split(*allowedOrigins, ",") {
@@ -340,7 +340,7 @@ func (api *PrivateAdminAPI) StartWS(host *string, port *int, allowedOrigins *str
 		}
 	}
 
-	modules := api.node.config.WSModules
+	modules := api.node.Config.WSModules
 	if apis != nil {
 		modules = nil
 		for _, m := range strings.Split(*apis, ",") {
@@ -348,7 +348,7 @@ func (api *PrivateAdminAPI) StartWS(host *string, port *int, allowedOrigins *str
 		}
 	}
 
-	if err := api.node.startWS(fmt.Sprintf("%s:%d", *host, *port), api.node.rpcAPIs, modules, origins, api.node.config.WSExposeAll); err != nil {
+	if err := api.node.startWS(fmt.Sprintf("%s:%d", *host, *port), api.node.rpcAPIs, modules, origins, api.node.Config.WSExposeAll); err != nil {
 		return false, err
 	}
 	return true, nil
