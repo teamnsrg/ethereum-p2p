@@ -140,11 +140,14 @@ func newDialState(static []*discover.Node, ntab discoverTable, maxdyn int, netre
 }
 
 func (s *dialstate) addStatic(n *discover.Node) {
-	// This overwites the task instead of updating an existing
-	// entry, giving users the opportunity to force a resolve operation.
+	// This updates an existing entry.
 	// If being added as a static node, the node must have been responsive.
 	// Record current time as its lastSuccess time.
-	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
+	if t, ok := s.static[n.ID]; ok {
+		t.dest = n
+	} else {
+		s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
+	}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
