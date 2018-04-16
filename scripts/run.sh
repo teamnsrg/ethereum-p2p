@@ -62,11 +62,12 @@ do
     --mysql \"${MYSQL_URL}\" \
     --logtofile \
     --redialfreq 1800 \
-    --redialcheckfreq 5 \
     --redialexp 24 \
     --maxnumfile 20480 \
     --maxredial 1000 \
-    --pushfreq 1"
+    --pushfreq 1 \
+    --maxsqlchunk 50 \
+    --maxsqlqueue 1000000"
   docker run -dit --restart=always -h ${NODEFINDER_NAME}-${i} --name ${NODEFINDER_NAME}-${i} --net host -v ${NODEFINDER_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${NODEFINDER_IMAGE} -c "${CMD}"
  echo "${NODEFINDER_NAME}-${i} started"
 done
