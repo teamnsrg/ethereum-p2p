@@ -21,11 +21,12 @@ package main
 import (
 	"io"
 	"sort"
+	"strings"
+
+	"gopkg.in/urfave/cli.v1"
 
 	"github.com/teamnsrg/go-ethereum/cmd/utils"
 	"github.com/teamnsrg/go-ethereum/internal/debug"
-	"gopkg.in/urfave/cli.v1"
-	"strings"
 )
 
 // AppHelpTemplate is the test template for the default, global app help topic.
