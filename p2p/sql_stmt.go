@@ -3,14 +3,14 @@ package p2p
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/teamnsrg/go-ethereum/common/mticker"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"net"
-	"time"
 )
 
 func (srv *Server) initSql() error {
@@ -75,7 +75,7 @@ func (srv *Server) queryNodeAddress(interval time.Duration) error {
 				(SELECT all_addrs.node_id, ip, tcp_port 
 				 FROM (SELECT node_id, MAX(last_status_at) AS last_status_at 
 				 	   FROM node_eth_info 
-				 	   WHERE last_status_at >= ? 
+				 	   WHERE last_status_at >= ? and network_id = ? and genesis_hash = ? 
 				 	   GROUP BY node_id
 				 	   ) AS new_ids 
 				 	INNER JOIN 
@@ -86,12 +86,12 @@ func (srv *Server) queryNodeAddress(interval time.Duration) error {
 				 ) AS new_addrs 
 				ON new_addrs.node_id = node_meta_info.node_id 
 		WHERE dial_count > 0
-	`, float64(time.Now().Add(-interval).UnixNano())/1e9)
-	defer rows.Close()
+	`, float64(time.Now().Add(-interval).UnixNano())/1e9, srv.NetworkID, srv.GenesisHash.String()[2:])
 	if err != nil {
 		log.Sql("Failed to execute node address query", "database", srv.MySQLName, "err", err)
 		return err
 	}
+	defer rows.Close()
 	log.Sql("Executed node address query", "database", srv.MySQLName)
 
 	var nodes []*discover.Node
