@@ -36,11 +36,12 @@ do
     --mysql "${MYSQL_URL}" \
     --logtofile \
     --redialfreq 1800 \
-    --redialcheckfreq 5 \
     --redialexp 24 \
     --maxnumfile 20480 \
     --maxredial 1000 \
-    --pushfreq 1 >>${ERRFILE} 2>&1
+    --pushfreq 1 \
+    --maxsqlchunk 50 \
+    --maxsqlqueue 1000000 >>${ERRFILE} 2>&1
   echo "${NODEFINDER_NAME}-${i} stopped. restarting in ${SLEEP} seconds..."
   sleep ${SLEEP}
   echo "restarting ${NODEFINDER_NAME}-${i}..."
