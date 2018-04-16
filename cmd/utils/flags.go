@@ -152,6 +152,16 @@ var (
 		Usage: "Frequency of pushing updates to MySQL database (in seconds)",
 		Value: 1.0,
 	}
+	MaxSqlChunkFlag = cli.IntFlag{
+		Name:  "maxsqlchunk",
+		Usage: "Maximum number of updates in a single batch insert",
+		Value: 50,
+	}
+	MaxSqlQueueFlag = cli.IntFlag{
+		Name:  "maxsqlqueue",
+		Usage: "Maximum number of updates allowed in queues. When reached, the instance goes through shutdown and all updates are pushed",
+		Value: 1e6,
+	}
 	MySQLFlag = cli.StringFlag{
 		Name:  "mysql",
 		Usage: "Connects to the specified database and update node information (username:password@tcp(ip:port)/db)",
@@ -854,6 +864,12 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(PushFreqFlag.Name) {
 		cfg.PushFreq = ctx.GlobalFloat64(PushFreqFlag.Name)
+	}
+	if ctx.GlobalIsSet(MaxSqlChunkFlag.Name) {
+		cfg.MaxSqlChunk = ctx.GlobalInt(MaxSqlChunkFlag.Name)
+	}
+	if ctx.GlobalIsSet(MaxSqlQueueFlag.Name) {
+		cfg.MaxSqlQueue = ctx.GlobalInt(MaxSqlQueueFlag.Name)
 	}
 	if ctx.GlobalIsSet(MySQLFlag.Name) {
 		cfg.MySQLName = ctx.GlobalString(MySQLFlag.Name)

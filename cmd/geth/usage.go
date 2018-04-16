@@ -76,6 +76,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MaxRedialFlag,
 			utils.BlacklistFlag,
 			utils.PushFreqFlag,
+			utils.MaxSqlChunkFlag,
+			utils.MaxSqlQueueFlag,
 			utils.MaxPendingPeersFlag,
 			utils.MaxDialFlag,
 			utils.BackupSQLFlag,

@@ -64,6 +64,8 @@ var (
 		utils.RedialCheckFreqFlag,
 		utils.RedialExpFlag,
 		utils.PushFreqFlag,
+		utils.MaxSqlChunkFlag,
+		utils.MaxSqlQueueFlag,
 		utils.MySQLFlag,
 		utils.BackupSQLFlag,
 		utils.ResetSQLFlag,

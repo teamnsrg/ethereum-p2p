@@ -14,6 +14,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/common/mticker"
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"syscall"
 )
 
 type SqlStrings struct {
@@ -23,7 +24,11 @@ type SqlStrings struct {
 	NumValues int
 }
 
-const maxNumRecords = uint64(5000)
+const (
+	defaultMaxSqlChunkSize = 50
+	defaultMaxSqlQueueSize = 1e6
+	maxNumRetry            = 10
+)
 
 var (
 	neighborInfoSqlString = SqlStrings{
@@ -88,18 +93,18 @@ func (q *infoQueue) len() int {
 	return len(q.infos)
 }
 
-func (q *infoQueue) chunks() []interface{} {
-	total := uint64(len(q.infos))
-	if total <= maxNumRecords {
+func (q *infoQueue) chunks(chunkSize int) []interface{} {
+	total := len(q.infos)
+	if total <= chunkSize {
 		return []interface{}{q.infos}
 	}
 	chunks := []interface{}{}
-	quot := total / maxNumRecords
-	for i := uint64(0); i < quot; i++ {
-		start := i * maxNumRecords
-		chunks = append(chunks, q.infos[start:start+maxNumRecords])
+	quot := total / chunkSize
+	for i := 0; i < quot; i++ {
+		start := i * chunkSize
+		chunks = append(chunks, q.infos[start:start+chunkSize])
 	}
-	return append(chunks, q.infos[quot*maxNumRecords:])
+	return append(chunks, q.infos[quot*chunkSize:])
 }
 
 func (q *infoQueue) trunc(index int) {
@@ -161,6 +166,12 @@ func (srv *Server) initSql() error {
 		srv.p2pInfoQueue = &infoQueue{&sync.Mutex{}, make([]interface{}, 0)}
 		srv.ethInfoQueue = &infoQueue{&sync.Mutex{}, make([]interface{}, 0)}
 
+		if srv.MaxSqlChunk <= 0 {
+			srv.MaxSqlChunk = defaultMaxSqlChunkSize
+		}
+		if srv.MaxSqlQueue <= 0 {
+			srv.MaxSqlQueue = defaultMaxSqlQueueSize
+		}
 		srv.loopWG.Add(1)
 		go srv.dbPushLoop()
 	}
@@ -520,69 +531,96 @@ func (srv *Server) dbPushLoop() {
 	log.Sql("Starting database update push loop")
 	srv.pushTicker = mticker.NewMutableTicker(time.Duration(srv.PushFreq * float64(time.Second)))
 	defer srv.pushTicker.Stop()
+	stopping := false
 	for {
 		select {
 		case <-srv.pushTicker.C:
 			// insert all pending info
-			log.Sql("Pushing all pending updates to database")
-			srv.loopWG.Add(4)
-			go srv.addNeighbors()
-			go srv.addNodeMetaInfos()
-			go srv.addNodeP2PInfos()
-			go srv.addNodeEthInfos()
+			if !stopping {
+				log.Sql("Pushing all pending updates to database")
+				srv.loopWG.Add(4)
+				go srv.addNeighbors(true)
+				go srv.addNodeMetaInfos(true)
+				go srv.addNodeP2PInfos(true)
+				go srv.addNodeEthInfos(true)
+			}
 		case info, ok := <-srv.NeighborChan:
 			if !ok {
 				log.Sql("UDP listener stopped. Pushing all pending Neighbors updates")
 				srv.loopWG.Add(1)
-				go srv.addNeighbors()
+				go srv.addNeighbors(false)
 				srv.NeighborChan = nil
 			} else if len(info) != neighborInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNeighbors")
 			} else {
+				srv.neighborInfoQueue.Lock()
 				srv.neighborInfoQueue.add(info)
+				srv.neighborInfoQueue.Unlock()
 			}
 		case info, ok := <-srv.metaInfoChan:
 			if !ok {
 				log.Sql("P2P networking stopped. Pushing all pending NodeMetaInfo updates")
 				srv.loopWG.Add(1)
-				go srv.addNodeMetaInfos()
+				go srv.addNodeMetaInfos(false)
 				srv.metaInfoChan = nil
 			} else if len(info) != metaInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNodeMetaInfos")
 			} else {
+				srv.metaInfoQueue.Lock()
 				srv.metaInfoQueue.add(info)
+				srv.metaInfoQueue.Unlock()
 			}
 		case info, ok := <-srv.p2pInfoChan:
 			if !ok {
 				log.Sql("P2P networking stopped. Pushing all pending NodeP2PInfo updates")
 				srv.loopWG.Add(1)
-				go srv.addNodeP2PInfos()
+				go srv.addNodeP2PInfos(false)
 				srv.p2pInfoChan = nil
 			} else if len(info) != p2pInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNodeP2PInfos")
 			} else {
+				srv.p2pInfoQueue.Lock()
 				srv.p2pInfoQueue.add(info)
+				srv.p2pInfoQueue.Unlock()
 			}
 		case info, ok := <-srv.EthInfoChan:
 			if !ok {
 				log.Sql("Ethereum protocol stopped. Pushing all pending NodeEthInfo updates")
 				srv.loopWG.Add(1)
-				go srv.addNodeEthInfos()
+				go srv.addNodeEthInfos(false)
 				srv.EthInfoChan = nil
 			} else if len(info) != ethInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNodeEthInfos")
 			} else {
+				srv.ethInfoQueue.Lock()
 				srv.ethInfoQueue.add(info)
+				srv.ethInfoQueue.Unlock()
 			}
 		}
 		if srv.NeighborChan == nil && srv.metaInfoChan == nil && srv.p2pInfoChan == nil && srv.EthInfoChan == nil {
 			log.Sql("Stopping database update push loop")
 			return
 		}
+		if !stopping {
+			srv.neighborInfoQueue.Lock()
+			srv.metaInfoQueue.Lock()
+			srv.p2pInfoQueue.Lock()
+			srv.ethInfoQueue.Lock()
+			total := srv.neighborInfoQueue.len() + srv.metaInfoQueue.len() + srv.p2pInfoQueue.len() + srv.ethInfoQueue.len()
+			srv.neighborInfoQueue.Unlock()
+			srv.metaInfoQueue.Unlock()
+			srv.p2pInfoQueue.Unlock()
+			srv.ethInfoQueue.Unlock()
+			if total >= srv.MaxSqlQueue {
+				log.Sql("Queue size grew too big. Sending interrupt signal", "size", total)
+				syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+				stopping = true
+			}
+		}
 	}
 }
 
-func (srv *Server) addNeighbors() {
+func (srv *Server) addNeighbors(chunk bool) {
 	defer srv.loopWG.Done()
 	srv.neighborInfoQueue.Lock()
 	defer srv.neighborInfoQueue.Unlock()
@@ -591,34 +629,61 @@ func (srv *Server) addNeighbors() {
 		log.Sql("No Neighbor update to push")
 		return
 	}
-	valueStrings := make([]string, 0, maxNumRecords)
-	valueArgs := make([]interface{}, 0, maxNumRecords*uint64(neighborInfoSqlString.NumValues))
-	chunks := srv.neighborInfoQueue.chunks()
-	for _, c := range chunks {
-		infos := c.([]interface{})
-		n := len(infos)
-		for _, infoInterface := range infos {
+	log.Sql(fmt.Sprintf("%d Neighbor updates to push", total))
+	if chunk {
+		valueStrings := make([]string, 0, srv.MaxSqlChunk)
+		valueArgs := make([]interface{}, 0, srv.MaxSqlChunk*neighborInfoSqlString.NumValues)
+		chunks := srv.neighborInfoQueue.chunks(srv.MaxSqlChunk)
+		for _, c := range chunks {
+			infos := c.([]interface{})
+			n := len(infos)
+			if n <= 0 {
+				continue
+			}
+			for _, infoInterface := range infos {
+				info, ok := infoInterface.([]interface{})
+				if !ok {
+					continue
+				}
+				valueStrings = append(valueStrings, neighborInfoSqlString.Values)
+				valueArgs = append(valueArgs, info...)
+			}
+			stmt := neighborInfoSqlString.Prefix + strings.Join(valueStrings, ",") + neighborInfoSqlString.Suffix
+			_, err := srv.db.Exec(stmt, valueArgs...)
+			if err != nil {
+				log.Sql("Failed to execute AddNeighbors sql statement", "numUpdates", n, "err", err)
+				return
+			}
+			log.Sql("Executed AddNeighbors sql statement", "numUpdates", n)
+			srv.neighborInfoQueue.trunc(n)
+			valueStrings = valueStrings[:0]
+			valueArgs = valueArgs[:0]
+		}
+	} else {
+		for _, infoInterface := range srv.neighborInfoQueue.infos {
 			info, ok := infoInterface.([]interface{})
 			if !ok {
 				continue
 			}
-			valueStrings = append(valueStrings, neighborInfoSqlString.Values)
-			valueArgs = append(valueArgs, info...)
+			stmt := neighborInfoSqlString.Prefix + neighborInfoSqlString.Values + neighborInfoSqlString.Suffix
+			for i := 1; i <= maxNumRetry; i++ {
+				_, err := srv.db.Exec(stmt, info...)
+				if err == nil {
+					log.Sql("Executed AddNeighbors sql statement for a single record")
+					break
+				} else {
+					log.Sql("Failed to execute AddNeighbors sql statement for a single record", "try", i, "err", err)
+					if i == maxNumRetry {
+						log.Sql(fmt.Sprintf("Failed to execute AddNeighbors sql statement for a single record after %d tries. Skipping", maxNumRetry))
+						break
+					}
+				}
+			}
 		}
-		stmt := neighborInfoSqlString.Prefix + strings.Join(valueStrings, ",") + neighborInfoSqlString.Suffix
-		_, err := srv.db.Exec(stmt, valueArgs...)
-		if err != nil {
-			log.Sql("Failed to execute AddNeighbors sql statement", "numUpdates", n, "err", err)
-			return
-		}
-		log.Sql("Executed AddNeighbors sql statement", "numUpdates", n)
-		srv.neighborInfoQueue.trunc(n)
-		valueStrings = valueStrings[:0]
-		valueArgs = valueArgs[:0]
 	}
 }
 
-func (srv *Server) addNodeMetaInfos() {
+func (srv *Server) addNodeMetaInfos(chunk bool) {
 	defer srv.loopWG.Done()
 	srv.metaInfoQueue.Lock()
 	defer srv.metaInfoQueue.Unlock()
@@ -627,34 +692,61 @@ func (srv *Server) addNodeMetaInfos() {
 		log.Sql("No NodeMetaInfo update to push")
 		return
 	}
-	valueStrings := make([]string, 0, maxNumRecords)
-	valueArgs := make([]interface{}, 0, maxNumRecords*uint64(metaInfoSqlString.NumValues))
-	chunks := srv.metaInfoQueue.chunks()
-	for _, c := range chunks {
-		infos := c.([]interface{})
-		n := len(infos)
+	log.Sql(fmt.Sprintf("%d NodeMetaInfo updates to push", total))
+	if chunk {
+		valueStrings := make([]string, 0, srv.MaxSqlChunk)
+		valueArgs := make([]interface{}, 0, srv.MaxSqlChunk*metaInfoSqlString.NumValues)
+		chunks := srv.metaInfoQueue.chunks(srv.MaxSqlChunk)
+		for _, c := range chunks {
+			infos := c.([]interface{})
+			n := len(infos)
+			if n <= 0 {
+				continue
+			}
+			for _, infoInterface := range srv.metaInfoQueue.infos {
+				info, ok := infoInterface.([]interface{})
+				if !ok {
+					continue
+				}
+				valueStrings = append(valueStrings, metaInfoSqlString.Values)
+				valueArgs = append(valueArgs, info...)
+			}
+			stmt := metaInfoSqlString.Prefix + strings.Join(valueStrings, ",") + metaInfoSqlString.Suffix
+			_, err := srv.db.Exec(stmt, valueArgs...)
+			if err != nil {
+				log.Sql("Failed to execute AddNodeMetaInfos sql statement", "numUpdates", n, "err", err)
+				return
+			}
+			log.Sql("Executed AddNodeMetaInfos sql statement", "numUpdates", n)
+			srv.metaInfoQueue.trunc(n)
+			valueStrings = valueStrings[:0]
+			valueArgs = valueArgs[:0]
+		}
+	} else {
 		for _, infoInterface := range srv.metaInfoQueue.infos {
 			info, ok := infoInterface.([]interface{})
 			if !ok {
 				continue
 			}
-			valueStrings = append(valueStrings, metaInfoSqlString.Values)
-			valueArgs = append(valueArgs, info...)
+			stmt := metaInfoSqlString.Prefix + metaInfoSqlString.Values + metaInfoSqlString.Suffix
+			for i := 1; i <= maxNumRetry; i++ {
+				_, err := srv.db.Exec(stmt, info...)
+				if err == nil {
+					log.Sql("Executed AddNodeMetaInfos sql statement for a single record")
+					break
+				} else {
+					log.Sql("Failed to execute AddNodeMetaInfos sql statement for a single record", "try", i, "err", err)
+					if i == maxNumRetry {
+						log.Sql(fmt.Sprintf("Failed to execute AddNodeMetaInfos sql statement for a single record after %d tries. Skipping", maxNumRetry))
+						break
+					}
+				}
+			}
 		}
-		stmt := metaInfoSqlString.Prefix + strings.Join(valueStrings, ",") + metaInfoSqlString.Suffix
-		_, err := srv.db.Exec(stmt, valueArgs...)
-		if err != nil {
-			log.Sql("Failed to execute AddNodeMetaInfos sql statement", "numUpdates", n, "err", err)
-			return
-		}
-		log.Sql("Executed AddNodeMetaInfos sql statement", "numUpdates", n)
-		srv.metaInfoQueue.trunc(n)
-		valueStrings = valueStrings[:0]
-		valueArgs = valueArgs[:0]
 	}
 }
 
-func (srv *Server) addNodeP2PInfos() {
+func (srv *Server) addNodeP2PInfos(chunk bool) {
 	defer srv.loopWG.Done()
 	srv.p2pInfoQueue.Lock()
 	defer srv.p2pInfoQueue.Unlock()
@@ -663,34 +755,61 @@ func (srv *Server) addNodeP2PInfos() {
 		log.Sql("No NodeP2PInfo update to push")
 		return
 	}
-	valueStrings := make([]string, 0, maxNumRecords)
-	valueArgs := make([]interface{}, 0, maxNumRecords*uint64(p2pInfoSqlString.NumValues))
-	chunks := srv.p2pInfoQueue.chunks()
-	for _, c := range chunks {
-		infos := c.([]interface{})
-		n := len(infos)
+	log.Sql(fmt.Sprintf("%d NodeP2PInfo updates to push", total))
+	if chunk {
+		valueStrings := make([]string, 0, srv.MaxSqlChunk)
+		valueArgs := make([]interface{}, 0, srv.MaxSqlChunk*p2pInfoSqlString.NumValues)
+		chunks := srv.p2pInfoQueue.chunks(srv.MaxSqlChunk)
+		for _, c := range chunks {
+			infos := c.([]interface{})
+			n := len(infos)
+			if n <= 0 {
+				continue
+			}
+			for _, infoInterface := range srv.p2pInfoQueue.infos {
+				info, ok := infoInterface.([]interface{})
+				if !ok {
+					continue
+				}
+				valueStrings = append(valueStrings, p2pInfoSqlString.Values)
+				valueArgs = append(valueArgs, info...)
+			}
+			stmt := p2pInfoSqlString.Prefix + strings.Join(valueStrings, ",") + p2pInfoSqlString.Suffix
+			_, err := srv.db.Exec(stmt, valueArgs...)
+			if err != nil {
+				log.Sql("Failed to execute AddNodeP2PInfos sql statement", "numUpdates", n, "err", err)
+				return
+			}
+			log.Sql("Executed AddNodeP2PInfos sql statement", "numUpdates", n)
+			srv.p2pInfoQueue.trunc(n)
+			valueStrings = valueStrings[:0]
+			valueArgs = valueArgs[:0]
+		}
+	} else {
 		for _, infoInterface := range srv.p2pInfoQueue.infos {
 			info, ok := infoInterface.([]interface{})
 			if !ok {
 				continue
 			}
-			valueStrings = append(valueStrings, p2pInfoSqlString.Values)
-			valueArgs = append(valueArgs, info...)
+			stmt := p2pInfoSqlString.Prefix + p2pInfoSqlString.Values + p2pInfoSqlString.Suffix
+			for i := 1; i <= maxNumRetry; i++ {
+				_, err := srv.db.Exec(stmt, info...)
+				if err == nil {
+					log.Sql("Executed AddNodeP2PInfos sql statement for a single record")
+					break
+				} else {
+					log.Sql("Failed to execute AddNodeP2PInfos sql statement for a single record", "try", i, "err", err)
+					if i == maxNumRetry {
+						log.Sql(fmt.Sprintf("Failed to execute AddNodeP2PInfos sql statement for a single record after %d tries. Skipping", maxNumRetry))
+						break
+					}
+				}
+			}
 		}
-		stmt := p2pInfoSqlString.Prefix + strings.Join(valueStrings, ",") + p2pInfoSqlString.Suffix
-		_, err := srv.db.Exec(stmt, valueArgs...)
-		if err != nil {
-			log.Sql("Failed to execute AddNodeP2PInfos sql statement", "numUpdates", n, "err", err)
-			return
-		}
-		log.Sql("Executed AddNodeP2PInfos sql statement", "numUpdates", n)
-		srv.p2pInfoQueue.trunc(n)
-		valueStrings = valueStrings[:0]
-		valueArgs = valueArgs[:0]
 	}
 }
 
-func (srv *Server) addNodeEthInfos() {
+func (srv *Server) addNodeEthInfos(chunk bool) {
 	defer srv.loopWG.Done()
 	srv.ethInfoQueue.Lock()
 	defer srv.ethInfoQueue.Unlock()
@@ -699,30 +818,57 @@ func (srv *Server) addNodeEthInfos() {
 		log.Sql("No NodeEthInfo update to push")
 		return
 	}
-	valueStrings := make([]string, 0, maxNumRecords)
-	valueArgs := make([]interface{}, 0, maxNumRecords*uint64(ethInfoSqlString.NumValues))
-	chunks := srv.ethInfoQueue.chunks()
-	for _, c := range chunks {
-		infos := c.([]interface{})
-		n := len(infos)
+	log.Sql(fmt.Sprintf("%d NodeEthInfo updates to push", total))
+	if chunk {
+		valueStrings := make([]string, 0, srv.MaxSqlChunk)
+		valueArgs := make([]interface{}, 0, srv.MaxSqlChunk*ethInfoSqlString.NumValues)
+		chunks := srv.ethInfoQueue.chunks(srv.MaxSqlChunk)
+		for _, c := range chunks {
+			infos := c.([]interface{})
+			n := len(infos)
+			if n <= 0 {
+				continue
+			}
+			for _, infoInterface := range srv.ethInfoQueue.infos {
+				info, ok := infoInterface.([]interface{})
+				if !ok {
+					continue
+				}
+				valueStrings = append(valueStrings, ethInfoSqlString.Values)
+				valueArgs = append(valueArgs, info...)
+			}
+			stmt := ethInfoSqlString.Prefix + strings.Join(valueStrings, ",") + ethInfoSqlString.Suffix
+			_, err := srv.db.Exec(stmt, valueArgs...)
+			if err != nil {
+				log.Sql("Failed to execute AddNodeEthInfos sql statement", "numUpdates", n, "err", err)
+				return
+			}
+			log.Sql("Executed AddNodeEthInfos sql statement", "numUpdates", n)
+			srv.ethInfoQueue.trunc(n)
+			valueStrings = valueStrings[:0]
+			valueArgs = valueArgs[:0]
+		}
+	} else {
 		for _, infoInterface := range srv.ethInfoQueue.infos {
 			info, ok := infoInterface.([]interface{})
 			if !ok {
 				continue
 			}
-			valueStrings = append(valueStrings, ethInfoSqlString.Values)
-			valueArgs = append(valueArgs, info...)
+			stmt := ethInfoSqlString.Prefix + ethInfoSqlString.Values + ethInfoSqlString.Suffix
+			for i := 1; i <= maxNumRetry; i++ {
+				_, err := srv.db.Exec(stmt, info...)
+				if err == nil {
+					log.Sql("Executed AddNodeEthInfos sql statement for a single record")
+					break
+				} else {
+					log.Sql("Failed to execute AddNodeEthInfos sql statement for a single record", "try", i, "err", err)
+					if i == maxNumRetry {
+						log.Sql(fmt.Sprintf("Failed to execute AddNodeEthInfos sql statement for a single record after %d tries. Skipping", maxNumRetry))
+						break
+					}
+				}
+			}
 		}
-		stmt := ethInfoSqlString.Prefix + strings.Join(valueStrings, ",") + ethInfoSqlString.Suffix
-		_, err := srv.db.Exec(stmt, valueArgs...)
-		if err != nil {
-			log.Sql("Failed to execute AddNodeEthInfos sql statement", "numUpdates", n, "err", err)
-			return
-		}
-		log.Sql("Executed AddNodeEthInfos sql statement", "numUpdates", n)
-		srv.ethInfoQueue.trunc(n)
-		valueStrings = valueStrings[:0]
-		valueArgs = valueArgs[:0]
 	}
 }
 

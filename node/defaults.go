@@ -52,6 +52,8 @@ var DefaultConfig = Config{
 		RedialCheckFreq: 0.0,
 		RedialExp:       24.0,
 		PushFreq:        1.0,
+		MaxSqlChunk:     50,
+		MaxSqlQueue:     1e6,
 		MySQLName:       "",
 		BackupSQL:       false,
 		ResetSQL:        false,

@@ -85,6 +85,12 @@ type Config struct {
 	// PushFreq is the frequency of pushing updates to MySQL database (in seconds).
 	PushFreq float64
 
+	// MaxSqlChunk is the maximum number of updates in a single batch insert.
+	MaxSqlChunk int
+
+	// MaxSqlQueue is the maximum number of updates allowed in queues. When reached, the instance goes through shutdown and all updates are pushed.
+	MaxSqlQueue int
+
 	// MySQLName is the MySQL node database connection information
 	MySQLName string
 
