@@ -464,6 +464,26 @@ func (srv *Server) Start() (err error) {
 	srv.StaticNodes = append(srv.StaticNodes, srv.BootstrapNodes...)
 	// initialize knowNodeInfos
 	srv.KnownNodeInfos = NewKnownNodeInfos()
+
+	// Make sure configs are set correctly
+	if srv.MaxDial <= 0 {
+		srv.MaxDial = 16
+	}
+	if srv.MaxRedial < srv.MaxDial {
+		srv.MaxRedial = srv.MaxDial
+	}
+	if srv.RedialFreq <= 0.0 {
+		srv.RedialFreq = 30.0
+	}
+	if srv.RedialCheckFreq <= 0.0 {
+		srv.RedialCheckFreq = 0.0
+	}
+	if srv.RedialExp <= 0.0 {
+		srv.RedialExp = 24.0
+	}
+	if srv.PushFreq <= 0.0 {
+		srv.PushFreq = 1.0
+	}
 	// initiate sql connection and prepare statements
 	// from this point on, srv.closeSql() should be called when returning with error
 	if err := srv.initSql(); err != nil {
@@ -504,7 +524,8 @@ func (srv *Server) Start() (err error) {
 	now := time.Now()
 	offset := srv.RedialFreq / float64(len(srv.StaticNodes))
 	for i, n := range srv.StaticNodes {
-		dialer.hist.add(n.ID, now.Add(time.Duration(float64(i)*offset*float64(time.Second))))
+		t := now.Add(time.Duration(float64(i) * offset * float64(time.Second)))
+		dialer.hist.add(n.ID, t)
 	}
 
 	// handshake

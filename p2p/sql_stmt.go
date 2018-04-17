@@ -521,7 +521,11 @@ func (srv *Server) loadKnownNodeInfos() error {
 		srv.KnownNodeInfos.AddInfo(id, nodeInfo)
 
 		// add the node to the initial static node list
-		srv.addInitialStatic(id, nodeInfo)
+		currentTime := time.Now()
+		deadline := nodeInfo.LastHelloAt.Add(time.Duration(srv.RedialExp * float64(time.Hour)))
+		if deadline.After(currentTime) {
+			srv.addInitialStatic(id, nodeInfo)
+		}
 	}
 	return nil
 }
