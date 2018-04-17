@@ -501,6 +501,11 @@ func (srv *Server) Start() (err error) {
 	srv.dialstate = dialer
 	srv.SetRedialFreq(srv.RedialFreq)
 	srv.SetRedialExp(srv.RedialExp)
+	now := time.Now()
+	offset := srv.RedialFreq / float64(len(srv.StaticNodes))
+	for i, n := range srv.StaticNodes {
+		dialer.hist.add(n.ID, now.Add(time.Duration(float64(i)*offset*float64(time.Second))))
+	}
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
