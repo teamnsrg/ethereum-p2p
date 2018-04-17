@@ -137,11 +137,7 @@ func (s *dialstate) addStatic(n *discover.Node) {
 	// This updates an existing entry.
 	// If being added as a static node, the node must have been responsive.
 	// Record current time as its lastSuccess time.
-	if t, ok := s.static[n.ID]; ok {
-		t.dest = n
-	} else {
-		s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
-	}
+	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
