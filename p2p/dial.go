@@ -33,10 +33,6 @@ const (
 	// Discovery lookups are throttled and can only run
 	// once every few seconds.
 	lookupInterval = 4 * time.Second
-
-	// Endpoint resolution is throttled with bounded backoff.
-	initialResolveDelay = 60 * time.Second
-	maxResolveDelay     = time.Hour
 )
 
 // NodeDialer is used to connect to nodes in the network, typically by using
@@ -103,11 +99,9 @@ type task interface {
 // A dialTask is generated for each node that is dialed. Its
 // fields cannot be accessed while the task is running.
 type dialTask struct {
-	flags        connFlag
-	dest         *discover.Node
-	lastResolved time.Time
-	resolveDelay time.Duration
-	lastSuccess  time.Time
+	flags       connFlag
+	dest        *discover.Node
+	lastSuccess time.Time
 }
 
 // discoverTask runs discovery table operations.
@@ -162,7 +156,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 
 	var newDynDialTasks []task
 	addDial := func(flag connFlag, n *discover.Node) bool {
-		if err := s.checkDial(n, peers); err != nil {
+		if err := s.checkDial(n, peers); err != nil && err != errRecentlyDialed {
 			log.Trace("Skipping dial candidate", "id", n.ID, "addr", &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, "err", err)
 			if err == errBlacklisted {
 				log.Debug("Rejected conn (blacklisted)", "addr", n.IP.String(), "transport", "tcp")
@@ -302,51 +296,9 @@ func (s *dialstate) taskDone(t task, now time.Time) {
 
 func (t *dialTask) Do(srv *Server) {
 	if t.dest.Incomplete() {
-		if !t.resolve(srv) {
-			return
-		}
+		return
 	}
-	success := t.dial(srv, t.dest)
-	// Try resolving the ID of static nodes if dialing failed.
-	if !success && t.flags&staticDialedConn != 0 {
-		if t.resolve(srv) {
-			t.dial(srv, t.dest)
-		}
-	}
-}
-
-// resolve attempts to find the current endpoint for the destination
-// using discovery.
-//
-// Resolve operations are throttled with backoff to avoid flooding the
-// discovery network with useless queries for nodes that don't exist.
-// The backoff delay resets when the node is found.
-func (t *dialTask) resolve(srv *Server) bool {
-	if srv.ntab == nil {
-		log.Task("FAIL-RESOLVE", append(t.TaskInfoCtx(), "err", "discovery is disabled"))
-		return false
-	}
-	if t.resolveDelay == 0 {
-		t.resolveDelay = initialResolveDelay
-	}
-	if time.Since(t.lastResolved) < t.resolveDelay {
-		return false
-	}
-	resolved := srv.ntab.Resolve(t.dest.ID)
-	t.lastResolved = time.Now()
-	if resolved == nil {
-		t.resolveDelay *= 2
-		if t.resolveDelay > maxResolveDelay {
-			t.resolveDelay = maxResolveDelay
-		}
-		log.Task("FAIL-RESOLVE", append(t.TaskInfoCtx(), t.ResolveInfoCtx()...))
-		return false
-	}
-	// The node was found.
-	t.resolveDelay = initialResolveDelay
-	t.dest = resolved
-	log.Task("RESOLVED", append(t.TaskInfoCtx(), t.ResolveInfoCtx()...))
-	return true
+	t.dial(srv, t.dest)
 }
 
 // dial performs the actual connection attempt.
@@ -378,19 +330,6 @@ func (t *dialTask) TaskInfoCtx() []interface{} {
 		"id", t.dest.ID.String(),
 		"addr", addr.String(),
 		"lastSuccess", lastSuccess,
-	}
-}
-
-func (t *dialTask) ResolveInfoCtx() []interface{} {
-	var lastResolved interface{}
-	if t.lastResolved.IsZero() {
-		lastResolved = nil
-	} else {
-		lastResolved = t.lastResolved
-	}
-	return []interface{}{
-		"lastResolveTry", lastResolved,
-		"resolveDelay", t.resolveDelay.Seconds(),
 	}
 }
 

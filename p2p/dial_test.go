@@ -522,39 +522,6 @@ func TestDialStateCache(t *testing.T) {
 	})
 }
 
-func TestDialResolve(t *testing.T) {
-	resolved := discover.NewNode(uintID(1), net.IP{127, 0, 55, 234}, 3333, 4444)
-	table := &resolveMock{answer: resolved}
-	state := newDialState(nil, table, 0, nil)
-	state.redialFreq = 30 * time.Second
-
-	// Check that the task is generated with an incomplete ID.
-	dest := discover.NewNode(uintID(1), nil, 0, 0)
-	state.addStatic(dest)
-	tasks := state.newRedialTasks(nil, time.Time{})
-	// for testing, clear all lastSuccess
-	for _, t := range tasks {
-		t.(*dialTask).lastSuccess = time.Time{}
-	}
-	if !reflect.DeepEqual(tasks, []task{&dialTask{flags: staticDialedConn, dest: dest}}) {
-		t.Fatalf("expected dial task, got %#v", tasks)
-	}
-
-	// Now run the task, it should resolve the ID once.
-	config := Config{Dialer: TCPDialer{&net.Dialer{Deadline: time.Now().Add(-5 * time.Minute)}}}
-	srv := &Server{ntab: table, Config: config}
-	tasks[0].Do(srv)
-	if !reflect.DeepEqual(table.resolveCalls, []discover.NodeID{dest.ID}) {
-		t.Fatalf("wrong resolve calls, got %v", table.resolveCalls)
-	}
-
-	// Report it as done to the dialer, which should update the static node record.
-	state.taskDone(tasks[0], time.Now())
-	if state.static[uintID(1)].dest != resolved {
-		t.Fatalf("state.dest not updated")
-	}
-}
-
 // compares task lists but doesn't care about the order.
 func sametasks(a, b []task) bool {
 	if len(a) != len(b) {
@@ -577,20 +544,3 @@ func uintID(i uint32) discover.NodeID {
 	binary.BigEndian.PutUint32(id[:], i)
 	return id
 }
-
-// implements discoverTable for TestDialResolve
-type resolveMock struct {
-	resolveCalls []discover.NodeID
-	answer       *discover.Node
-}
-
-func (t *resolveMock) Resolve(id discover.NodeID) *discover.Node {
-	t.resolveCalls = append(t.resolveCalls, id)
-	return t.answer
-}
-
-func (t *resolveMock) Self() *discover.Node                     { return new(discover.Node) }
-func (t *resolveMock) Close()                                   {}
-func (t *resolveMock) Bootstrap([]*discover.Node)               {}
-func (t *resolveMock) Lookup(discover.NodeID) []*discover.Node  { return nil }
-func (t *resolveMock) ReadRandomNodes(buf []*discover.Node) int { return 0 }

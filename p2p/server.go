@@ -586,14 +586,7 @@ func (srv *Server) RedialList() []string {
 		node := t.dest
 		addr := &net.TCPAddr{IP: node.IP, Port: int(node.TCP)}
 		lastSuccess := fmt.Sprintf("%.6f", float64(t.lastSuccess.UnixNano())/1e9)
-		var lastResolved string
-		if t.lastResolved.IsZero() {
-			lastResolved = "nil"
-		} else {
-			lastResolved = fmt.Sprintf("%.6f", float64(t.lastResolved.UnixNano())/1e9)
-		}
-		nodeStr := fmt.Sprintf("%s|%v|%s|%s|%v",
-			id.String(), addr, lastSuccess, lastResolved, t.resolveDelay.Seconds())
+		nodeStr := fmt.Sprintf("%s|%v|%s", id.String(), addr, lastSuccess)
 		nodes = append(nodes, nodeStr)
 	}
 	return nodes
