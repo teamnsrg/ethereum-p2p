@@ -8,7 +8,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: ./eth-monitor-logrotate.sh instance-number"
+  echo "usage: ./eth-monitor-peerlist.sh instance-number"
   exit 1
 fi
 
