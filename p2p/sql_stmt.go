@@ -75,7 +75,7 @@ func (srv *Server) queryNodeAddress(interval time.Duration) error {
 				(SELECT all_addrs.node_id, ip, tcp_port 
 				 FROM (SELECT node_id, MAX(last_status_at) AS last_status_at 
 				 	   FROM node_eth_info 
-				 	   WHERE last_status_at >= ? and network_id = ? and genesis_hash = ? 
+				 	   WHERE last_status_at >= ? and network_id = ? and genesis_hash = ? and dao_fork >= 0
 				 	   GROUP BY node_id
 				 	   ) AS new_ids 
 				 	INNER JOIN 
