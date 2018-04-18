@@ -476,25 +476,6 @@ func (srv *Server) Start() (err error) {
 	// initialize knowNodeInfos
 	srv.KnownNodeInfos = NewKnownNodeInfos()
 
-	// Make sure configs are set correctly
-	if srv.MaxDial <= 0 {
-		srv.MaxDial = 16
-	}
-	if srv.MaxRedial < srv.MaxDial {
-		srv.MaxRedial = srv.MaxDial
-	}
-	if srv.RedialFreq <= 0.0 {
-		srv.RedialFreq = 30.0
-	}
-	if srv.RedialCheckFreq <= 0.0 {
-		srv.RedialCheckFreq = 0.0
-	}
-	if srv.RedialExp <= 0.0 {
-		srv.RedialExp = 24.0
-	}
-	if srv.PushFreq <= 0.0 {
-		srv.PushFreq = 1.0
-	}
 	// initiate sql connection and prepare statements
 	// from this point on, srv.closeSql() should be called when returning with error
 	if err := srv.initSql(); err != nil {
@@ -732,7 +713,8 @@ func (srv *Server) run(dialstate dialer) {
 		if len(runningDynDial) < srv.MaxDial {
 			nRunning := len(runningDynDial) + len(queuedDynDial)
 			nt, needDiscoverTask := dialstate.newTasks(nRunning, peers, time.Now())
-			queuedDynDial = startDynDialTasks(append(queuedDynDial, nt...))
+			queuedDynDial = append(queuedDynDial, nt...)
+			queuedDynDial = append(queuedDynDial[:0], startDynDialTasks(queuedDynDial)...)
 			if needDiscoverTask {
 				t := &discoverTask{}
 				log.Task("NEW", t.TaskInfoCtx())
@@ -759,7 +741,7 @@ func (srv *Server) run(dialstate dialer) {
 				queuedStaticDial = append(queuedStaticDial, nt...)
 			}
 			// Query dialer for new tasks and start as many as possible now.
-			queuedStaticDial = startRedialTasks(queuedStaticDial)
+			queuedStaticDial = append(queuedStaticDial[:0], startRedialTasks(queuedStaticDial)...)
 		}
 	}
 
@@ -888,14 +870,6 @@ running:
 	// Disconnect all peers.
 	for _, p := range peers {
 		p.Disconnect(DiscQuitting)
-	}
-	// Wait for peers to shut down. Pending connections and tasks are
-	// not handled here and will terminate soon-ish because srv.quit
-	// is closed.
-	for len(peers) > 0 {
-		p := <-srv.delpeer
-		delete(peers, p.ID())
-		p.log.Trace("<-delpeer (spindown)", "remaining", len(peers))
 	}
 }
 

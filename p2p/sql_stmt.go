@@ -656,7 +656,20 @@ func (srv *Server) addNeighbors(chunk bool) {
 			_, err := srv.db.Exec(stmt, valueArgs...)
 			if err != nil {
 				log.Sql("Failed to execute AddNeighbors sql statement", "numUpdates", n, "err", err)
-				return
+				// try inserting separately
+				stmt := neighborInfoSqlString.Prefix + neighborInfoSqlString.Values + neighborInfoSqlString.Suffix
+				for i, infoInterface := range infos {
+					info, ok := infoInterface.([]interface{})
+					if !ok {
+						continue
+					}
+					if _, err := srv.db.Exec(stmt, info...); err != nil {
+						log.Sql("Failed to execute AddNeighbors sql statement for a single record", "err", err)
+						srv.neighborInfoQueue.trunc(i)
+						return
+					}
+					log.Sql("Executed AddNeighbors sql statement for a single record")
+				}
 			}
 			log.Sql("Executed AddNeighbors sql statement", "numUpdates", n)
 			srv.neighborInfoQueue.trunc(n)
@@ -707,7 +720,7 @@ func (srv *Server) addNodeMetaInfos(chunk bool) {
 			if n <= 0 {
 				continue
 			}
-			for _, infoInterface := range srv.metaInfoQueue.infos {
+			for _, infoInterface := range infos {
 				info, ok := infoInterface.([]interface{})
 				if !ok {
 					continue
@@ -719,7 +732,20 @@ func (srv *Server) addNodeMetaInfos(chunk bool) {
 			_, err := srv.db.Exec(stmt, valueArgs...)
 			if err != nil {
 				log.Sql("Failed to execute AddNodeMetaInfos sql statement", "numUpdates", n, "err", err)
-				return
+				// try inserting separately
+				stmt := metaInfoSqlString.Prefix + metaInfoSqlString.Values + metaInfoSqlString.Suffix
+				for i, infoInterface := range infos {
+					info, ok := infoInterface.([]interface{})
+					if !ok {
+						continue
+					}
+					if _, err := srv.db.Exec(stmt, info...); err != nil {
+						log.Sql("Failed to execute AddNodeMetaInfos sql statement for a single record", "err", err)
+						srv.metaInfoQueue.trunc(i)
+						return
+					}
+					log.Sql("Executed AddNodeMetaInfos sql statement for a single record")
+				}
 			}
 			log.Sql("Executed AddNodeMetaInfos sql statement", "numUpdates", n)
 			srv.metaInfoQueue.trunc(n)
@@ -770,7 +796,7 @@ func (srv *Server) addNodeP2PInfos(chunk bool) {
 			if n <= 0 {
 				continue
 			}
-			for _, infoInterface := range srv.p2pInfoQueue.infos {
+			for _, infoInterface := range infos {
 				info, ok := infoInterface.([]interface{})
 				if !ok {
 					continue
@@ -782,7 +808,20 @@ func (srv *Server) addNodeP2PInfos(chunk bool) {
 			_, err := srv.db.Exec(stmt, valueArgs...)
 			if err != nil {
 				log.Sql("Failed to execute AddNodeP2PInfos sql statement", "numUpdates", n, "err", err)
-				return
+				// try inserting separately
+				stmt := p2pInfoSqlString.Prefix + p2pInfoSqlString.Values + p2pInfoSqlString.Suffix
+				for i, infoInterface := range infos {
+					info, ok := infoInterface.([]interface{})
+					if !ok {
+						continue
+					}
+					if _, err := srv.db.Exec(stmt, info...); err != nil {
+						log.Sql("Failed to execute AddNodeP2PInfos sql statement for a single record", "err", err)
+						srv.p2pInfoQueue.trunc(i)
+						return
+					}
+					log.Sql("Executed AddNodeP2PInfos sql statement for a single record")
+				}
 			}
 			log.Sql("Executed AddNodeP2PInfos sql statement", "numUpdates", n)
 			srv.p2pInfoQueue.trunc(n)
@@ -833,7 +872,7 @@ func (srv *Server) addNodeEthInfos(chunk bool) {
 			if n <= 0 {
 				continue
 			}
-			for _, infoInterface := range srv.ethInfoQueue.infos {
+			for _, infoInterface := range infos {
 				info, ok := infoInterface.([]interface{})
 				if !ok {
 					continue
@@ -845,7 +884,20 @@ func (srv *Server) addNodeEthInfos(chunk bool) {
 			_, err := srv.db.Exec(stmt, valueArgs...)
 			if err != nil {
 				log.Sql("Failed to execute AddNodeEthInfos sql statement", "numUpdates", n, "err", err)
-				return
+				// try inserting separately
+				stmt := ethInfoSqlString.Prefix + ethInfoSqlString.Values + ethInfoSqlString.Suffix
+				for i, infoInterface := range infos {
+					info, ok := infoInterface.([]interface{})
+					if !ok {
+						continue
+					}
+					if _, err := srv.db.Exec(stmt, info...); err != nil {
+						log.Sql("Failed to execute AddNodeEthInfos sql statement for a single record", "err", err)
+						srv.ethInfoQueue.trunc(i)
+						return
+					}
+					log.Sql("Executed AddNodeEthInfos sql statement for a single record")
+				}
 			}
 			log.Sql("Executed AddNodeEthInfos sql statement", "numUpdates", n)
 			srv.ethInfoQueue.trunc(n)
