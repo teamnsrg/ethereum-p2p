@@ -1,6 +1,6 @@
 #!/bin/bash
 # this script should be added to root crontab for each instance as following:
-# 0 0 * * * cd /path/to/gitrepo/scripts && ./logrotate.sh instance-number
+# 0 0 * * * cd /path/to/gitrepo/scripts && ./node-finder-logrotate.sh instance-number
 # check if root
 if [ "$EUID" -ne 0 ]; then
   echo "please run as root"
@@ -8,7 +8,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: ./logrotate.sh instance-number"
+  echo "usage: ./node-finder-logrotate.sh instance-number"
   exit 1
 fi
 
