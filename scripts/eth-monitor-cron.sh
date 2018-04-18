@@ -9,7 +9,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: ./eth-monitor-logrotate-cron.sh num-instance"
+  echo "usage: ./eth-monitor-cron.sh num-instance"
   exit 1
 fi
 
@@ -21,7 +21,8 @@ n=$(( $1 - 1 ))
 CRONJOBS="$(crontab -l 2>/dev/null)"
 for i in `seq 0 ${n}`;
 do
-  CRONJOBS="${CRONJOBS}\n${MINUTE} ${HOUR} * * * cd ${WORKING_DIR} && ./eth-monitor-logrotate.sh ${i}"
+  CRONJOBS="${CRONJOBS}\n0 * * * * cd ${WORKING_DIR} && ./eth-monitor-logrotate.sh ${i}"
+  CRONJOBS="${CRONJOBS}\n*/3 * * * * cd ${WORKING_DIR} && ./eth-monitor-peerlist.sh ${i}"
 done
 echo -e "${CRONJOBS}" | crontab -
-echo "${ETHMONITOR_NAME} logrotate cronjobs added"
+echo "${ETHMONITOR_NAME} cronjobs added"
