@@ -17,7 +17,7 @@ source .env
 MYSQL_PORT=3306
 NODEFINDER_NAME="geth-node-finder"
 URL="research-scan.sprai.org"
-NODEFINDER_PORT=30310
+NODEFINDER_PORT=1024
 PORT=$(( ${NODEFINDER_PORT}+${i} ))
 DATADIR="${ROOT_DIR}/${NODEFINDER_NAME}/${i}"
 mkdir -p -m 755 ${DATADIR}/${NODEFINDER_NAME}

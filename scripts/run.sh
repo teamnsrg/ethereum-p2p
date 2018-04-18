@@ -44,7 +44,7 @@ NODEFINDER_IMAGE="geth:node-finder"
 
 # run node-finders
 URL="research-scan.sprai.org"
-NODEFINDER_PORT=30310
+NODEFINDER_PORT=1024
 DATADIR="/root/.ethereum"
 echo "starting ${NODEFINDER_NAME} containers..."
 for i in `seq 0 ${n}`;
