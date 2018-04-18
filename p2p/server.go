@@ -231,6 +231,7 @@ type Server struct {
 	addpeer       chan *conn
 	delpeer       chan peerDrop
 	loopWG        sync.WaitGroup // loop, listenLoop
+	pushLoopWG    sync.WaitGroup
 	peerFeed      event.Feed
 }
 
@@ -424,7 +425,17 @@ func (srv *Server) Stop() {
 		srv.listener.Close()
 	}
 	srv.loopWG.Wait()
+	srv.quit = nil
 
+	// close node info channels
+	if srv.metaInfoChan != nil {
+		close(srv.metaInfoChan)
+	}
+	if srv.p2pInfoChan != nil {
+		close(srv.p2pInfoChan)
+	}
+
+	srv.pushLoopWG.Wait()
 	srv.closeSql()
 }
 
@@ -521,12 +532,6 @@ func (srv *Server) Start() (err error) {
 	srv.dialstate = dialer
 	srv.SetRedialFreq(srv.RedialFreq)
 	srv.SetRedialExp(srv.RedialExp)
-	now := time.Now()
-	offset := srv.RedialFreq / float64(len(srv.StaticNodes))
-	for i, n := range srv.StaticNodes {
-		t := now.Add(time.Duration(float64(i) * offset * float64(time.Second)))
-		dialer.hist.add(n.ID, t)
-	}
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -884,13 +889,13 @@ running:
 	for _, p := range peers {
 		p.Disconnect(DiscQuitting)
 	}
-
-	// close node info channels
-	if srv.metaInfoChan != nil {
-		close(srv.metaInfoChan)
-	}
-	if srv.p2pInfoChan != nil {
-		close(srv.p2pInfoChan)
+	// Wait for peers to shut down. Pending connections and tasks are
+	// not handled here and will terminate soon-ish because srv.quit
+	// is closed.
+	for len(peers) > 0 {
+		p := <-srv.delpeer
+		delete(peers, p.ID())
+		p.log.Trace("<-delpeer (spindown)", "remaining", len(peers))
 	}
 }
 

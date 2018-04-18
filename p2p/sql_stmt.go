@@ -172,7 +172,7 @@ func (srv *Server) initSql() error {
 		if srv.MaxSqlQueue <= 0 {
 			srv.MaxSqlQueue = defaultMaxSqlQueueSize
 		}
-		srv.loopWG.Add(1)
+		srv.pushLoopWG.Add(1)
 		go srv.dbPushLoop()
 	}
 	return nil
@@ -531,7 +531,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 }
 
 func (srv *Server) dbPushLoop() {
-	defer srv.loopWG.Done()
+	defer srv.pushLoopWG.Done()
 	log.Sql("Starting database update push loop")
 	srv.pushTicker = mticker.NewMutableTicker(time.Duration(srv.PushFreq * float64(time.Second)))
 	defer srv.pushTicker.Stop()
@@ -542,7 +542,7 @@ func (srv *Server) dbPushLoop() {
 			// insert all pending info
 			if !stopping {
 				log.Sql("Pushing all pending updates to database")
-				srv.loopWG.Add(4)
+				srv.pushLoopWG.Add(4)
 				go srv.addNeighbors(true)
 				go srv.addNodeMetaInfos(true)
 				go srv.addNodeP2PInfos(true)
@@ -550,10 +550,10 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.NeighborChan:
 			if !ok {
-				log.Sql("UDP listener stopped. Pushing all pending Neighbors updates")
-				srv.loopWG.Add(1)
-				go srv.addNeighbors(false)
 				srv.NeighborChan = nil
+				log.Sql("UDP listener stopped. Pushing all pending Neighbors updates")
+				srv.pushLoopWG.Add(1)
+				go srv.addNeighbors(false)
 			} else if len(info) != neighborInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNeighbors")
 			} else {
@@ -563,10 +563,10 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.metaInfoChan:
 			if !ok {
-				log.Sql("P2P networking stopped. Pushing all pending NodeMetaInfo updates")
-				srv.loopWG.Add(1)
-				go srv.addNodeMetaInfos(false)
 				srv.metaInfoChan = nil
+				log.Sql("P2P networking stopped. Pushing all pending NodeMetaInfo updates")
+				srv.pushLoopWG.Add(1)
+				go srv.addNodeMetaInfos(false)
 			} else if len(info) != metaInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNodeMetaInfos")
 			} else {
@@ -576,10 +576,10 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.p2pInfoChan:
 			if !ok {
-				log.Sql("P2P networking stopped. Pushing all pending NodeP2PInfo updates")
-				srv.loopWG.Add(1)
-				go srv.addNodeP2PInfos(false)
 				srv.p2pInfoChan = nil
+				log.Sql("P2P networking stopped. Pushing all pending NodeP2PInfo updates")
+				srv.pushLoopWG.Add(1)
+				go srv.addNodeP2PInfos(false)
 			} else if len(info) != p2pInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNodeP2PInfos")
 			} else {
@@ -589,10 +589,10 @@ func (srv *Server) dbPushLoop() {
 			}
 		case info, ok := <-srv.EthInfoChan:
 			if !ok {
-				log.Sql("Ethereum protocol stopped. Pushing all pending NodeEthInfo updates")
-				srv.loopWG.Add(1)
-				go srv.addNodeEthInfos(false)
 				srv.EthInfoChan = nil
+				log.Sql("Ethereum protocol stopped. Pushing all pending NodeEthInfo updates")
+				srv.pushLoopWG.Add(1)
+				go srv.addNodeEthInfos(false)
 			} else if len(info) != ethInfoSqlString.NumValues {
 				log.Sql("Not enough values for AddNodeEthInfos")
 			} else {
@@ -625,7 +625,7 @@ func (srv *Server) dbPushLoop() {
 }
 
 func (srv *Server) addNeighbors(chunk bool) {
-	defer srv.loopWG.Done()
+	defer srv.pushLoopWG.Done()
 	srv.neighborInfoQueue.Lock()
 	defer srv.neighborInfoQueue.Unlock()
 	total := srv.neighborInfoQueue.len()
@@ -688,7 +688,7 @@ func (srv *Server) addNeighbors(chunk bool) {
 }
 
 func (srv *Server) addNodeMetaInfos(chunk bool) {
-	defer srv.loopWG.Done()
+	defer srv.pushLoopWG.Done()
 	srv.metaInfoQueue.Lock()
 	defer srv.metaInfoQueue.Unlock()
 	total := srv.metaInfoQueue.len()
@@ -751,7 +751,7 @@ func (srv *Server) addNodeMetaInfos(chunk bool) {
 }
 
 func (srv *Server) addNodeP2PInfos(chunk bool) {
-	defer srv.loopWG.Done()
+	defer srv.pushLoopWG.Done()
 	srv.p2pInfoQueue.Lock()
 	defer srv.p2pInfoQueue.Unlock()
 	total := srv.p2pInfoQueue.len()
@@ -814,7 +814,7 @@ func (srv *Server) addNodeP2PInfos(chunk bool) {
 }
 
 func (srv *Server) addNodeEthInfos(chunk bool) {
-	defer srv.loopWG.Done()
+	defer srv.pushLoopWG.Done()
 	srv.ethInfoQueue.Lock()
 	defer srv.ethInfoQueue.Unlock()
 	total := srv.ethInfoQueue.len()
@@ -885,10 +885,12 @@ func (srv *Server) queueNodeMetaInfo(id discover.NodeID, hash string, dial bool,
 			ethDisc4 = true
 		}
 	}
-	srv.metaInfoChan <- []interface{}{
-		id.String(), hash,
-		boolToInt(dial), boolToInt(accept),
-		boolToInt(p2pDisc4), boolToInt(ethDisc4),
+	if srv.quit != nil && srv.running {
+		srv.metaInfoChan <- []interface{}{
+			id.String(), hash,
+			boolToInt(dial), boolToInt(accept),
+			boolToInt(p2pDisc4), boolToInt(ethDisc4),
+		}
 	}
 }
 
@@ -899,10 +901,12 @@ func (srv *Server) queueNodeP2PInfo(id discover.NodeID, newInfo *Info) error {
 	if newInfo.LastHelloAt == nil {
 		return fmt.Errorf("LastHelloAt == nil")
 	}
-	srv.p2pInfoChan <- []interface{}{
-		id.String(), newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
-		newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort,
-		newInfo.FirstHelloAt.Float64(), newInfo.LastHelloAt.Float64(),
+	if srv.quit != nil && srv.running {
+		srv.p2pInfoChan <- []interface{}{
+			id.String(), newInfo.IP, newInfo.TCPPort, newInfo.RemotePort,
+			newInfo.P2PVersion, newInfo.ClientId, newInfo.Caps, newInfo.ListenPort,
+			newInfo.FirstHelloAt.Float64(), newInfo.LastHelloAt.Float64(),
+		}
 	}
 	return nil
 }
