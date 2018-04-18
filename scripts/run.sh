@@ -43,10 +43,11 @@ do
     --mysql \"${MYSQL_URL}\" \
     --logtofile \
     --queryfreq 180 \
-    --redialfreq 1800 \
+    --redialfreq 180 \
+    --redialcheckfreq 5 \
     --redialexp 24 \
     --maxnumfile 1048576 \
-    --maxredial 1000"
+    --maxredial 100"
   docker run -dit --restart=always -h ${ETHMONITOR_NAME}-${i} --name ${ETHMONITOR_NAME}-${i} --net host -v ${ETHMONITOR_DIR}:${DATADIR} -e CMD="${CMD}" --entrypoint '/bin/sh' ${ETHMONITOR_IMAGE} -c "${CMD}"
  echo "${ETHMONITOR_NAME}-${i} started"
 done

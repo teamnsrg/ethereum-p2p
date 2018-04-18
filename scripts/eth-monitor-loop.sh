@@ -36,10 +36,11 @@ do
     --mysql "${MYSQL_URL}" \
     --logtofile \
     --queryfreq 180 \
-    --redialfreq 1800 \
+    --redialfreq 180 \
+    --redialcheckfreq 5 \
     --redialexp 24 \
     --maxnumfile 1048576 \
-    --maxredial 1000 >>${ERRFILE} 2>&1
+    --maxredial 100 >>${ERRFILE} 2>&1
   echo "${ETHMONITOR_NAME}-${i} stopped. restarting in ${SLEEP} seconds..."
   sleep ${SLEEP}
   echo "restarting ${ETHMONITOR_NAME}-${i}..."
