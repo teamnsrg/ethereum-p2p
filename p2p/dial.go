@@ -216,7 +216,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	return newDynDialTasks, needDiscoverTask
 }
 
-func (s *dialstate) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (s *dialstate) newRedialTasks(needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	if s.start == (time.Time{}) {
 		s.start = now
 	}
@@ -236,6 +236,10 @@ func (s *dialstate) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Tim
 		case nil:
 			s.dialing[id] = t.flags
 			newtasks = append(newtasks, t)
+			needStatic--
+		}
+		if needStatic == 0 {
+			break
 		}
 	}
 	return newtasks

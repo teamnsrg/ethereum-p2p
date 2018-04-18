@@ -69,7 +69,7 @@ func runDialTest(t *testing.T, test dialtest) {
 
 		if round.newStatic != nil {
 			expected = round.newStatic
-			result = test.init.newRedialTasks(pm(round.peers), vtime)
+			result = test.init.newRedialTasks(len(expected), pm(round.peers), vtime)
 			// for testing, clear all lastSuccess
 			for _, t := range result {
 				t.(*dialTask).lastSuccess = time.Time{}
@@ -544,3 +544,20 @@ func uintID(i uint32) discover.NodeID {
 	binary.BigEndian.PutUint32(id[:], i)
 	return id
 }
+
+// implements discoverTable for TestDialResolve
+type resolveMock struct {
+	resolveCalls []discover.NodeID
+	answer       *discover.Node
+}
+
+func (t *resolveMock) Resolve(id discover.NodeID) *discover.Node {
+	t.resolveCalls = append(t.resolveCalls, id)
+	return t.answer
+}
+
+func (t *resolveMock) Self() *discover.Node                     { return new(discover.Node) }
+func (t *resolveMock) Close()                                   {}
+func (t *resolveMock) Bootstrap([]*discover.Node)               {}
+func (t *resolveMock) Lookup(discover.NodeID) []*discover.Node  { return nil }
+func (t *resolveMock) ReadRandomNodes(buf []*discover.Node) int { return 0 }

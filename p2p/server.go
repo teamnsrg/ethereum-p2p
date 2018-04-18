@@ -574,7 +574,7 @@ func (srv *Server) startListening() error {
 
 type dialer interface {
 	newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) ([]task, bool)
-	newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task
+	newRedialTasks(needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
@@ -747,8 +747,15 @@ func (srv *Server) run(dialstate dialer) {
 		return ts[i:]
 	}
 	scheduleRedialTasks := func() {
-		// Query dialer for new tasks and start as many as possible now.
-		queuedStaticDial = startRedialTasks(append(queuedStaticDial, dialstate.newRedialTasks(peers, time.Now())...))
+		if len(runningStaticDial) < srv.MaxRedial {
+			needStatic := srv.MaxRedial - len(runningStaticDial) - len(queuedStaticDial)
+			if needStatic > 0 {
+				nt := dialstate.newRedialTasks(needStatic, peers, time.Now())
+				queuedStaticDial = append(queuedStaticDial, nt...)
+			}
+			// Query dialer for new tasks and start as many as possible now.
+			queuedStaticDial = startRedialTasks(queuedStaticDial)
+		}
 	}
 
 	// initial static dials, if redialCheckTicker is used

@@ -323,7 +323,7 @@ func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now tim
 	return tg.newFunc(running, peers), false
 }
 
-func (tg taskgen) newRedialTasks(peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (tg taskgen) newRedialTasks(needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return []task{}
 }
 
