@@ -520,7 +520,7 @@ func (srv *Server) startListening() error {
 }
 
 type dialer interface {
-	newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task
+	newTasks(nRunning int, needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task
 	newDiscoverTask() task
 	taskDone(task, time.Time)
 	addStatic(*discover.Node)
@@ -569,14 +569,7 @@ func (srv *Server) RedialList() []string {
 		node := t.dest
 		addr := &net.TCPAddr{IP: node.IP, Port: int(node.TCP)}
 		lastSuccess := fmt.Sprintf("%.6f", float64(t.lastSuccess.UnixNano())/1e9)
-		var lastResolved string
-		if t.lastResolved.IsZero() {
-			lastResolved = "nil"
-		} else {
-			lastResolved = fmt.Sprintf("%.6f", float64(t.lastResolved.UnixNano())/1e9)
-		}
-		nodeStr := fmt.Sprintf("%s|%v|%s|%s|%.6f",
-			id.String(), addr, lastSuccess, lastResolved, t.resolveDelay.Seconds())
+		nodeStr := fmt.Sprintf("%s|%v|%s", id.String(), addr, lastSuccess)
 		nodes = append(nodes, nodeStr)
 	}
 	return nodes
@@ -662,8 +655,16 @@ func (srv *Server) run(dialstate dialer) {
 		return ts[i:]
 	}
 	scheduleTasks := func() {
-		// Query dialer for new tasks and start as many as possible now.
-		queuedTasks = startTasks(append(queuedTasks, dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())...))
+		if len(runningTasks) < srv.MaxRedial {
+			nRunning := len(runningTasks) - len(queuedTasks)
+			needStatic := srv.MaxRedial - nRunning
+			if needStatic > 0 {
+				nt := dialstate.newTasks(nRunning, needStatic, peers, time.Now())
+				queuedTasks = append(queuedTasks, nt...)
+			}
+			// Query dialer for new tasks and start as many as possible now.
+			queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
+		}
 	}
 	scheduleDiscoverTask := func() {
 		t := dialstate.newDiscoverTask()

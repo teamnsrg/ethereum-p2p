@@ -64,7 +64,7 @@ func runDialTest(t *testing.T, test dialtest) {
 			test.init.taskDone(task, vtime)
 		}
 
-		new := test.init.newTasks(running, pm(round.peers), vtime)
+		new := test.init.newTasks(running, len(round.new), pm(round.peers), vtime)
 		for _, t := range new {
 			if t, ok := t.(*dialTask); ok {
 				t.lastSuccess = time.Time{}

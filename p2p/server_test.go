@@ -184,7 +184,7 @@ func (tg taskgen) newDiscoverTask() task {
 	return nil
 }
 
-func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (tg taskgen) newTasks(running int, needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return tg.newFunc(running, peers)
 }
 

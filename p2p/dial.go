@@ -95,11 +95,9 @@ type task interface {
 // A dialTask is generated for each node that is dialed. Its
 // fields cannot be accessed while the task is running.
 type dialTask struct {
-	flags        connFlag
-	dest         *discover.Node
-	lastResolved time.Time
-	resolveDelay time.Duration
-	lastSuccess  time.Time
+	flags       connFlag
+	dest        *discover.Node
+	lastSuccess time.Time
 }
 
 // discoverTask runs discovery table operations.
@@ -133,11 +131,7 @@ func (s *dialstate) addStatic(n *discover.Node) {
 	// This updates an existing entry.
 	// If being added as a static node, the node must have been responsive.
 	// Record current time as its lastSuccess time.
-	if t, ok := s.static[n.ID]; ok {
-		t.dest = n
-	} else {
-		s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
-	}
+	s.static[n.ID] = &dialTask{flags: staticDialedConn, dest: n, lastSuccess: time.Now()}
 }
 
 func (s *dialstate) removeStatic(n *discover.Node) {
@@ -153,7 +147,7 @@ func (s *dialstate) newDiscoverTask() task {
 	return nil
 }
 
-func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now time.Time) []task {
+func (s *dialstate) newTasks(nRunning int, needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	if s.start == (time.Time{}) {
 		s.start = now
 	}
@@ -173,6 +167,10 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 		case nil:
 			s.dialing[id] = t.flags
 			newtasks = append(newtasks, t)
+			needStatic--
+		}
+		if needStatic == 0 {
+			break
 		}
 	}
 
@@ -180,7 +178,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	// candidates have been tried and no task is currently active.
 	// This should prevent cases where the dialer logic is not ticked
 	// because there are no pending events.
-	if nRunning == 0 && len(newtasks) == 0 && s.hist.Len() > 0 {
+	if nRunning == 0 && needStatic > 0 && s.hist.Len() > 0 {
 		t := &waitExpireTask{s.hist.min().exp.Sub(now)}
 		newtasks = append(newtasks, t)
 	}
