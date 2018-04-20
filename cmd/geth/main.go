@@ -59,6 +59,7 @@ var (
 		utils.MaxNumFileFlag,
 		utils.BlacklistFlag,
 		utils.LogToFileFlag,
+		utils.NoListenFlag,
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,

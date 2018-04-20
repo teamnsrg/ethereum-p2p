@@ -71,6 +71,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.MaxNumFileFlag,
 			utils.BlacklistFlag,
 			utils.NoDiscoverFlag,
+			utils.NoListenFlag,
 			utils.MaxPendingPeersFlag,
 		},
 	},

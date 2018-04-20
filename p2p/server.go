@@ -62,6 +62,9 @@ type Config struct {
 	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
 	NoMaxPeers bool
 
+	// NoListen disables the TCP listener.
+	NoListen bool
+
 	// Blacklist is the list of IP networks that we should not connect to
 	Blacklist *netutil.Netlist `toml:",omitempty"`
 
@@ -461,7 +464,7 @@ func (srv *Server) Start() (err error) {
 		srv.ourHandshake.Caps = append(srv.ourHandshake.Caps, p.cap())
 	}
 	// listen/dial
-	if srv.ListenAddr != "" {
+	if !srv.NoListen && srv.ListenAddr != "" {
 		if err := srv.startListening(); err != nil {
 			return err
 		}

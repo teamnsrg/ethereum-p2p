@@ -126,6 +126,10 @@ var (
 		Name:  "logtofile",
 		Usage: "Write log to files instead of stderr",
 	}
+	NoListenFlag = cli.BoolFlag{
+		Name:  "nolisten",
+		Usage: "Disables the TCP listener",
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -809,6 +813,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	}
 	if ctx.GlobalIsSet(NoDiscoverFlag.Name) || ctx.GlobalBool(LightModeFlag.Name) {
 		cfg.NoDiscovery = true
+	}
+	if ctx.GlobalIsSet(NoListenFlag.Name) {
+		cfg.NoListen = true
 	}
 
 	// if we're running a light client or server, force enable the v5 peer discovery
