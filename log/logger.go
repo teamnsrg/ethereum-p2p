@@ -22,23 +22,38 @@ const (
 	LvlInfo
 	LvlDebug
 	LvlTrace
+	LvlMessageRx
+	LvlMessageTx
+	LvlTask
+	LvlTxData
+	LvlTxTx
 )
 
 // Aligned returns a 5-character string containing the name of a Lvl.
 func (l Lvl) AlignedString() string {
 	switch l {
+	case LvlTxTx:
+		return "TXTX"
+	case LvlTxData:
+		return "TXDATA"
+	case LvlTask:
+		return "TASK"
+	case LvlMessageTx:
+		return "MSGTX"
+	case LvlMessageRx:
+		return "MSGRX"
 	case LvlTrace:
 		return "TRACE"
 	case LvlDebug:
 		return "DEBUG"
 	case LvlInfo:
-		return "INFO "
+		return "INFO"
 	case LvlWarn:
-		return "WARN "
+		return "WARN"
 	case LvlError:
 		return "ERROR"
 	case LvlCrit:
-		return "CRIT "
+		return "CRIT"
 	default:
 		panic("bad level")
 	}
@@ -47,6 +62,16 @@ func (l Lvl) AlignedString() string {
 // Strings returns the name of a Lvl.
 func (l Lvl) String() string {
 	switch l {
+	case LvlTxTx:
+		return "tx-tx"
+	case LvlTxData:
+		return "tx-data"
+	case LvlTask:
+		return "task"
+	case LvlMessageTx:
+		return "message-sent"
+	case LvlMessageRx:
+		return "message-received"
 	case LvlTrace:
 		return "trce"
 	case LvlDebug:
@@ -68,6 +93,16 @@ func (l Lvl) String() string {
 // Useful for parsing command line args and configuration files.
 func LvlFromString(lvlString string) (Lvl, error) {
 	switch lvlString {
+	case "tx-tx":
+		return LvlTxTx, nil
+	case "tx-data":
+		return LvlTxData, nil
+	case "task":
+		return LvlTask, nil
+	case "message-sent", "message-tx", "msg-tx":
+		return LvlMessageTx, nil
+	case "message-received", "message-rx", "msg-rx":
+		return LvlMessageRx, nil
 	case "trace", "trce":
 		return LvlTrace, nil
 	case "debug", "dbug":
@@ -112,7 +147,16 @@ type Logger interface {
 	// SetHandler updates the logger to write records to the specified handler.
 	SetHandler(h Handler)
 
+	SetGlogger(glogger *GlogHandler)
+
+	GetGlogger() *GlogHandler
+
 	// Log a message at the given level with context key/value pairs
+	TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string)
+	TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string)
+	Task(msg string, taskInfoCtx []interface{})
+	MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
+	MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
 	Info(msg string, ctx ...interface{})
@@ -122,8 +166,10 @@ type Logger interface {
 }
 
 type logger struct {
-	ctx []interface{}
-	h   *swapHandler
+	ctx     []interface{}
+	h       *swapHandler
+	datadir string
+	glogger *GlogHandler
 }
 
 func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
@@ -142,7 +188,7 @@ func (l *logger) write(msg string, lvl Lvl, ctx []interface{}) {
 }
 
 func (l *logger) New(ctx ...interface{}) Logger {
-	child := &logger{newContext(l.ctx, ctx), new(swapHandler)}
+	child := &logger{ctx: newContext(l.ctx, ctx), h: new(swapHandler)}
 	child.SetHandler(l.h)
 	return child
 }
@@ -153,6 +199,53 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	n := copy(newCtx, prefix)
 	copy(newCtx[n:], normalizedSuffix)
 	return newCtx
+}
+
+func (l *logger) writeTimeMsgType(lvl Lvl, t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	ctx := []interface{}{
+		"size", size,
+	}
+	ctx = append(ctx, connInfoCtx...)
+	if err != nil {
+		ctx = append(ctx, "err", err)
+	}
+	l.write(fmt.Sprintf("%.6f|%s", float64(t.UnixNano())/1e9, msgType), lvl, ctx)
+}
+
+func (l *logger) writeTime(lvl Lvl, t time.Time, ctx []interface{}) {
+	l.write(fmt.Sprintf("%.6f", float64(t.UnixNano())/1e9), lvl, ctx)
+}
+
+func (l *logger) TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"txHash", txHash,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlTxTx, t, ctx)
+}
+
+func (l *logger) TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"tx", tx,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	l.writeTime(LvlTxData, t, ctx)
+}
+
+func (l *logger) Task(msg string, taskInfoCtx []interface{}) {
+	l.write(msg, LvlTask, taskInfoCtx)
+}
+
+func (l *logger) MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	l.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
+}
+
+func (l *logger) MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	l.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
 }
 
 func (l *logger) Trace(msg string, ctx ...interface{}) {
@@ -186,6 +279,14 @@ func (l *logger) GetHandler() Handler {
 
 func (l *logger) SetHandler(h Handler) {
 	l.h.Swap(h)
+}
+
+func (l *logger) GetGlogger() *GlogHandler {
+	return l.glogger
+}
+
+func (l *logger) SetGlogger(glogger *GlogHandler) {
+	l.glogger = glogger
 }
 
 func normalize(ctx []interface{}) []interface{} {

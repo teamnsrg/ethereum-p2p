@@ -52,11 +52,15 @@ func newTestTransport(id discover.NodeID, fd net.Conn) transport {
 	return &testTransport{id: id, rlpx: wrapped}
 }
 
+func (c *testTransport) Rtt() float64 {
+	return 0.0
+}
+
 func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	return c.id, nil
 }
 
-func (c *testTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, error) {
+func (c *testTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error) {
 	return &protoHandshake{ID: c.id, Name: "test"}, nil
 }
 
@@ -295,11 +299,14 @@ type taskgen struct {
 func (tg taskgen) newTasks(running int, peers map[discover.NodeID]*Peer, now time.Time) []task {
 	return tg.newFunc(running, peers)
 }
+
 func (tg taskgen) taskDone(t task, now time.Time) {
 	tg.doneFunc(t)
 }
+
 func (tg taskgen) addStatic(*discover.Node) {
 }
+
 func (tg taskgen) removeStatic(*discover.Node) {
 }
 
@@ -310,6 +317,10 @@ type testTask struct {
 
 func (t *testTask) Do(srv *Server) {
 	t.called = true
+}
+
+func (t *testTask) TaskInfoCtx() []interface{} {
+	return nil
 }
 
 // This test checks that connections are disconnected
@@ -446,7 +457,8 @@ func TestServerSetupConn(t *testing.T) {
 }
 
 type setupTransport struct {
-	id              discover.NodeID
+	id discover.NodeID
+	*rlpx
 	encHandshakeErr error
 
 	phs               *protoHandshake
@@ -460,7 +472,7 @@ func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discove
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
 }
-func (c *setupTransport) doProtoHandshake(our *protoHandshake) (*protoHandshake, error) {
+func (c *setupTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error) {
 	c.calls += "doProtoHandshake,"
 	if c.protoHandshakeErr != nil {
 		return nil, c.protoHandshakeErr

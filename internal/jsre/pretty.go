@@ -92,7 +92,11 @@ func (ctx ppctx) printValue(v otto.Value, level int, inArray bool) {
 		fmt.Fprint(ctx.w, SpecialColor("undefined"))
 	case v.IsString():
 		s, _ := v.ToString()
-		fmt.Fprint(ctx.w, StringColor("%q", s))
+		if level == 0 {
+			fmt.Fprint(ctx.w, StringColor("%s", s))
+		} else {
+			fmt.Fprint(ctx.w, StringColor("%q", s))
+		}
 	case v.IsBoolean():
 		b, _ := v.ToBoolean()
 		fmt.Fprint(ctx.w, SpecialColor("%t", b))
@@ -150,7 +154,7 @@ func (ctx ppctx) printObject(obj *otto.Object, level int, inArray bool) {
 		fmt.Fprintln(ctx.w, "{")
 		for i, k := range keys {
 			v, _ := obj.Get(k)
-			fmt.Fprintf(ctx.w, "%s%s: ", ctx.indent(level+1), k)
+			fmt.Fprintf(ctx.w, "%s\"%s\": ", ctx.indent(level+1), k)
 			ctx.printValue(v, level+1, false)
 			if i < len(keys)-1 {
 				fmt.Fprintf(ctx.w, ",")

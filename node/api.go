@@ -19,12 +19,16 @@ package node
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
 	"github.com/teamnsrg/go-ethereum/common/hexutil"
 	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rpc"
@@ -40,6 +44,104 @@ type PrivateAdminAPI struct {
 // of the node itself.
 func NewPrivateAdminAPI(node *Node) *PrivateAdminAPI {
 	return &PrivateAdminAPI{node: node}
+}
+
+func (api *PrivateAdminAPI) Logrotate() error {
+	var (
+		logdir           = filepath.Join(api.node.InstanceDir(), "logs")
+		clientIdentifier = api.node.Config.Name
+		glogger          = log.Root().GetGlogger()
+	)
+	if api.node.Config.LogToFile {
+		glogger.SetHandler(log.Must.FileHandler(filepath.Join(logdir, clientIdentifier+".log"), log.TerminalFormat(false)))
+		log.Root().SetHandler(log.MultiHandler(
+			// default logging for any lvl <= verbosity
+			glogger,
+			// lvl specific logging
+			// log.LvlMatchFilterFileHandler(log.LvlType, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageRx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlMessageTx, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTask, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTxData, logdir),
+			log.LvlMatchFilterFileHandler(log.LvlTxTx, logdir),
+		))
+	}
+	return nil
+}
+
+func (api *PrivateAdminAPI) RedialList() (string, error) {
+	// Sort the result array alphabetically by node identifier
+	redialList := api.node.Server().RedialList()
+	for i := 0; i < len(redialList); i++ {
+		for j := i + 1; j < len(redialList); j++ {
+			if redialList[i] > redialList[j] {
+				redialList[i], redialList[j] = redialList[j], redialList[i]
+			}
+		}
+	}
+	return strings.Join(redialList, "\n"), nil
+}
+
+func (api *PrivateAdminAPI) Blacklist() (interface{}, error) {
+	blacklist := api.node.Server().Blacklist
+	if blacklist != nil {
+		return blacklist.MarshalTOML(), nil
+	}
+	return []string{}, nil
+}
+
+func (api *PrivateAdminAPI) AddBlacklist(cidrs string) error {
+	return api.node.Server().AddBlacklist(cidrs)
+}
+
+// PeersList retrieves all the information we know about each individual peer at the
+// protocol granularity in bsv.
+func (api *PublicAdminAPI) PeerList() (string, error) {
+	server := api.node.Server()
+	if server == nil {
+		return "", ErrNodeStopped
+	}
+	var peerList []string
+	for _, info := range server.PeersInfo() {
+		id := info.ID
+		name := server.StrReplacer.Replace(info.Name)
+		capsArray := make([]string, len(info.Caps))
+		copy(capsArray, info.Caps)
+		sort.Strings(capsArray)
+		caps := strings.Join(capsArray, ",")
+		caps = server.StrReplacer.Replace(caps)
+		localAddr := info.Network.LocalAddress
+		remoteAddr := info.Network.RemoteAddress
+		rtt := info.Rtt
+		duration := info.Duration
+		p2pInfoStr := fmt.Sprintf("%s|%v|%v|%.6f|%.6f|%v|%v", id, remoteAddr, localAddr, rtt, duration, name, caps)
+		var ethInfoStr string
+		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
+			r := reflect.ValueOf(ethInfo)
+			switch r.Kind() {
+			case reflect.String:
+				continue
+			default:
+				v := r.Elem()
+				for i := 0; i < v.NumField(); i++ {
+					elem := v.Field(i)
+					switch elem.Kind() {
+					case reflect.Ptr:
+						ptrV := elem.Elem()
+						if ptrV.IsValid() {
+							ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+						}
+					case reflect.Int, reflect.String:
+						ethInfoStr += fmt.Sprintf("|%v", elem.Interface())
+					default:
+						continue
+					}
+				}
+			}
+		}
+		peerList = append(peerList, fmt.Sprintf("%s%s", p2pInfoStr, ethInfoStr))
+	}
+	return strings.Join(peerList, "\n"), nil
 }
 
 // AddPeer requests connecting to a remote node, and also maintaining the new
@@ -124,16 +226,16 @@ func (api *PrivateAdminAPI) StartRPC(host *string, port *int, cors *string, apis
 
 	if host == nil {
 		h := DefaultHTTPHost
-		if api.node.config.HTTPHost != "" {
-			h = api.node.config.HTTPHost
+		if api.node.Config.HTTPHost != "" {
+			h = api.node.Config.HTTPHost
 		}
 		host = &h
 	}
 	if port == nil {
-		port = &api.node.config.HTTPPort
+		port = &api.node.Config.HTTPPort
 	}
 
-	allowedOrigins := api.node.config.HTTPCors
+	allowedOrigins := api.node.Config.HTTPCors
 	if cors != nil {
 		allowedOrigins = nil
 		for _, origin := range strings.Split(*cors, ",") {
@@ -178,16 +280,16 @@ func (api *PrivateAdminAPI) StartWS(host *string, port *int, allowedOrigins *str
 
 	if host == nil {
 		h := DefaultWSHost
-		if api.node.config.WSHost != "" {
-			h = api.node.config.WSHost
+		if api.node.Config.WSHost != "" {
+			h = api.node.Config.WSHost
 		}
 		host = &h
 	}
 	if port == nil {
-		port = &api.node.config.WSPort
+		port = &api.node.Config.WSPort
 	}
 
-	origins := api.node.config.WSOrigins
+	origins := api.node.Config.WSOrigins
 	if allowedOrigins != nil {
 		origins = nil
 		for _, origin := range strings.Split(*allowedOrigins, ",") {
@@ -195,7 +297,7 @@ func (api *PrivateAdminAPI) StartWS(host *string, port *int, allowedOrigins *str
 		}
 	}
 
-	modules := api.node.config.WSModules
+	modules := api.node.Config.WSModules
 	if apis != nil {
 		modules = nil
 		for _, m := range strings.Split(*apis, ",") {
@@ -203,7 +305,7 @@ func (api *PrivateAdminAPI) StartWS(host *string, port *int, allowedOrigins *str
 		}
 	}
 
-	if err := api.node.startWS(fmt.Sprintf("%s:%d", *host, *port), api.node.rpcAPIs, modules, origins, api.node.config.WSExposeAll); err != nil {
+	if err := api.node.startWS(fmt.Sprintf("%s:%d", *host, *port), api.node.rpcAPIs, modules, origins, api.node.Config.WSExposeAll); err != nil {
 		return false, err
 	}
 	return true, nil

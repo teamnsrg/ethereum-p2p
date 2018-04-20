@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	"sync"
@@ -63,13 +64,21 @@ func errResp(code errCode, format string, v ...interface{}) error {
 	return fmt.Errorf("%v - %v", code, fmt.Sprintf(format, v...))
 }
 
+type mapWrapper struct {
+	sync.Mutex
+	known map[common.Hash]struct{}
+}
+
 type ProtocolManager struct {
+	noMaxPeers bool // Flag whether to ignore maxPeers
+
 	networkId uint64
 
 	fastSync  uint32 // Flag whether fast sync is enabled (gets disabled if we already have blocks)
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
 	txpool      txPool
+	knownTxs    mapWrapper // All transactions to allow lookups
 	blockchain  *core.BlockChain
 	chaindb     ethdb.Database
 	chainconfig *params.ChainConfig
@@ -81,10 +90,9 @@ type ProtocolManager struct {
 
 	SubProtocols []p2p.Protocol
 
-	eventMux      *event.TypeMux
-	txCh          chan core.TxPreEvent
-	txSub         event.Subscription
-	minedBlockSub *event.TypeMuxSubscription
+	eventMux *event.TypeMux
+	txCh     chan core.TxPreEvent
+	txSub    event.Subscription
 
 	// channels for fetcher, syncer, txsyncLoop
 	newPeerCh   chan *peer
@@ -189,12 +197,12 @@ func (pm *ProtocolManager) removePeer(id string) {
 	if peer == nil {
 		return
 	}
-	log.Debug("Removing Ethereum peer", "peer", id)
+	log.Debug("Removing Ethereum peer", "id", id)
 
 	// Unregister the peer from the downloader and Ethereum peer set
 	pm.downloader.UnregisterPeer(id)
 	if err := pm.peers.Unregister(id); err != nil {
-		log.Error("Peer removal failed", "peer", id, "err", err)
+		log.Error("Peer removal failed", "id", id, "err", err)
 	}
 	// Hard disconnect at the networking layer
 	if peer != nil {
@@ -205,14 +213,12 @@ func (pm *ProtocolManager) removePeer(id string) {
 func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
+	pm.knownTxs = mapWrapper{known: make(map[common.Hash]struct{})}
+
 	// broadcast transactions
 	pm.txCh = make(chan core.TxPreEvent, txChanSize)
 	pm.txSub = pm.txpool.SubscribeTxPreEvent(pm.txCh)
 	go pm.txBroadcastLoop()
-
-	// broadcast mined blocks
-	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
-	go pm.minedBroadcastLoop()
 
 	// start sync handlers
 	go pm.syncer()
@@ -222,8 +228,7 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 func (pm *ProtocolManager) Stop() {
 	log.Info("Stopping Ethereum protocol")
 
-	pm.txSub.Unsubscribe()         // quits txBroadcastLoop
-	pm.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	pm.txSub.Unsubscribe() // quits txBroadcastLoop
 
 	// Quit the sync loop.
 	// After this send has completed, no new peers will be accepted.
@@ -251,7 +256,7 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
-	if pm.peers.Len() >= pm.maxPeers {
+	if !pm.noMaxPeers && pm.peers.Len() >= pm.maxPeers {
 		return p2p.DiscTooManyPeers
 	}
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
@@ -314,26 +319,37 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
+		if err != io.EOF {
+			return p.suppressMessageError(err)
+		}
 		return err
 	}
 	if msg.Size > ProtocolMaxMsgSize {
-		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
+		return p.suppressMessageError(errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize))
 	}
 	defer msg.Discard()
 
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := ethCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
 		// Status messages should never arrive after the handshake
-		return errResp(ErrExtraStatusMsg, "uncontrolled status message")
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
+		return p.suppressMessageError(errResp(ErrExtraStatusMsg, "uncontrolled status message"))
 
 	// Block header query, collect the requested headers and reply
 	case msg.Code == GetBlockHeadersMsg:
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
-			return errResp(ErrDecode, "%v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		hashMode := query.Origin.Hash != (common.Hash{})
 
 		// Gather headers until the fetch or network limits is reached
@@ -404,14 +420,16 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				query.Origin.Number += (query.Skip + 1)
 			}
 		}
-		return p.SendBlockHeaders(headers)
+		return p.suppressMessageError(p.SendBlockHeaders(headers))
 
 	case msg.Code == BlockHeadersMsg:
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -463,8 +481,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			return err
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// Gather blocks until the fetch or network limits is reached
 		var (
 			hash   common.Hash
@@ -476,7 +496,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if err := msgStream.Decode(&hash); err == rlp.EOL {
 				break
 			} else if err != nil {
-				return errResp(ErrDecode, "msg %v: %v", msg, err)
+				return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 			}
 			// Retrieve the requested block body, stopping if enough was found
 			if data := pm.blockchain.GetBodyRLP(hash); len(data) != 0 {
@@ -484,14 +504,16 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				bytes += len(data)
 			}
 		}
-		return p.SendBlockBodiesRLP(bodies)
+		return p.suppressMessageError(p.SendBlockBodiesRLP(bodies))
 
 	case msg.Code == BlockBodiesMsg:
 		// A batch of block bodies arrived to one of our previous requests
 		var request blockBodiesData
 		if err := msg.Decode(&request); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
@@ -516,8 +538,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			return err
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash  common.Hash
@@ -529,7 +553,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if err := msgStream.Decode(&hash); err == rlp.EOL {
 				break
 			} else if err != nil {
-				return errResp(ErrDecode, "msg %v: %v", msg, err)
+				return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 			}
 			// Retrieve the requested state entry, stopping if enough was found
 			if entry, err := pm.chaindb.Get(hash.Bytes()); err == nil {
@@ -537,14 +561,16 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				bytes += len(entry)
 			}
 		}
-		return p.SendNodeData(data)
+		return p.suppressMessageError(p.SendNodeData(data))
 
 	case p.version >= eth63 && msg.Code == NodeDataMsg:
 		// A batch of node state data arrived to one of our previous requests
 		var data [][]byte
 		if err := msg.Decode(&data); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
 			log.Debug("Failed to deliver node state data", "err", err)
@@ -554,8 +580,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			return err
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(err)
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash     common.Hash
@@ -567,7 +595,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			if err := msgStream.Decode(&hash); err == rlp.EOL {
 				break
 			} else if err != nil {
-				return errResp(ErrDecode, "msg %v: %v", msg, err)
+				return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 			}
 			// Retrieve the requested block's receipts, skipping if unknown to us
 			results := core.GetBlockReceipts(pm.chaindb, hash, core.GetBlockNumber(pm.chaindb, hash))
@@ -584,14 +612,16 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				bytes += len(encoded)
 			}
 		}
-		return p.SendReceiptsRLP(receipts)
+		return p.suppressMessageError(p.SendReceiptsRLP(receipts))
 
 	case p.version >= eth63 && msg.Code == ReceiptsMsg:
 		// A batch of receipts arrived to one of our previous requests
 		var receipts [][]*types.Receipt
 		if err := msg.Decode(&receipts); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
 			log.Debug("Failed to deliver receipts", "err", err)
@@ -600,8 +630,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case msg.Code == NewBlockHashesMsg:
 		var announces newBlockHashesData
 		if err := msg.Decode(&announces); err != nil {
-			return errResp(ErrDecode, "%v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
 			p.MarkBlock(block.Hash)
@@ -621,8 +654,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Retrieve and decode the propagated block
 		var request newBlockData
 		if err := msg.Decode(&request); err != nil {
-			return errResp(ErrDecode, "%v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
 
@@ -650,26 +686,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
-		// Transactions arrived, make sure we have a valid and fresh chain to handle them
-		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
-			break
-		}
 		// Transactions can be processed, parse all of them and deliver to the pool
 		var txs []*types.Transaction
 		if err := msg.Decode(&txs); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		for i, tx := range txs {
-			// Validate and mark the remote transaction
-			if tx == nil {
-				return errResp(ErrDecode, "transaction %d is nil", i)
-			}
-			p.MarkTransaction(tx.Hash())
-		}
-		pm.txpool.AddRemotes(txs)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 
 	default:
-		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		return p.suppressMessageError(errResp(ErrInvalidMsgCode, "%v", msg.Code))
 	}
 	return nil
 }
@@ -717,18 +744,6 @@ func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) 
 		peer.SendTransactions(types.Transactions{tx})
 	}
 	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers))
-}
-
-// Mined broadcast loop
-func (self *ProtocolManager) minedBroadcastLoop() {
-	// automatically stops if unsubscribe
-	for obj := range self.minedBlockSub.Chan() {
-		switch ev := obj.Data.(type) {
-		case core.NewMinedBlockEvent:
-			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
-			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
-		}
-	}
 }
 
 func (self *ProtocolManager) txBroadcastLoop() {

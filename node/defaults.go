@@ -45,6 +45,7 @@ var DefaultConfig = Config{
 		DiscoveryV5Addr: ":30304",
 		MaxPeers:        25,
 		NAT:             nat.Any(),
+		NoMaxPeers:      true, // node-finder never limits number of peers
 	},
 }
 

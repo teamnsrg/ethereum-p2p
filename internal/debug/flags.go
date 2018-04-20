@@ -92,6 +92,10 @@ var Flags = []cli.Flag{
 
 var glogger *log.GlogHandler
 
+func GetGlogger() *log.GlogHandler {
+	return glogger
+}
+
 func init() {
 	usecolor := term.IsTty(os.Stderr.Fd()) && os.Getenv("TERM") != "dumb"
 	output := io.Writer(os.Stderr)
@@ -101,27 +105,29 @@ func init() {
 	glogger = log.NewGlogHandler(log.StreamHandler(output, log.TerminalFormat(usecolor)))
 }
 
-// Setup initializes profiling and logging based on the CLI flags.
+// Setup initializes profiling based on the CLI flags.
 // It should be called as early as possible in the program.
-func Setup(ctx *cli.Context) error {
+func Setup(gl *log.GlogHandler, ctx *cli.Context) (*log.GlogHandler, error) {
 	// logging
 	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
-	glogger.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
-	glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
-	glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
-	log.Root().SetHandler(glogger)
+	if gl == nil {
+		gl = glogger
+	}
+	gl.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
+	gl.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
+	gl.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
 
 	// profiling, tracing
 	runtime.MemProfileRate = ctx.GlobalInt(memprofilerateFlag.Name)
 	Handler.SetBlockProfileRate(ctx.GlobalInt(blockprofilerateFlag.Name))
 	if traceFile := ctx.GlobalString(traceFlag.Name); traceFile != "" {
 		if err := Handler.StartGoTrace(traceFile); err != nil {
-			return err
+			return gl, err
 		}
 	}
 	if cpuFile := ctx.GlobalString(cpuprofileFlag.Name); cpuFile != "" {
 		if err := Handler.StartCPUProfile(cpuFile); err != nil {
-			return err
+			return gl, err
 		}
 	}
 
@@ -135,7 +141,7 @@ func Setup(ctx *cli.Context) error {
 			}
 		}()
 	}
-	return nil
+	return gl, nil
 }
 
 // Exit stops all running profiles, flushing their output to the

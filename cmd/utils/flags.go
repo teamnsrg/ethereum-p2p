@@ -28,9 +28,12 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/urfave/cli.v1"
+
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/accounts/keystore"
 	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/go-ethereum/common/fdlimit"
 	"github.com/teamnsrg/go-ethereum/consensus"
 	"github.com/teamnsrg/go-ethereum/consensus/clique"
 	"github.com/teamnsrg/go-ethereum/consensus/ethash"
@@ -54,7 +57,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/p2p/nat"
 	"github.com/teamnsrg/go-ethereum/p2p/netutil"
 	"github.com/teamnsrg/go-ethereum/params"
-	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -110,6 +112,20 @@ func NewApp(gitCommit, usage string) *cli.App {
 // are the same for all commands.
 
 var (
+	// Tx Sniper settings
+	MaxNumFileFlag = cli.Uint64Flag{
+		Name:  "maxnumfile",
+		Usage: "Maximum file descriptor allowance of this process (try 1048576)",
+		Value: 2048,
+	}
+	BlacklistFlag = cli.StringFlag{
+		Name:  "blacklist",
+		Usage: "Reject network communication from/to the given IP networks (comma-separated CIDR masks)",
+	}
+	LogToFileFlag = cli.BoolFlag{
+		Name:  "logtofile",
+		Usage: "Write log to files instead of stderr",
+	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
@@ -703,16 +719,18 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 
 // makeDatabaseHandles raises out the number of allowed file handles per process
 // for Geth and returns half of the allowance to assign to the database.
-func makeDatabaseHandles() int {
-	if err := raiseFdLimit(2048); err != nil {
-		Fatalf("Failed to raise file descriptor allowance: %v", err)
-	}
-	limit, err := getFdLimit()
+func makeDatabaseHandles(max uint64) int {
+	limit, err := fdlimit.Current()
 	if err != nil {
 		Fatalf("Failed to retrieve file descriptor allowance: %v", err)
 	}
-	if limit > 2048 { // cap database file descriptors even if more is available
-		limit = 2048
+	if limit < int(max) {
+		if err := fdlimit.Raise(max); err != nil {
+			Fatalf("Failed to raise file descriptor allowance: %v", err)
+		}
+	}
+	if limit > int(max) { // cap database file descriptors even if more is available
+		limit = int(max)
 	}
 	return limit / 2 // Leave half for networking and other stuff
 }
@@ -809,6 +827,14 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 			Fatalf("Option %q: %v", NetrestrictFlag.Name, err)
 		}
 		cfg.NetRestrict = list
+	}
+
+	if blacklist := ctx.GlobalString(BlacklistFlag.Name); blacklist != "" {
+		list, err := netutil.ParseNetlist(blacklist)
+		if err != nil {
+			Fatalf("Option %q: %v", BlacklistFlag.Name, err)
+		}
+		cfg.Blacklist = list
 	}
 
 	if ctx.GlobalBool(DeveloperFlag.Name) {
@@ -959,7 +985,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name)
 	}
-	cfg.DatabaseHandles = makeDatabaseHandles()
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		cfg.DatabaseHandles = makeDatabaseHandles(ctx.GlobalUint64(MaxNumFileFlag.Name))
+	} else {
+		cfg.DatabaseHandles = makeDatabaseHandles(2048)
+	}
 
 	if ctx.GlobalIsSet(MinerThreadsFlag.Name) {
 		cfg.MinerThreads = ctx.GlobalInt(MinerThreadsFlag.Name)
@@ -1083,9 +1113,13 @@ func SetupNetwork(ctx *cli.Context) {
 // MakeChainDatabase open an LevelDB using the flags passed to the client and will hard crash if it fails.
 func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 	var (
-		cache   = ctx.GlobalInt(CacheFlag.Name)
-		handles = makeDatabaseHandles()
+		cache      = ctx.GlobalInt(CacheFlag.Name)
+		maxNumFile = uint64(2048)
 	)
+	if ctx.GlobalIsSet(MaxNumFileFlag.Name) {
+		maxNumFile = ctx.GlobalUint64(MaxNumFileFlag.Name)
+	}
+	handles := makeDatabaseHandles(maxNumFile)
 	name := "chaindata"
 	if ctx.GlobalBool(LightModeFlag.Name) {
 		name = "lightchaindata"

@@ -198,6 +198,5 @@ func FilterPackages(packages []string) []string {
 }
 
 func includePackage(line string) bool {
-	return !strings.Contains(line, "/accounts/keystore") &&
-		!strings.Contains(line, "/contracts/")
+	return !strings.Contains(line, "/accounts/keystore") && !strings.Contains(line, "/contracts/")
 }

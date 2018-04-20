@@ -39,7 +39,7 @@ import (
 // Node is a container on which services can be registered.
 type Node struct {
 	eventmux *event.TypeMux // Event multiplexer used between the services of a stack
-	config   *Config
+	Config   *Config
 	accman   *accounts.Manager
 
 	ephemeralKeystore string         // if non-empty, the key directory that will be removed by Stop
@@ -106,7 +106,7 @@ func New(conf *Config) (*Node, error) {
 	return &Node{
 		accman:            am,
 		ephemeralKeystore: ephemeralKeystore,
-		config:            conf,
+		Config:            conf,
 		serviceFuncs:      []ServiceConstructor{},
 		ipcEndpoint:       conf.IPCEndpoint(),
 		httpEndpoint:      conf.HTTPEndpoint(),
@@ -143,17 +143,17 @@ func (n *Node) Start() error {
 
 	// Initialize the p2p server. This creates the node key and
 	// discovery databases.
-	n.serverConfig = n.config.P2P
-	n.serverConfig.PrivateKey = n.config.NodeKey()
-	n.serverConfig.Name = n.config.NodeName()
+	n.serverConfig = n.Config.P2P
+	n.serverConfig.PrivateKey = n.Config.NodeKey()
+	n.serverConfig.Name = n.Config.NodeName()
 	if n.serverConfig.StaticNodes == nil {
-		n.serverConfig.StaticNodes = n.config.StaticNodes()
+		n.serverConfig.StaticNodes = n.Config.StaticNodes()
 	}
 	if n.serverConfig.TrustedNodes == nil {
-		n.serverConfig.TrustedNodes = n.config.TrustedNodes()
+		n.serverConfig.TrustedNodes = n.Config.TrustedNodes()
 	}
 	if n.serverConfig.NodeDatabase == "" {
-		n.serverConfig.NodeDatabase = n.config.NodeDB()
+		n.serverConfig.NodeDatabase = n.Config.NodeDB()
 	}
 	running := &p2p.Server{Config: n.serverConfig}
 	log.Info("Starting peer-to-peer node", "instance", n.serverConfig.Name)
@@ -163,7 +163,7 @@ func (n *Node) Start() error {
 	for _, constructor := range n.serviceFuncs {
 		// Create a new context for the particular service
 		ctx := &ServiceContext{
-			config:         n.config,
+			config:         n.Config,
 			services:       make(map[reflect.Type]Service),
 			EventMux:       n.eventmux,
 			AccountManager: n.accman,
@@ -187,7 +187,7 @@ func (n *Node) Start() error {
 		running.Protocols = append(running.Protocols, service.Protocols()...)
 	}
 	if err := running.Start(); err != nil {
-		return convertFileLockError(err)
+		return ConvertFileLockError(err)
 	}
 	// Start each of the services
 	started := []reflect.Type{}
@@ -221,11 +221,15 @@ func (n *Node) Start() error {
 }
 
 func (n *Node) openDataDir() error {
-	if n.config.DataDir == "" {
+	if n.Config.LogToFile {
+		n.instanceDirLock = n.Config.InstanceDirLock
+		return nil
+	}
+	if n.Config.DataDir == "" {
 		return nil // ephemeral
 	}
 
-	instdir := filepath.Join(n.config.DataDir, n.config.name())
+	instdir := filepath.Join(n.Config.DataDir, n.Config.name())
 	if err := os.MkdirAll(instdir, 0700); err != nil {
 		return err
 	}
@@ -233,7 +237,7 @@ func (n *Node) openDataDir() error {
 	// accidental use of the instance directory as a database.
 	release, _, err := flock.New(filepath.Join(instdir, "LOCK"))
 	if err != nil {
-		return convertFileLockError(err)
+		return ConvertFileLockError(err)
 	}
 	n.instanceDirLock = release
 	return nil
@@ -256,12 +260,12 @@ func (n *Node) startRPC(services map[reflect.Type]Service) error {
 		n.stopInProc()
 		return err
 	}
-	if err := n.startHTTP(n.httpEndpoint, apis, n.config.HTTPModules, n.config.HTTPCors); err != nil {
+	if err := n.startHTTP(n.httpEndpoint, apis, n.Config.HTTPModules, n.Config.HTTPCors); err != nil {
 		n.stopIPC()
 		n.stopInProc()
 		return err
 	}
-	if err := n.startWS(n.wsEndpoint, apis, n.config.WSModules, n.config.WSOrigins, n.config.WSExposeAll); err != nil {
+	if err := n.startWS(n.wsEndpoint, apis, n.Config.WSModules, n.Config.WSOrigins, n.Config.WSExposeAll); err != nil {
 		n.stopHTTP()
 		n.stopIPC()
 		n.stopInProc()
@@ -598,12 +602,12 @@ func (n *Node) Service(service interface{}) error {
 // DataDir retrieves the current datadir used by the protocol stack.
 // Deprecated: No files should be stored in this directory, use InstanceDir instead.
 func (n *Node) DataDir() string {
-	return n.config.DataDir
+	return n.Config.DataDir
 }
 
 // InstanceDir retrieves the instance directory used by the protocol stack.
 func (n *Node) InstanceDir() string {
-	return n.config.instanceDir()
+	return n.Config.instanceDir()
 }
 
 // AccountManager retrieves the account manager used by the protocol stack.
@@ -636,15 +640,15 @@ func (n *Node) EventMux() *event.TypeMux {
 // previous can be found) from within the node's instance directory. If the node is
 // ephemeral, a memory database is returned.
 func (n *Node) OpenDatabase(name string, cache, handles int) (ethdb.Database, error) {
-	if n.config.DataDir == "" {
+	if n.Config.DataDir == "" {
 		return ethdb.NewMemDatabase()
 	}
-	return ethdb.NewLDBDatabase(n.config.resolvePath(name), cache, handles)
+	return ethdb.NewLDBDatabase(n.Config.resolvePath(name), cache, handles)
 }
 
 // ResolvePath returns the absolute path of a resource in the instance directory.
 func (n *Node) ResolvePath(x string) string {
-	return n.config.resolvePath(x)
+	return n.Config.resolvePath(x)
 }
 
 // apis returns the collection of RPC descriptors this node offers.

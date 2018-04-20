@@ -17,17 +17,17 @@
 package eth
 
 import (
-	"fmt"
-	"sync"
 	"testing"
 	"time"
 
+	"fmt"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/core/types"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/eth/downloader"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/rlp"
+	"sync"
 )
 
 func init() {
@@ -85,34 +85,6 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 			t.Errorf("protocol did not shut down within 2 seconds")
 		}
 		p.close()
-	}
-}
-
-// This test checks that received transactions are added to the local pool.
-func TestRecvTransactions62(t *testing.T) { testRecvTransactions(t, 62) }
-func TestRecvTransactions63(t *testing.T) { testRecvTransactions(t, 63) }
-
-func testRecvTransactions(t *testing.T, protocol int) {
-	txAdded := make(chan []*types.Transaction)
-	pm := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, txAdded)
-	pm.acceptTxs = 1 // mark synced to accept transactions
-	p, _ := newTestPeer("peer", protocol, pm, true)
-	defer pm.Stop()
-	defer p.close()
-
-	tx := newTestTransaction(testAccount, 0, 0)
-	if err := p2p.Send(p.app, TxMsg, []interface{}{tx}); err != nil {
-		t.Fatalf("send error: %v", err)
-	}
-	select {
-	case added := <-txAdded:
-		if len(added) != 1 {
-			t.Errorf("wrong number of added transactions: got %d, want 1", len(added))
-		} else if added[0].Hash() != tx.Hash() {
-			t.Errorf("added wrong tx hash: got %v, want %v", added[0].Hash(), tx.Hash())
-		}
-	case <-time.After(2 * time.Second):
-		t.Errorf("no TxPreEvent received within 2 seconds")
 	}
 }
 

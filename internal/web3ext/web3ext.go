@@ -159,6 +159,30 @@ web3._extend({
 			name: 'stopWS',
 			call: 'admin_stopWS'
 		}),
+		new web3._extend.Method({
+			name: 'logrotate',
+			call: 'admin_logrotate'
+		}),
+		new web3._extend.Method({
+			name: 'setRedialFreq',
+			call: 'admin_setRedialFreq',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'setRedialCheckFreq',
+			call: 'admin_setRedialCheckFreq',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'setRedialExp',
+			call: 'admin_setRedialExp',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'addBlackList',
+			call: 'admin_addBlacklist',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -172,6 +196,30 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'datadir',
 			getter: 'admin_datadir'
+		}),
+		new web3._extend.Property({
+			name: 'redialFreq',
+			getter: 'admin_redialFreq'
+		}),
+		new web3._extend.Property({
+			name: 'redialCheckFreq',
+			getter: 'admin_redialCheckFreq'
+		}),
+		new web3._extend.Property({
+			name: 'redialExp',
+			getter: 'admin_redialExp'
+		}),
+		new web3._extend.Property({
+			name: 'redialList',
+			getter: 'admin_redialList'
+		}),
+		new web3._extend.Property({
+			name: 'blacklist',
+			getter: 'admin_blacklist'
+		}),
+		new web3._extend.Property({
+			name: 'peerList',
+			getter: 'admin_peerList'
 		}),
 	]
 });

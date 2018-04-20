@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,6 +59,12 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// NoMaxPeers ignores/overwrites MaxPeers, allowing unlimited number of peer connections.
+	NoMaxPeers bool
+
+	// Blacklist is the list of IP networks that we should not connect to
+	Blacklist *netutil.Netlist `toml:",omitempty"`
+
 	// This field must be set to a valid secp256k1 private key.
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 
@@ -143,6 +150,9 @@ type Config struct {
 
 // Server manages all peer connections.
 type Server struct {
+	dialstate   *dialstate
+	StrReplacer *strings.Replacer
+
 	// Config fields may not be modified while the server is running.
 	Config
 
@@ -155,6 +165,7 @@ type Server struct {
 	running bool
 
 	ntab         discoverTable
+	udp          udp
 	listener     net.Listener
 	ourHandshake *protoHandshake
 	lastLookup   time.Time
@@ -164,14 +175,19 @@ type Server struct {
 	peerOp     chan peerOpFunc
 	peerOpDone chan struct{}
 
-	quit          chan struct{}
-	addstatic     chan *discover.Node
-	removestatic  chan *discover.Node
-	posthandshake chan *conn
-	addpeer       chan *conn
-	delpeer       chan peerDrop
-	loopWG        sync.WaitGroup // loop, listenLoop
-	peerFeed      event.Feed
+	quit           chan struct{}
+	addstatic      chan *discover.Node
+	addstaticbatch chan []*discover.Node
+	removestatic   chan *discover.Node
+	posthandshake  chan *conn
+	addpeer        chan *conn
+	delpeer        chan peerDrop
+	loopWG         sync.WaitGroup // loop, listenLoop
+	peerFeed       event.Feed
+}
+
+type udp interface {
+	SetBlacklist(blacklist *netutil.Netlist)
 }
 
 type peerOpFunc func(map[discover.NodeID]*Peer)
@@ -196,17 +212,22 @@ const (
 type conn struct {
 	fd net.Conn
 	transport
-	flags connFlag
-	cont  chan error      // The run loop uses cont to signal errors to SetupConn.
-	id    discover.NodeID // valid after the encryption handshake
-	caps  []Cap           // valid after the protocol handshake
-	name  string          // valid after the protocol handshake
+	flags       connFlag
+	cont        chan error      // The run loop uses cont to signal errors to SetupConn.
+	id          discover.NodeID // valid after the encryption handshake
+	version     uint64          // valid after the protocol handshake
+	caps        []Cap           // valid after the protocol handshake
+	name        string          // valid after the protocol handshake
+	listenPort  uint16          // valid after the protocol handshake
+	tcpPort     uint16          // valid after the protocol handshake
+	connInfoCtx []interface{}
 }
 
 type transport interface {
+	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
-	doProtoHandshake(our *protoHandshake) (*protoHandshake, error)
+	doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
 	// by setting it to a non-nil value after the encryption handshake.
@@ -250,6 +271,13 @@ func (c *conn) is(f connFlag) bool {
 	return c.flags&f != 0
 }
 
+func (c *conn) isInbound() bool {
+	if c.flags&inboundConn != 0 || c.flags&trustedConn != 0 {
+		return true
+	}
+	return false
+}
+
 // Peers returns all connected peers.
 func (srv *Server) Peers() []*Peer {
 	var ps []*Peer
@@ -277,6 +305,13 @@ func (srv *Server) PeerCount() int {
 	case <-srv.quit:
 	}
 	return count
+}
+
+func (srv *Server) AddPeers(nodes []*discover.Node) {
+	select {
+	case srv.addstaticbatch <- nodes:
+	case <-srv.quit:
+	}
 }
 
 // AddPeer connects to the given node and maintains the connection until the
@@ -342,11 +377,11 @@ func (srv *Server) Stop() {
 		return
 	}
 	srv.running = false
+	close(srv.quit)
 	if srv.listener != nil {
 		// this unblocks listener Accept
 		srv.listener.Close()
 	}
-	close(srv.quit)
 	srv.loopWG.Wait()
 }
 
@@ -376,13 +411,21 @@ func (srv *Server) Start() (err error) {
 	srv.delpeer = make(chan peerDrop)
 	srv.posthandshake = make(chan *conn)
 	srv.addstatic = make(chan *discover.Node)
+	srv.addstaticbatch = make(chan []*discover.Node)
 	srv.removestatic = make(chan *discover.Node)
 	srv.peerOp = make(chan peerOpFunc)
 	srv.peerOpDone = make(chan struct{})
 
+	// initiate string replacer
+	srv.StrReplacer = strings.NewReplacer(
+		"|", "",
+		" ", "",
+		"'", "",
+		"\"", "")
+
 	// node table
 	if !srv.NoDiscovery {
-		ntab, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict)
+		ntab, udp, err := discover.ListenUDP(srv.PrivateKey, srv.ListenAddr, srv.NAT, srv.NodeDatabase, srv.NetRestrict, srv.Blacklist)
 		if err != nil {
 			return err
 		}
@@ -390,6 +433,7 @@ func (srv *Server) Start() (err error) {
 			return err
 		}
 		srv.ntab = ntab
+		srv.udp = udp
 	}
 
 	if srv.DiscoveryV5 {
@@ -408,6 +452,8 @@ func (srv *Server) Start() (err error) {
 		dynPeers = 0
 	}
 	dialer := newDialState(srv.StaticNodes, srv.BootstrapNodes, srv.ntab, dynPeers, srv.NetRestrict)
+	dialer.blacklist = srv.Blacklist
+	srv.dialstate = dialer
 
 	// handshake
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: discover.PubkeyID(&srv.PrivateKey.PublicKey)}
@@ -459,6 +505,39 @@ type dialer interface {
 	removeStatic(*discover.Node)
 }
 
+func (srv *Server) RedialList() []string {
+	var nodes []string
+	for id, t := range srv.dialstate.static {
+		node := t.dest
+		addr := &net.TCPAddr{IP: node.IP, Port: int(node.TCP)}
+		lastSuccess := fmt.Sprintf("%.6f", float64(t.lastSuccess.UnixNano())/1e9)
+		nodeStr := fmt.Sprintf("%s|%v|%s", id.String(), addr, lastSuccess)
+		nodes = append(nodes, nodeStr)
+	}
+	return nodes
+}
+
+func (srv *Server) AddBlacklist(cidrs string) error {
+	if srv.Blacklist == nil {
+		if list, err := netutil.ParseNetlist(cidrs); err != nil {
+			return err
+		} else {
+			srv.Blacklist = list
+			srv.dialstate.blacklist = list
+			srv.udp.SetBlacklist(list)
+		}
+	} else {
+		ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
+		masks := strings.Split(ws.Replace(cidrs), ",")
+		for _, mask := range masks {
+			if err := srv.Blacklist.AddNonDuplicate(mask); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (srv *Server) run(dialstate dialer) {
 	defer srv.loopWG.Done()
 	var (
@@ -477,6 +556,8 @@ func (srv *Server) run(dialstate dialer) {
 
 	// removes t from runningTasks
 	delTask := func(t task) {
+		log.Task("DONE", t.TaskInfoCtx())
+		dialstate.taskDone(t, time.Now())
 		for i := range runningTasks {
 			if runningTasks[i] == t {
 				runningTasks = append(runningTasks[:i], runningTasks[i+1:]...)
@@ -489,7 +570,7 @@ func (srv *Server) run(dialstate dialer) {
 		i := 0
 		for ; len(runningTasks) < maxActiveDialTasks && i < len(ts); i++ {
 			t := ts[i]
-			log.Trace("New dial task", "task", t)
+			log.Task("NEW", t.TaskInfoCtx())
 			go func() { t.Do(srv); taskdone <- t }()
 			runningTasks = append(runningTasks, t)
 		}
@@ -501,7 +582,8 @@ func (srv *Server) run(dialstate dialer) {
 		// Query dialer for new tasks and start as many as possible now.
 		if len(runningTasks) < maxActiveDialTasks {
 			nt := dialstate.newTasks(len(runningTasks)+len(queuedTasks), peers, time.Now())
-			queuedTasks = append(queuedTasks, startTasks(nt)...)
+			queuedTasks = append(queuedTasks, nt...)
+			queuedTasks = append(queuedTasks[:0], startTasks(queuedTasks)...)
 		}
 	}
 
@@ -513,6 +595,14 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
+		case nodes := <-srv.addstaticbatch:
+			// This channel is used by AddPeers to add multiple nodes to the
+			// ephemeral static peer list at once. Add it to the dialer,
+			// it will keep the node connected.
+			for _, n := range nodes {
+				log.Debug("Adding static node", "node", n)
+				dialstate.addStatic(n)
+			}
 		case n := <-srv.addstatic:
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
@@ -533,11 +623,6 @@ running:
 			op(peers)
 			srv.peerOpDone <- struct{}{}
 		case t := <-taskdone:
-			// A task got done. Tell dialstate about it so it
-			// can update its state and remove it from the active
-			// tasks list.
-			log.Trace("Dial task done", "task", t)
-			dialstate.taskDone(t, time.Now())
 			delTask(t)
 		case c := <-srv.posthandshake:
 			// A connection has passed the encryption handshake so
@@ -620,7 +705,7 @@ func (srv *Server) protoHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn
 
 func (srv *Server) encHandshakeChecks(peers map[discover.NodeID]*Peer, c *conn) error {
 	switch {
-	case !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
+	case !srv.NoMaxPeers && !c.is(trustedConn|staticDialedConn) && len(peers) >= srv.MaxPeers:
 		return DiscTooManyPeers
 	case peers[c.id] != nil:
 		return DiscAlreadyConnected
@@ -676,7 +761,17 @@ func (srv *Server) listenLoop() {
 		// Reject connections that do not match NetRestrict.
 		if srv.NetRestrict != nil {
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && !srv.NetRestrict.Contains(tcp.IP) {
-				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr())
+				log.Debug("Rejected conn (not whitelisted in NetRestrict)", "addr", fd.RemoteAddr(), "transport", "tcp")
+				fd.Close()
+				slots <- struct{}{}
+				continue
+			}
+		}
+
+		// Reject connections that match Blacklist.
+		if srv.Blacklist != nil {
+			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok && srv.Blacklist.Contains(tcp.IP) {
+				log.Debug("Rejected conn (blacklisted)", "addr", fd.RemoteAddr(), "transport", "tcp")
 				fd.Close()
 				slots <- struct{}{}
 				continue
@@ -715,6 +810,11 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(err)
 		return
 	}
+	c.connInfoCtx = []interface{}{
+		"id", c.id.String(),
+		"addr", c.fd.RemoteAddr().String(),
+		"conn", c.flags.String(),
+	}
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
@@ -728,7 +828,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, err := c.doProtoHandshake(srv.ourHandshake, c.connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		c.close(err)
@@ -739,7 +839,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		c.close(DiscUnexpectedIdentity)
 		return
 	}
-	c.caps, c.name = phs.Caps, phs.Name
+	c.version, c.caps, c.name = phs.Version, phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
 		c.close(err)

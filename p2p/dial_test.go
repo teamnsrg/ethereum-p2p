@@ -65,6 +65,11 @@ func runDialTest(t *testing.T, test dialtest) {
 		}
 
 		new := test.init.newTasks(running, pm(round.peers), vtime)
+		for _, t := range new {
+			if t, ok := t.(*dialTask); ok {
+				t.lastSuccess = time.Time{}
+			}
+		}
 		if !sametasks(new, round.new) {
 			t.Errorf("round %d: new tasks mismatch:\ngot %v\nwant %v\nstate: %v\nrunning: %v\n",
 				i, spew.Sdump(new), spew.Sdump(round.new), spew.Sdump(test.init), spew.Sdump(running))
@@ -592,6 +597,11 @@ func TestDialResolve(t *testing.T) {
 	dest := discover.NewNode(uintID(1), nil, 0, 0)
 	state.addStatic(dest)
 	tasks := state.newTasks(0, nil, time.Time{})
+	for _, t := range tasks {
+		if t, ok := t.(*dialTask); ok {
+			t.lastSuccess = time.Time{}
+		}
+	}
 	if !reflect.DeepEqual(tasks, []task{&dialTask{flags: staticDialedConn, dest: dest}}) {
 		t.Fatalf("expected dial task, got %#v", tasks)
 	}

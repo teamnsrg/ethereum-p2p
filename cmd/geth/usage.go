@@ -21,11 +21,12 @@ package main
 import (
 	"io"
 	"sort"
+	"strings"
+
+	"gopkg.in/urfave/cli.v1"
 
 	"github.com/teamnsrg/go-ethereum/cmd/utils"
 	"github.com/teamnsrg/go-ethereum/internal/debug"
-	"gopkg.in/urfave/cli.v1"
-	"strings"
 )
 
 // AppHelpTemplate is the test template for the default, global app help topic.
@@ -63,6 +64,16 @@ type flagGroup struct {
 
 // AppHelpFlagGroups is the application flags, grouped by functionality.
 var AppHelpFlagGroups = []flagGroup{
+	{
+		Name: "TX SNIPER",
+		Flags: []cli.Flag{
+			utils.LogToFileFlag,
+			utils.MaxNumFileFlag,
+			utils.BlacklistFlag,
+			utils.NoDiscoverFlag,
+			utils.MaxPendingPeersFlag,
+		},
+	},
 	{
 		Name: "ETHEREUM",
 		Flags: []cli.Flag{

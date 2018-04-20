@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aristanetworks/goarista/monotime"
 	"github.com/teamnsrg/go-ethereum/common/mclock"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -50,6 +51,15 @@ const (
 	getPeersMsg  = 0x04
 	peersMsg     = 0x05
 )
+
+var devp2pCodeToString = map[uint64]string{
+	handshakeMsg: "DEVP2P_HELLO",
+	discMsg:      "DEVP2P_DISC",
+	pingMsg:      "DEVP2P_PING",
+	pongMsg:      "DEVP2P_PONG",
+	getPeersMsg:  "DEVP2P_GET_PEERS",
+	peersMsg:     "DEVP2P_PEERS",
+}
 
 // protoHandshake is the RLP structure of the protocol handshake.
 type protoHandshake struct {
@@ -115,6 +125,11 @@ type Peer struct {
 func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	conn := &conn{fd: pipe, transport: nil, id: id, caps: caps, name: name}
+	conn.connInfoCtx = []interface{}{
+		"id", conn.id.String(),
+		"addr", conn.fd.RemoteAddr().String(),
+		"conn", conn.flags.String(),
+	}
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
@@ -123,6 +138,11 @@ func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 // ID returns the node's public key.
 func (p *Peer) ID() discover.NodeID {
 	return p.rw.id
+}
+
+// Version returns the version of the p2p protocol used by the remote peer.
+func (p *Peer) Version() uint64 {
+	return p.rw.version
 }
 
 // Name returns the node name that the remote node advertised.
@@ -134,6 +154,27 @@ func (p *Peer) Name() string {
 func (p *Peer) Caps() []Cap {
 	// TODO: maybe return copy
 	return p.rw.caps
+}
+
+func (p *Peer) Rtt() float64 {
+	if p.rw.transport == nil {
+		return 0.0
+	}
+	return p.rw.Rtt()
+}
+
+func (p *Peer) Duration() float64 {
+	return monotime.Since(uint64(p.created)).Seconds()
+}
+
+// ListenPort returns the port number that the remote peer advertised.
+func (p *Peer) ListenPort() uint16 {
+	return p.rw.listenPort
+}
+
+// TCPPort returns the port number that the remote peer advertised through discovery.
+func (p *Peer) TCPPort() uint16 {
+	return p.rw.tcpPort
 }
 
 // RemoteAddr returns the remote address of the network connection.
@@ -172,6 +213,10 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 		log:      log.New("id", conn.id, "conn", conn.flags),
 	}
 	return p
+}
+
+func (p *Peer) ConnInfoCtx() []interface{} {
+	return p.rw.connInfoCtx
 }
 
 func (p *Peer) Log() log.Logger {
@@ -253,7 +298,7 @@ func (p *Peer) readLoop(errc chan<- error) {
 			errc <- err
 			return
 		}
-		msg.ReceivedAt = time.Now()
+		msg.PeerDuration = p.Duration()
 		if err = p.handle(msg); err != nil {
 			errc <- err
 			return
@@ -262,15 +307,25 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
+	connInfoCtx := p.ConnInfoCtx()
+	msgType, ok := devp2pCodeToString[msg.Code]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+	}
 	switch {
 	case msg.Code == pingMsg:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		msg.Discard()
 		go SendItems(p.rw, pongMsg)
+	case msg.Code == pongMsg:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
-		rlp.Decode(msg.Payload, &reason)
+		err := rlp.Decode(msg.Payload, &reason)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -279,6 +334,7 @@ func (p *Peer) handle(msg Msg) error {
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
+			log.MessageRx(msg.ReceivedAt, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), int(msg.Size), connInfoCtx, err)
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {
@@ -408,10 +464,12 @@ func (rw *protoRW) ReadMsg() (Msg, error) {
 // peer. Sub-protocol independent fields are contained and initialized here, with
 // protocol specifics delegated to all connected sub-protocols.
 type PeerInfo struct {
-	ID      string   `json:"id"`   // Unique node identifier (also the encryption key)
-	Name    string   `json:"name"` // Name of the node, including client type, version, OS, custom data
-	Caps    []string `json:"caps"` // Sum-protocols advertised by this particular peer
-	Network struct {
+	ID       string   `json:"id"`   // Unique node identifier (also the encryption key)
+	Name     string   `json:"name"` // Name of the node, including client type, version, OS, custom data
+	Caps     []string `json:"caps"` // Sum-protocols advertised by this particular peer
+	Rtt      float64  `json:"rtt"`
+	Duration float64  `json:"duration"`
+	Network  struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
@@ -432,6 +490,9 @@ func (p *Peer) Info() *PeerInfo {
 		Caps:      caps,
 		Protocols: make(map[string]interface{}),
 	}
+	if p.rw.transport != nil {
+		info.Rtt = p.Rtt()
+	}
 	info.Network.LocalAddress = p.LocalAddr().String()
 	info.Network.RemoteAddress = p.RemoteAddr().String()
 
@@ -447,5 +508,6 @@ func (p *Peer) Info() *PeerInfo {
 		}
 		info.Protocols[proto.Name] = protoInfo
 	}
+	info.Duration = p.Duration()
 	return info
 }

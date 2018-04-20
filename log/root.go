@@ -2,10 +2,11 @@ package log
 
 import (
 	"os"
+	"time"
 )
 
 var (
-	root          = &logger{[]interface{}{}, new(swapHandler)}
+	root          = &logger{ctx: []interface{}{}, h: new(swapHandler)}
 	StdoutHandler = StreamHandler(os.Stdout, LogfmtFormat())
 	StderrHandler = StreamHandler(os.Stderr, LogfmtFormat())
 )
@@ -28,6 +29,38 @@ func Root() Logger {
 // The following functions bypass the exported logger methods (logger.Debug,
 // etc.) to keep the call depth the same for all paths to logger.write so
 // runtime.Caller(2) always refers to the call site in client code.
+
+func TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"txHash", txHash,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlTxTx, t, ctx)
+}
+
+func TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string) {
+	ctx := []interface{}{
+		"rtt", rtt,
+		"duration", duration,
+		"tx", tx,
+	}
+	ctx = append(connInfoCtx, ctx...)
+	root.writeTime(LvlTxData, t, ctx)
+}
+
+func Task(msg string, taskInfoCtx []interface{}) {
+	root.write(msg, LvlTask, taskInfoCtx)
+}
+
+func MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	root.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
+}
+
+func MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+	root.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
+}
 
 // Trace is a convenient alias for Root().Trace
 func Trace(msg string, ctx ...interface{}) {
