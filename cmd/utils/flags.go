@@ -176,7 +176,7 @@ var (
 	}
 	LogToFileFlag = cli.BoolFlag{
 		Name:  "logtofile",
-		Usage: "Write log to node-finder.log instead of stderr",
+		Usage: "Write log to files instead of stderr",
 	}
 	// General settings
 	DataDirFlag = DirectoryFlag{
