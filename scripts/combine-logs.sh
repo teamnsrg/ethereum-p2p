@@ -26,9 +26,9 @@ if cd ${TRIMMED} ; then
   cp hello-0.txt ${PROCESSED}/1-instance-hello.txt
   cp status-0.txt ${PROCESSED}/1-instance-status.txt
   cp task-0.txt ${PROCESSED}/1-instance-task.txt
-  cp disc-proto.txt ${PROCESSED}/1-instance-disc-proto.txt
+  cp disc-proto-0.txt ${PROCESSED}/1-instance-disc-proto.txt
   sort -V {hello,disc-proto}-0.txt > ${PROCESSED}/1-instance-hello-disc-proto.txt
-  ${WORKING_DIR}/process-logs.sh 1 &
+  cd ${WORKING_DIR} && ./process-logs.sh 1 &
   # 10 instances
   cat hello-{0..9}.txt > 10-instance-hello.tmp
   sort -V 10-instance-hello.tmp > ${PROCESSED}/10-instance-hello.txt
@@ -43,7 +43,7 @@ if cd ${TRIMMED} ; then
   mv 10-instance-status.tmp 20-instance-status.tmp
   mv 10-instance-task.tmp 20-instance-task.tmp
   mv 10-instance-disc-proto.tmp 20-instance-disc-proto.tmp
-  ${WORKING_DIR}/process-logs.sh 10 &
+  cd ${WORKING_DIR} && ./process-logs.sh 10 &
   # 20 instances
   cat hello-{10..19}.txt >> 20-instance-hello.tmp
   sort -V 20-instance-hello.tmp > ${PROCESSED}/20-instance-hello.txt
@@ -58,7 +58,7 @@ if cd ${TRIMMED} ; then
   mv 20-instance-status.tmp 30-instance-status.tmp
   mv 20-instance-task.tmp 30-instance-task.tmp
   mv 20-instance-disc-proto.tmp 30-instance-disc-proto.tmp
-  ${WORKING_DIR}/process-logs.sh 20 &
+  cd ${WORKING_DIR} && ./process-logs.sh 20 &
   # 30 instances
   cat hello-{20..29}.txt >> 30-instance-hello.tmp
   sort -V 30-instance-hello.tmp > ${PROCESSED}/30-instance-hello.txt
@@ -70,7 +70,7 @@ if cd ${TRIMMED} ; then
   sort -V 30-instance-disc-proto.tmp > ${PROCESSED}/30-instance-disc-proto.txt
   sort -V 30-instance-{hello,disc-proto}.tmp > ${PROCESSED}/30-instance-hello-disc-proto.txt
   rm 30-instance-{hello,status,task,disc-proto}.tmp
-  ${WORKING_DIR}/process-logs.sh 30 &
+  cd ${WORKING_DIR} && ./process-logs.sh 30 &
 else
   echo "dir ${TRIMMED} doesn't exist"
 fi
