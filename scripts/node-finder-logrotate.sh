@@ -21,7 +21,9 @@ source .env
 NODEFINDER_NAME="geth-node-finder"
 DATADIR="${ROOT_DIR}/${NODEFINDER_NAME}/${i}"
 LOGDIR="${DATADIR}/${NODEFINDER_NAME}/logs"
+TRIMMED="${ROOT_DIR}/${NODEFINDER_NAME}/trimmed-logs"
 NEWLOGDIR="${ARCHIVE_DIR}/${NODEFINDER_NAME}/${i}"
+[ -d "${TRIMMED}" ] || mkdir -p -m 755 ${TRIMMED}
 [ -d "${NEWLOGDIR}" ] || mkdir -p -m 755 ${NEWLOGDIR}
 if cd ${LOGDIR} ; then
   [ -d old ] || mkdir -p -m 755 old
@@ -29,6 +31,11 @@ if cd ${LOGDIR} ; then
   docker exec ${NODEFINDER_NAME}-${i} geth attach --exec 'admin.logrotate()'
   DATE=$(date -u +%Y%m%dT%H%M%S)
   cd old
+  cut -d'|' -f3-6 disc-proto.log | sed 's/[a-zA-Z]*=//g;s/:[0-9]*//' >> ${TRIMMED}/disc-proto-${i}.txt
+  cut -d'|' -f3-6 hello.log | sed 's/[a-zA-Z]*=//g;s/:[0-9]*//' >> ${TRIMMED}/hello-${i}.txt
+  cut -d'|' -f3-6 status.log | sed 's/[a-zA-Z]*=//g;s/:[0-9]*//' >> ${TRIMMED}/status-${i}.txt
+  grep 'NEW' task.log | awk -F'|' '{print $2"|"$5"|"$6"|"$4}' | sed 's/[a-zA-Z]*=//g;s/:[0-9]*//' | grep -v 'wait' >> ${TRIMMED}/task-${i}.txt
+  grep 'ADD' peer.log | cut -d'|' -f4,5 | sed 's/id=//' >> ${TRIMMED}/peer-${i}.txt
   for FILENAME in *.log; do
     mv ${FILENAME} ${FILENAME}-${DATE}Z
   done

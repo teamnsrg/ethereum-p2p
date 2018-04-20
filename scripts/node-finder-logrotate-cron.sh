@@ -21,7 +21,8 @@ n=$(( $1 - 1 ))
 CRONJOBS="$(crontab -l 2>/dev/null)"
 for i in `seq 0 ${n}`;
 do
-  CRONJOBS="${CRONJOBS}\n${MINUTE} ${HOUR} * * * cd ${WORKING_DIR} && ./node-finder-logrotate.sh ${i}"
+  CRONJOBS="${CRONJOBS}\n0 0 * * * cd ${WORKING_DIR} && ./node-finder-logrotate.sh ${i}"
 done
+CRONJOBS="${CRONJOBS}\n0 6 * * * cd ${WORKING_DIR} && ./combine-logs.sh"
 echo -e "${CRONJOBS}" | crontab -
 echo "${NODEFINDER_NAME} logrotate cronjobs added"
