@@ -20,6 +20,7 @@ import (
 	"context"
 	"math/big"
 
+	"fmt"
 	"github.com/teamnsrg/go-ethereum/accounts"
 	"github.com/teamnsrg/go-ethereum/common"
 	"github.com/teamnsrg/go-ethereum/common/math"
@@ -138,13 +139,18 @@ func (b *EthApiBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 
 func (b *EthApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction, targetIds ...string) error {
 	n := len(targetIds)
-	if n > 0 {
-		targets := make([]*peer, n)
-		for i, id := range targetIds {
+	if n < 1 {
+		return fmt.Errorf("no target specified")
+	} else {
+		var targets []*peer
+		for _, id := range targetIds {
 			if len(id) < 16 {
 				continue
 			}
-			targets[i] = b.eth.protocolManager.peers.Peer(id[:16])
+			targets = append(targets, b.eth.protocolManager.peers.Peer(id[:16]))
+		}
+		if len(targets) < 1 {
+			return fmt.Errorf("no valid targets")
 		}
 		b.eth.protocolManager.sniperTargets[signedTx.Hash()] = targets
 	}

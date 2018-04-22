@@ -370,42 +370,6 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args SendTxArgs
 	return submitTransaction(ctx, s.b, signed)
 }
 
-func (s *PrivateAccountAPI) SnipeTransaction(ctx context.Context, args SendTxArgs, passwd string, targetIdList string) (common.Hash, error) {
-	// Look up the wallet containing the requested signer
-	account := accounts.Account{Address: args.From}
-
-	wallet, err := s.am.Find(account)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	if args.Nonce == nil {
-		// Hold the addresse's mutex around signing to prevent concurrent assignment of
-		// the same nonce to multiple accounts.
-		s.nonceLock.LockAddr(args.From)
-		defer s.nonceLock.UnlockAddr(args.From)
-	}
-
-	// Set some sanity defaults and terminate on failure
-	if err := args.setDefaults(ctx, s.b); err != nil {
-		return common.Hash{}, err
-	}
-	// Assemble the transaction and sign with the wallet
-	tx := args.toTransaction()
-
-	var chainID *big.Int
-	if config := s.b.ChainConfig(); config.IsEIP155(s.b.CurrentBlock().Number()) {
-		chainID = config.ChainId
-	}
-	signed, err := wallet.SignTxWithPassphrase(account, passwd, tx, chainID)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
-	targetIds := strings.Split(ws.Replace(targetIdList), ",")
-	return submitTransaction(ctx, s.b, signed, targetIds...)
-}
-
 // signHash is a helper function that calculates a hash for the given message that can be
 // safely used to calculate a signature from.
 //
@@ -1195,7 +1159,7 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 	return submitTransaction(ctx, s.b, signed)
 }
 
-func (s *PublicTransactionPoolAPI) SnipeTransaction(ctx context.Context, args SendTxArgs, targetIdList string) (common.Hash, error) {
+func (s *PublicTransactionPoolAPI) SnipeTransaction(ctx context.Context, args SendTxArgs, targetIds string) (common.Hash, error) {
 
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.From}
@@ -1228,8 +1192,8 @@ func (s *PublicTransactionPoolAPI) SnipeTransaction(ctx context.Context, args Se
 		return common.Hash{}, err
 	}
 	ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
-	targetIds := strings.Split(ws.Replace(targetIdList), ",")
-	return submitTransaction(ctx, s.b, signed, targetIds...)
+	targetIdList := strings.Split(ws.Replace(targetIds), ",")
+	return submitTransaction(ctx, s.b, signed, targetIdList...)
 }
 
 // SendRawTransaction will add the signed transaction to the transaction pool.
@@ -1242,14 +1206,14 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 	return submitTransaction(ctx, s.b, tx)
 }
 
-func (s *PublicTransactionPoolAPI) SnipeRawTransaction(ctx context.Context, encodedTx hexutil.Bytes, targetIdList string) (common.Hash, error) {
+func (s *PublicTransactionPoolAPI) SnipeRawTransaction(ctx context.Context, encodedTx hexutil.Bytes, targetIds string) (common.Hash, error) {
 	tx := new(types.Transaction)
 	if err := rlp.DecodeBytes(encodedTx, tx); err != nil {
 		return common.Hash{}, err
 	}
 	ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
-	targetIds := strings.Split(ws.Replace(targetIdList), ",")
-	return submitTransaction(ctx, s.b, tx, targetIds...)
+	targetIdList := strings.Split(ws.Replace(targetIds), ",")
+	return submitTransaction(ctx, s.b, tx, targetIdList...)
 }
 
 // Sign calculates an ECDSA signature for:
