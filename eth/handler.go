@@ -77,12 +77,13 @@ type ProtocolManager struct {
 	fastSync  uint32 // Flag whether fast sync is enabled (gets disabled if we already have blocks)
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
-	txpool      txPool
-	knownTxs    mapWrapper // All transactions to allow lookups
-	blockchain  *core.BlockChain
-	chaindb     ethdb.Database
-	chainconfig *params.ChainConfig
-	maxPeers    int
+	txpool        txPool
+	knownTxs      mapWrapper // All transactions to allow lookups
+	sniperTargets map[common.Hash][]*peer
+	blockchain    *core.BlockChain
+	chaindb       ethdb.Database
+	chainconfig   *params.ChainConfig
+	maxPeers      int
 
 	downloader *downloader.Downloader
 	fetcher    *fetcher.Fetcher
@@ -94,9 +95,8 @@ type ProtocolManager struct {
 	txCh     chan core.TxPreEvent
 	txSub    event.Subscription
 
-	// channels for fetcher, syncer, txsyncLoop
+	// channels for fetcher, syncer
 	newPeerCh   chan *peer
-	txsyncCh    chan *txsync
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
 
@@ -110,17 +110,17 @@ type ProtocolManager struct {
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkId uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
-		networkId:   networkId,
-		eventMux:    mux,
-		txpool:      txpool,
-		blockchain:  blockchain,
-		chaindb:     chaindb,
-		chainconfig: config,
-		peers:       newPeerSet(),
-		newPeerCh:   make(chan *peer),
-		noMorePeers: make(chan struct{}),
-		txsyncCh:    make(chan *txsync),
-		quitSync:    make(chan struct{}),
+		networkId:     networkId,
+		eventMux:      mux,
+		txpool:        txpool,
+		sniperTargets: make(map[common.Hash][]*peer),
+		blockchain:    blockchain,
+		chaindb:       chaindb,
+		chainconfig:   config,
+		peers:         newPeerSet(),
+		newPeerCh:     make(chan *peer),
+		noMorePeers:   make(chan struct{}),
+		quitSync:      make(chan struct{}),
 	}
 	// Figure out whether to allow fast sync or not
 	if mode == downloader.FastSync && blockchain.CurrentBlock().NumberU64() > 0 {
@@ -218,17 +218,16 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	// broadcast transactions
 	pm.txCh = make(chan core.TxPreEvent, txChanSize)
 	pm.txSub = pm.txpool.SubscribeTxPreEvent(pm.txCh)
-	go pm.txBroadcastLoop()
+	go pm.txSniperLoop()
 
 	// start sync handlers
 	go pm.syncer()
-	go pm.txsyncLoop()
 }
 
 func (pm *ProtocolManager) Stop() {
 	log.Info("Stopping Ethereum protocol")
 
-	pm.txSub.Unsubscribe() // quits txBroadcastLoop
+	pm.txSub.Unsubscribe() // quits txSniperLoop
 
 	// Quit the sync loop.
 	// After this send has completed, no new peers will be accepted.
@@ -281,9 +280,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
 	}
-	// Propagate existing transactions. new transactions appearing
-	// after this will be sent via broadcasts.
-	pm.syncTransactions(p)
 
 	// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
 	if daoBlock := pm.chainconfig.DAOForkBlock; daoBlock != nil {
@@ -734,25 +730,53 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 	}
 }
 
-// BroadcastTx will propagate a transaction to all peers which are not known to
-// already have the given transaction.
-func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) {
-	// Broadcast transaction to a batch of peers not knowing about it
-	peers := pm.peers.PeersWithoutTx(hash)
-	//FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
-	for _, peer := range peers {
-		peer.SendTransactions(types.Transactions{tx})
-	}
-	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers))
-}
-
-func (self *ProtocolManager) txBroadcastLoop() {
+func (self *ProtocolManager) txSniperLoop() {
 	for {
 		select {
 		case event := <-self.txCh:
-			self.BroadcastTx(event.Tx.Hash(), event.Tx)
+			// Snipe a transaction to a peer not knowing about it
+			tx := event.Tx
+			txHash := tx.Hash()
+			txHashStr := txHash.String()[2:]
+			targets, ok := self.sniperTargets[txHash]
+			if !ok {
+				log.Debug("No targets found", "txHash", txHashStr)
+				break
+			}
+			for _, peer := range targets {
+				i := 0
+				for {
+					i++
+					if peer == nil {
+						log.Debug("Not connected to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
+						// Remove tx from the pool
+						//pm.txpool.RemoveTx(tx)
+						break
+					}
+					sentTime, err := peer.SendTransactions(types.Transactions{tx})
+					rtt := peer.Rtt()
+					duration := peer.Duration()
+					if sentTime.IsZero() || err != nil {
+						log.Debug("Failed to send transaction to target", "target", peer.id, "txHash", txHashStr, "numTries", i, "err", err)
+						break
+					}
+					// if previously unknown tx, log the entire tx-data
+					self.knownTxs.Lock()
+					if _, ok := self.knownTxs.known[txHash]; !ok {
+						self.knownTxs.known[txHash] = struct{}{}
+						log.TxData(sentTime, peer.ConnInfoCtx(), rtt, duration, tx.LogString())
+					}
+					self.knownTxs.Unlock()
+					log.TxTx(sentTime, peer.ConnInfoCtx(), rtt, duration, txHashStr)
+					// self.removePeer(peer.id)
+					log.Info("Transaction sent to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
+					// Remove tx from the pool
+					//pm.txpool.RemoveTx(tx)
+				}
+			}
+			delete(self.sniperTargets, txHash)
 
-		// Err() channel will be closed when unsubscribing.
+			// Err() channel will be closed when unsubscribing.
 		case <-self.txSub.Err():
 			return
 		}

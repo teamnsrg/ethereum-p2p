@@ -20,14 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"fmt"
 	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core/types"
 	"github.com/teamnsrg/go-ethereum/crypto"
 	"github.com/teamnsrg/go-ethereum/eth/downloader"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/rlp"
-	"sync"
 )
 
 func init() {
@@ -72,7 +69,7 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 		p, errc := newTestPeer("peer", protocol, pm, false)
 		// The send call might hang until reset because
 		// the protocol might not read the payload.
-		go p2p.Send(p.app, test.code, test.data)
+		go p2p.SendEthSubproto(p.app, test.code, test.data)
 
 		select {
 		case err := <-errc:
@@ -86,64 +83,6 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 		}
 		p.close()
 	}
-}
-
-// This test checks that pending transactions are sent.
-func TestSendTransactions62(t *testing.T) { testSendTransactions(t, 62) }
-func TestSendTransactions63(t *testing.T) { testSendTransactions(t, 63) }
-
-func testSendTransactions(t *testing.T, protocol int) {
-	pm := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
-	defer pm.Stop()
-
-	// Fill the pool with big transactions.
-	const txsize = txsyncPackSize / 10
-	alltxs := make([]*types.Transaction, 100)
-	for nonce := range alltxs {
-		alltxs[nonce] = newTestTransaction(testAccount, uint64(nonce), txsize)
-	}
-	pm.txpool.AddRemotes(alltxs)
-
-	// Connect several peers. They should all receive the pending transactions.
-	var wg sync.WaitGroup
-	checktxs := func(p *testPeer) {
-		defer wg.Done()
-		defer p.close()
-		seen := make(map[common.Hash]bool)
-		for _, tx := range alltxs {
-			seen[tx.Hash()] = false
-		}
-		for n := 0; n < len(alltxs) && !t.Failed(); {
-			var txs []*types.Transaction
-			msg, err := p.app.ReadMsg()
-			if err != nil {
-				t.Errorf("%v: read error: %v", p.Peer, err)
-			} else if msg.Code != TxMsg {
-				t.Errorf("%v: got code %d, want TxMsg", p.Peer, msg.Code)
-			}
-			if err := msg.Decode(&txs); err != nil {
-				t.Errorf("%v: %v", p.Peer, err)
-			}
-			for _, tx := range txs {
-				hash := tx.Hash()
-				seentx, want := seen[hash]
-				if seentx {
-					t.Errorf("%v: got tx more than once: %x", p.Peer, hash)
-				}
-				if !want {
-					t.Errorf("%v: got unexpected tx: %x", p.Peer, hash)
-				}
-				seen[hash] = true
-				n++
-			}
-		}
-	}
-	for i := 0; i < 3; i++ {
-		p, _ := newTestPeer(fmt.Sprintf("peer #%d", i), protocol, pm, true)
-		wg.Add(1)
-		go checktxs(p)
-	}
-	wg.Wait()
 }
 
 // Tests that the custom union field encoder and decoder works correctly.

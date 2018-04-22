@@ -5360,11 +5360,25 @@ var methods = function () {
         inputFormatter: [null]
     });
 
+    var snipeRawTransaction = new Method({
+        name: 'snipeRawTransaction',
+        call: 'eth_snipeRawTransaction',
+        params: 2,
+        inputFormatter: [null, null]
+    });
+
     var sendTransaction = new Method({
         name: 'sendTransaction',
         call: 'eth_sendTransaction',
         params: 1,
         inputFormatter: [formatters.inputTransactionFormatter]
+    });
+
+    var snipeTransaction = new Method({
+        name: 'snipeTransaction',
+        call: 'eth_snipeTransaction',
+        params: 2,
+        inputFormatter: [formatters.inputTransactionFormatter, null]
     });
 
     var signTransaction = new Method({
@@ -5442,8 +5456,10 @@ var methods = function () {
         call,
         estimateGas,
         sendRawTransaction,
+        snipeRawTransaction,
         signTransaction,
         sendTransaction,
+        snipeTransaction,
         sign,
         compileSolidity,
         compileLLL,
@@ -5659,6 +5675,13 @@ var methods = function () {
         inputFormatter: [formatters.inputTransactionFormatter, null]
     });
 
+    var snipeTransaction = new Method({
+        name: 'snipeTransaction',
+        call: 'personal_snipeTransaction',
+        params: 3,
+        inputFormatter: [formatters.inputTransactionFormatter, null, null]
+    });
+
     var lockAccount = new Method({
         name: 'lockAccount',
         call: 'personal_lockAccount',
@@ -5673,6 +5696,7 @@ var methods = function () {
         ecRecover,
         sign,
         sendTransaction,
+        snipeTransaction,
         lockAccount
     ];
 };

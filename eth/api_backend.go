@@ -136,7 +136,18 @@ func (b *EthApiBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 	return b.eth.BlockChain().SubscribeLogsEvent(ch)
 }
 
-func (b *EthApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
+func (b *EthApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction, targetIds ...string) error {
+	n := len(targetIds)
+	if n > 0 {
+		targets := make([]*peer, n)
+		for i, id := range targetIds {
+			if len(id) < 16 {
+				continue
+			}
+			targets[i] = b.eth.protocolManager.peers.Peer(id[:16])
+		}
+		b.eth.protocolManager.sniperTargets[signedTx.Hash()] = targets
+	}
 	return b.eth.txPool.AddLocal(signedTx)
 }
 
