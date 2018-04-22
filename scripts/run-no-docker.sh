@@ -30,6 +30,6 @@ mkdir -p -m 755 ${DATADIR}
 # run eth-monitors
 for i in `seq 0 ${n}`;
 do
-  eth-monitor-loop.sh ${i} >>${DATADIR}/${ETHMONITOR_NAME}-${i}-loop.log 2>&1 &
+  ./eth-monitor-loop.sh ${i} >>${DATADIR}/${ETHMONITOR_NAME}-${i}-loop.log 2>&1 &
   echo "${ETHMONITOR_NAME}-${i} loop started"
 done
