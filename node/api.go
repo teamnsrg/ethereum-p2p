@@ -161,6 +161,29 @@ func (api *PrivateAdminAPI) AddPeer(url string) (bool, error) {
 	return true, nil
 }
 
+// AddPeers requests connecting to remote nodes, and also maintaining the new
+// connection at all times, even reconnecting if it is lost.
+func (api *PrivateAdminAPI) AddPeers(urls string) (bool, error) {
+	// Make sure the server is running, fail otherwise
+	server := api.node.Server()
+	if server == nil {
+		return false, ErrNodeStopped
+	}
+	// Try to add the urls as static peers and return
+
+	ws := strings.NewReplacer(" ", "", "\n", "", "\t", "")
+	urlList := strings.Split(ws.Replace(urls), ",")
+	var nodes []*discover.Node
+	for _, url := range urlList {
+		node, err := discover.ParseNode(url)
+		if err == nil {
+			nodes = append(nodes, node)
+		}
+	}
+	server.AddPeers(nodes)
+	return true, nil
+}
+
 // RemovePeer disconnects from a a remote node if the connection exists
 func (api *PrivateAdminAPI) RemovePeer(url string) (bool, error) {
 	// Make sure the server is running, fail otherwise
