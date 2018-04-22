@@ -481,6 +481,7 @@ type PeerInfo struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
+	Conn      string                 `json:"conn"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
 
@@ -496,6 +497,7 @@ func (p *Peer) Info() *PeerInfo {
 		ID:        p.ID().String(),
 		Name:      p.Name(),
 		Caps:      caps,
+		Conn:      p.rw.flags.String(),
 		Protocols: make(map[string]interface{}),
 	}
 	if p.rw.transport != nil {
