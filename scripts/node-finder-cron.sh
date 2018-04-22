@@ -9,7 +9,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 if [ "$#" -ne 1 ]; then
   echo "argument missing"
-  echo "usage: ./node-finder-logrotate-cron.sh num-instance"
+  echo "usage: ./node-finder-cron.sh num-instance"
   exit 1
 fi
 
