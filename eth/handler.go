@@ -744,9 +744,7 @@ func (self *ProtocolManager) txSniperLoop() {
 				break
 			}
 			for _, peer := range targets {
-				i := 0
-				for {
-					i++
+				for i := 0; i <= 10; i++ {
 					if peer == nil {
 						log.Debug("Not connected to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
 						// Remove tx from the pool
@@ -756,22 +754,22 @@ func (self *ProtocolManager) txSniperLoop() {
 					sentTime, err := peer.SendTransactions(types.Transactions{tx})
 					rtt := peer.Rtt()
 					duration := peer.Duration()
-					if sentTime.IsZero() || err != nil {
-						log.Debug("Failed to send transaction to target", "target", peer.id, "txHash", txHashStr, "numTries", i, "err", err)
+					if err == nil && !sentTime.IsZero() {
+						// if previously unknown tx, log the entire tx-data
+						self.knownTxs.Lock()
+						if _, ok := self.knownTxs.known[txHash]; !ok {
+							self.knownTxs.known[txHash] = struct{}{}
+							log.TxData(sentTime, peer.ConnInfoCtx(), rtt, duration, tx.LogString())
+						}
+						self.knownTxs.Unlock()
+						log.TxTx(sentTime, peer.ConnInfoCtx(), rtt, duration, txHashStr)
+						// self.removePeer(peer.id)
+						log.Info("Transaction sent to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
+						// Remove tx from the pool
+						//pm.txpool.RemoveTx(tx)
 						break
 					}
-					// if previously unknown tx, log the entire tx-data
-					self.knownTxs.Lock()
-					if _, ok := self.knownTxs.known[txHash]; !ok {
-						self.knownTxs.known[txHash] = struct{}{}
-						log.TxData(sentTime, peer.ConnInfoCtx(), rtt, duration, tx.LogString())
-					}
-					self.knownTxs.Unlock()
-					log.TxTx(sentTime, peer.ConnInfoCtx(), rtt, duration, txHashStr)
-					// self.removePeer(peer.id)
-					log.Info("Transaction sent to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
-					// Remove tx from the pool
-					//pm.txpool.RemoveTx(tx)
+					log.Debug("Failed to send transaction to target", "target", peer.id, "txHash", txHashStr, "numTries", i, "err", err)
 				}
 			}
 			delete(self.sniperTargets, txHash)
