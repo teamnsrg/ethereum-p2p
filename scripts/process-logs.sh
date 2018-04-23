@@ -21,7 +21,7 @@ source .env
 
 START="1524027553"
 NODEFINDER_NAME="geth-node-finder"
-PROCESSED="${ROOT_DIR}/${NODEFINDER_NAME}/processed-logs"
+PROCESSED="${ARCHIVE_DIR}/${NODEFINDER_NAME}/processed-logs"
 if cd ${PROCESSED} ; then
   grep -Ff ethereum-id.txt ${i}-instance-hello-disc-proto.txt >${i}-instance-hello-disc-proto-ethereum.txt
   grep -Ff mainnet-id.txt ${i}-instance-hello-disc-proto.txt >${i}-instance-hello-disc-proto-mainnet.txt
