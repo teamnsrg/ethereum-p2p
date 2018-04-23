@@ -31,11 +31,11 @@ if cd ${LOGDIR} ; then
   docker exec ${NODEFINDER_NAME}-${i} geth attach --exec 'admin.logrotate()'
   DATE=$(date -u +%Y%m%dT%H%M%S)
   cd old
-  cut -d'|' -f3- disc-proto.log | sed 's/[a-zA-Z]*=//g;s/:/|/' >> ${TRIMMED}/disc-proto-${i}.txt
-  cut -d'|' -f3- hello.log | sed 's/[a-zA-Z]*=//g;s/:/|/;s/[0-9a-zA-Z]*://g;s/ /|/g' >> ${TRIMMED}/hello-${i}.txt
-  cut -d'|' -f3- status.log | sed 's/[a-zA-Z]*=//g;s/:/|/;s/[0-9a-zA-Z]*://g;s/ /|/g' >> ${TRIMMED}/status-${i}.txt
-  grep 'NEW' task.log | awk -F'|' '{print $2"|"$5"|"$6"|"$4"|"$7}' | sed 's/[a-zA-Z]*=//g;s/:/|/' | grep -v 'wait' >> ${TRIMMED}/task-${i}.txt
-  grep 'ADD' peer.log | cut -d'|' -f2,4- | sed 's/[a-zA-Z]*=//g;s/:/|/' >> ${TRIMMED}/peer-${i}.txt
+  cut -d'|' -f3- disc-proto.log | sed 's/:/|/;s/[a-zA-Z]*=//g' >> ${TRIMMED}/disc-proto-${i}.txt
+  cut -d'|' -f3- hello.log | sed -E 's/:/|/;s/[0-9a-zA-Z]*(=|:)//g;s/ /|/g' >> ${TRIMMED}/hello-${i}.txt
+  cut -d'|' -f3- status.log | sed -E 's/:/|/;s/[0-9a-zA-Z]*(=|:)//g;s/ /|/g' >> ${TRIMMED}/status-${i}.txt
+  grep 'NEW' task.log | awk -F'|' '{print $2"|"$5"|"$6"|"$4"|"$7}' | sed 's/:/|/;s/[a-zA-Z]*=//g' | grep -v 'wait' >> ${TRIMMED}/task-${i}.txt
+  grep 'ADD' peer.log | cut -d'|' -f2,4- | sed 's/:/|/;s/[a-zA-Z]*=//g' >> ${TRIMMED}/peer-${i}.txt
   for FILENAME in *.log; do
     mv ${FILENAME} ${FILENAME}-${DATE}Z
   done
