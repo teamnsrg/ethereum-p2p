@@ -41,7 +41,7 @@ if cd ${PROCESSED} ; then
     sort -t' ' -Vk1,1 -k3nr,3 ${i}-instance-hello-disc-proto${TYPE}-inbound.txt.tmp | sort -t' ' -uk1,1 > ${i}-instance-hello-disc-proto${TYPE}-inbound-last.txt
     rm ${i}-instance-hello-disc-proto${TYPE}-inbound.txt.tmp
     join -a 1 -a 2 -o 0,1.2,1.3,2.3 ${i}-instance-hello-disc-proto${TYPE}-inbound-first.txt ${i}-instance-hello-disc-proto${TYPE}-inbound-last.txt > ${i}-instance-hello-disc-proto${TYPE}-inbound-first-last.txt
-    awk -F'|' '{print $2"|"$3" inbound "$1}' ${i}-instance-hello-disc-proto${TYPE}-outbound.txt >${i}-instance-hello-disc-proto${TYPE}-outbound.txt.tmp
+    awk -F'|' '{print $2"|"$3" outbound "$1}' ${i}-instance-hello-disc-proto${TYPE}-outbound.txt >${i}-instance-hello-disc-proto${TYPE}-outbound.txt.tmp
     sort -t' ' -Vk1,1 -k3n,3 ${i}-instance-hello-disc-proto${TYPE}-outbound.txt.tmp | sort -t' ' -uk1,1 > ${i}-instance-hello-disc-proto${TYPE}-outbound-first.txt
     sort -t' ' -Vk1,1 -k3nr,3 ${i}-instance-hello-disc-proto${TYPE}-outbound.txt.tmp | sort -t' ' -uk1,1 > ${i}-instance-hello-disc-proto${TYPE}-outbound-last.txt
     rm ${i}-instance-hello-disc-proto${TYPE}-outbound.txt.tmp
