@@ -4,6 +4,7 @@
 ## Required software:
 - Docker
 - ~~Docker Compose~~
+- Python3 and pyasn for log processing
 ## Usage:
 1. Configure `.env`
     1. `MYSQL_USERNAME`

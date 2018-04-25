@@ -28,6 +28,8 @@ if cd ${TRIMMED} ; then
   cp task-0.txt ${PROCESSED}/1-instance-task.txt
   cp disc-proto-0.txt ${PROCESSED}/1-instance-disc-proto.txt
   cut -d'|' -f1-7 {hello,disc-proto}-0.txt | sort -V > ${PROCESSED}/1-instance-hello-disc-proto.txt
+  cd ${WORKING_DIR} && ./process-logs.sh 1 mainnet &
+  cd ${WORKING_DIR} && ./process-logs.sh 1 ethereum &
   cd ${WORKING_DIR} && ./process-logs.sh 1 &
   # 10 instances
   cat hello-{0..9}.txt > 10-instance-hello.tmp
@@ -43,6 +45,8 @@ if cd ${TRIMMED} ; then
   mv 10-instance-status.tmp 20-instance-status.tmp
   mv 10-instance-task.tmp 20-instance-task.tmp
   mv 10-instance-disc-proto.tmp 20-instance-disc-proto.tmp
+  cd ${WORKING_DIR} && ./process-logs.sh 10 mainnet &
+  cd ${WORKING_DIR} && ./process-logs.sh 10 ethereum &
   cd ${WORKING_DIR} && ./process-logs.sh 10 &
   # 20 instances
   cat hello-{10..19}.txt >> 20-instance-hello.tmp
@@ -58,6 +62,8 @@ if cd ${TRIMMED} ; then
   mv 20-instance-status.tmp 30-instance-status.tmp
   mv 20-instance-task.tmp 30-instance-task.tmp
   mv 20-instance-disc-proto.tmp 30-instance-disc-proto.tmp
+  cd ${WORKING_DIR} && ./process-logs.sh 20 mainnet &
+  cd ${WORKING_DIR} && ./process-logs.sh 20 ethereum &
   cd ${WORKING_DIR} && ./process-logs.sh 20 &
   # 30 instances
   cat hello-{20..29}.txt >> 30-instance-hello.tmp
@@ -70,6 +76,8 @@ if cd ${TRIMMED} ; then
   sort -V 30-instance-disc-proto.tmp > ${PROCESSED}/30-instance-disc-proto.txt
   cut -d'|' -f1-7 30-instance-{hello,disc-proto}.tmp | sort -V > ${PROCESSED}/30-instance-hello-disc-proto.txt
   rm 30-instance-{hello,status,task,disc-proto}.tmp
+  cd ${WORKING_DIR} && ./process-logs.sh 30 mainnet &
+  cd ${WORKING_DIR} && ./process-logs.sh 30 ethereum &
   cd ${WORKING_DIR} && ./process-logs.sh 30 &
 else
   echo "dir ${TRIMMED} doesn't exist"
