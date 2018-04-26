@@ -188,7 +188,7 @@ func (tg taskgen) newTasks(running int, needStatic int, peers map[discover.NodeI
 	return tg.newFunc(running, peers)
 }
 
-func (tg taskgen) taskDone(t task, now time.Time) {
+func (tg taskgen) taskDone(t task, now time.Time, peers map[discover.NodeID]*Peer) {
 	tg.doneFunc(t)
 }
 

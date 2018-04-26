@@ -61,7 +61,7 @@ func runDialTest(t *testing.T, test dialtest) {
 			if running < 0 {
 				panic("running task counter underflow")
 			}
-			test.init.taskDone(task, vtime)
+			test.init.taskDone(task, vtime, make(map[discover.NodeID]*Peer))
 		}
 
 		new := test.init.newTasks(running, len(round.new), pm(round.peers), vtime)

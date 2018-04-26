@@ -522,7 +522,7 @@ func (srv *Server) startListening() error {
 type dialer interface {
 	newTasks(nRunning int, needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task
 	newDiscoverTask() task
-	taskDone(task, time.Time)
+	taskDone(task, time.Time, map[discover.NodeID]*Peer)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
 }
@@ -631,7 +631,7 @@ func (srv *Server) run(dialstate dialer) {
 	// removes t from runningTasks
 	delTask := func(t task) {
 		log.Task("DONE", t.TaskInfoCtx())
-		dialstate.taskDone(t, time.Now())
+		dialstate.taskDone(t, time.Now(), peers)
 		// discoverTask doesn't need anything else to be done
 		if _, ok := t.(*discoverTask); ok {
 			return
