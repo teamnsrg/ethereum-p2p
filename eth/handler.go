@@ -23,7 +23,6 @@ import (
 	"io"
 	"math/big"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/teamnsrg/go-ethereum/common"
@@ -32,7 +31,6 @@ import (
 	"github.com/teamnsrg/go-ethereum/core"
 	"github.com/teamnsrg/go-ethereum/core/types"
 	"github.com/teamnsrg/go-ethereum/eth/downloader"
-	"github.com/teamnsrg/go-ethereum/eth/fetcher"
 	"github.com/teamnsrg/go-ethereum/ethdb"
 	"github.com/teamnsrg/go-ethereum/event"
 	"github.com/teamnsrg/go-ethereum/log"
@@ -72,7 +70,6 @@ type ProtocolManager struct {
 	fastSync  uint32 // Flag whether fast sync is enabled (gets disabled if we already have blocks)
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
-	txpool      txPool
 	knownTxs    mapWrapper // All transactions to allow lookups
 	knownBlocks mapWrapper // All blocks to allow lookups
 	blockchain  *core.BlockChain
@@ -81,12 +78,9 @@ type ProtocolManager struct {
 	maxPeers    int
 
 	downloader *downloader.Downloader
-	fetcher    *fetcher.Fetcher
 	peers      *peerSet
 
 	SubProtocols []p2p.Protocol
-
-	eventMux *event.TypeMux
 
 	// channels for fetcher, syncer, txsyncLoop
 	newPeerCh   chan *peer
@@ -104,8 +98,6 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkId:   networkId,
-		eventMux:    mux,
-		txpool:      txpool,
 		blockchain:  blockchain,
 		chaindb:     chaindb,
 		chainconfig: config,
@@ -161,24 +153,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		return nil, errIncompatibleConfig
 	}
 	// Construct the different synchronisation mechanisms
-	manager.downloader = downloader.New(mode, chaindb, manager.eventMux, blockchain, nil, manager.removePeer)
-
-	validator := func(header *types.Header) error {
-		return engine.VerifyHeader(blockchain, header, true)
-	}
-	heighter := func() uint64 {
-		return blockchain.CurrentBlock().NumberU64()
-	}
-	inserter := func(blocks types.Blocks) (int, error) {
-		// If fast sync is running, deny importing weird blocks
-		if atomic.LoadUint32(&manager.fastSync) == 1 {
-			log.Warn("Discarded bad propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
-			return 0, nil
-		}
-		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
-		return manager.blockchain.InsertChain(blocks)
-	}
-	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, heighter, inserter, manager.removePeer)
+	manager.downloader = downloader.New(mode, chaindb, nil, blockchain, nil, manager.removePeer)
 
 	return manager, nil
 }
@@ -191,8 +166,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	log.Debug("Removing Ethereum peer", "id", id)
 
-	// Unregister the peer from the downloader and Ethereum peer set
-	pm.downloader.UnregisterPeer(id)
+	// Unregister the peer from the Ethereum peer set
 	if err := pm.peers.Unregister(id); err != nil {
 		log.Error("Peer removal failed", "id", id, "err", err)
 	}
@@ -208,18 +182,26 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.knownTxs = mapWrapper{known: make(map[common.Hash]struct{})}
 	pm.knownBlocks = mapWrapper{known: make(map[common.Hash]struct{})}
 
-	// start sync handlers
-	go pm.syncer()
+	// loop to avoid accepting new peers when stopping Ethereum protocol
+	go func() {
+		defer pm.downloader.Terminate()
+		for {
+			select {
+			case <-pm.newPeerCh:
+				continue
+			case <-pm.noMorePeers:
+				return
+			}
+		}
+	}()
 }
 
 func (pm *ProtocolManager) Stop() {
 	log.Info("Stopping Ethereum protocol")
 
-	// Quit the sync loop.
 	// After this send has completed, no new peers will be accepted.
 	pm.noMorePeers <- struct{}{}
 
-	// Quit fetcher
 	close(pm.quitSync)
 
 	// Disconnect existing sessions.
@@ -267,11 +249,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		return err
 	}
 	defer pm.removePeer(p.id)
-
-	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
-	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
-		return err
-	}
 
 	// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
 	if daoBlock := pm.chainconfig.DAOForkBlock; daoBlock != nil {
@@ -321,6 +298,8 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	msgType, ok := ethCodeToString[msg.Code]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		return p.suppressMessageError(errResp(ErrInvalidMsgCode, "%v", msg.Code))
 	}
 	// Handle the message depending on its contents
 	switch {
@@ -408,6 +387,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				query.Origin.Number += (query.Skip + 1)
 			}
 		}
+		// if no blockheader found and peer is requesting for DAO fork block
+		// return DAOForkBlock header
+		if len(headers) == 0 && query.Origin.Number == params.MainnetChainConfig.DAOForkBlock.Uint64() && query.Amount == 1 && query.Skip == 0 && !query.Reverse {
+			headers = append(headers, types.DAOForkBlockHeader)
+		}
 		return p.suppressMessageError(p.SendBlockHeaders(headers))
 
 	case msg.Code == BlockHeadersMsg:
@@ -423,12 +407,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
 			verifyDAO := true
 
-			// If we already have a DAO header, we can check the peer's TD against it. If
-			// the peer's ahead of this, it too must have a reply to the DAO check
-			if daoHeader := pm.blockchain.GetHeaderByNumber(pm.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
-				if _, td := p.Head(); td.Cmp(pm.blockchain.GetTd(daoHeader.Hash(), daoHeader.Number.Uint64())) >= 0 {
-					verifyDAO = false
-				}
+			// If the peer's td is ahead of the DAO fork block's td, it too must have a reply to the DAO check
+			daoTd := new(big.Int)
+			daoTd.SetString(params.MainnetChainConfig.DAOForkTdStr, 10)
+			if _, td := p.Head(); td.Cmp(daoTd) >= 0 {
+				verifyDAO = false
 			}
 			// If we're seemingly on the same chain, disable the drop timer
 			if verifyDAO {
@@ -454,14 +437,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				}
 				p.Log().Debug("Verified to be on the same side of the DAO fork")
 				return nil
-			}
-			// Irrelevant of the fork checks, send the header to the fetcher just in case
-			headers = pm.fetcher.FilterHeaders(p.id, headers, time.Now())
-		}
-		if len(headers) > 0 || !filter {
-			err := pm.downloader.DeliverHeaders(p.id, headers)
-			if err != nil {
-				log.Debug("Failed to deliver headers", "err", err)
 			}
 		}
 
@@ -494,34 +469,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		return p.suppressMessageError(p.SendBlockBodiesRLP(bodies))
 
-	case msg.Code == BlockBodiesMsg:
-		// A batch of block bodies arrived to one of our previous requests
-		var request blockBodiesData
-		if err := msg.Decode(&request); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
-			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
-		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
-		// Deliver them all to the downloader for queuing
-		trasactions := make([][]*types.Transaction, len(request))
-		uncles := make([][]*types.Header, len(request))
-
-		for i, body := range request {
-			trasactions[i] = body.Transactions
-			uncles[i] = body.Uncles
-		}
-		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(trasactions) > 0 || len(uncles) > 0
-		if filter {
-			trasactions, uncles = pm.fetcher.FilterBodies(p.id, trasactions, uncles, time.Now())
-		}
-		if len(trasactions) > 0 || len(uncles) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, trasactions, uncles)
-			if err != nil {
-				log.Debug("Failed to deliver bodies", "err", err)
-			}
-		}
-
 	case p.version >= eth63 && msg.Code == GetNodeDataMsg:
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
@@ -550,19 +497,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 		}
 		return p.suppressMessageError(p.SendNodeData(data))
-
-	case p.version >= eth63 && msg.Code == NodeDataMsg:
-		// A batch of node state data arrived to one of our previous requests
-		var data [][]byte
-		if err := msg.Decode(&data); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
-			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
-		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
-		// Deliver all to the downloader
-		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
-			log.Debug("Failed to deliver node state data", "err", err)
-		}
 
 	case p.version >= eth63 && msg.Code == GetReceiptsMsg:
 		// Decode the retrieval message
@@ -602,19 +536,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		return p.suppressMessageError(p.SendReceiptsRLP(receipts))
 
-	case p.version >= eth63 && msg.Code == ReceiptsMsg:
-		// A batch of receipts arrived to one of our previous requests
-		var receipts [][]*types.Receipt
-		if err := msg.Decode(&receipts); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
-			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
-		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
-		// Deliver all to the downloader
-		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
-			log.Debug("Failed to deliver receipts", "err", err)
-		}
-
 	case msg.Code == NewBlockHashesMsg:
 		var announces newBlockHashesData
 		if err := msg.Decode(&announces); err != nil {
@@ -627,18 +548,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for _, block := range announces {
 			// log the hash of the block
 			log.NewBlockHashesRx(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, block.Hash.String()[2:], block.Number)
-
-			p.MarkBlock(block.Hash)
-		}
-		// Schedule all the unknown hashes for retrieval
-		unknown := make(newBlockHashesData, 0, len(announces))
-		for _, block := range announces {
-			if !pm.blockchain.HasBlock(block.Hash, block.Number) {
-				unknown = append(unknown, block)
-			}
-		}
-		for _, block := range unknown {
-			pm.fetcher.Notify(p.id, block.Hash, block.Number, time.Now(), p.RequestOneHeader, p.RequestBodies)
 		}
 
 	case msg.Code == NewBlockMsg:
@@ -662,32 +571,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 		// log the hash and number of the block
 		log.NewBlockRx(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, blockHash.String()[2:], request.Block.Number().String())
-
-		request.Block.ReceivedAt = msg.ReceivedAt
-		request.Block.ReceivedFrom = p
-
-		// Mark the peer as owning the block and schedule it for import
-		p.MarkBlock(request.Block.Hash())
-		pm.fetcher.Enqueue(p.id, request.Block)
-
-		// Assuming the block is importable by the peer, but possibly not yet done so,
-		// calculate the head hash and TD that the peer truly must have.
-		var (
-			trueHead = request.Block.ParentHash()
-			trueTD   = new(big.Int).Sub(request.TD, request.Block.Difficulty())
-		)
-		// Update the peers total difficulty if better than the previous
-		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
-			p.SetHead(trueHead, trueTD)
-
-			// Schedule a sync if above ours. Note, this will not fire a sync for a gap of
-			// a singe block (as the true TD is below the propagated block), however this
-			// scenario should easily be covered by the fetcher.
-			currentBlock := pm.blockchain.CurrentBlock()
-			if trueTD.Cmp(pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
-				go pm.synchronise(p)
-			}
-		}
 
 	case msg.Code == TxMsg:
 		// Transactions can be processed, parse all of them and deliver to the pool
@@ -720,7 +603,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 	default:
 		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
-		return p.suppressMessageError(errResp(ErrInvalidMsgCode, "%v", msg.Code))
 	}
 	return nil
 }

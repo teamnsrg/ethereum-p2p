@@ -61,6 +61,27 @@ var devp2pCodeToString = map[uint64]string{
 	peersMsg:     "DEVP2P_PEERS",
 }
 
+// ethCodeToString should be the same as the one in eth/protocol.go
+// We re-define it here so that we can use it when logging sent messages.
+// Make sure the eth message codes match
+var ethCodeToString = map[uint64]string{
+	// Protocol messages belonging to eth/62
+	0x00: "ETH_STATUS",
+	0x01: "ETH_NEW_BLOCK_HASHES",
+	0x02: "ETH_TX",
+	0x03: "ETH_GET_BLOCK_HEADERS",
+	0x04: "ETH_BLOCK_HEADERS",
+	0x05: "ETH_GET_BLOCK_BODIES",
+	0x06: "ETH_BLOCK_BODIES",
+	0x07: "ETH_NEW_BLOCK",
+
+	// Protocol messages belonging to eth/63
+	0x0d: "ETH_GET_NODE_DATA",
+	0x0e: "ETH_NODE_DATA",
+	0x0f: "ETH_GET_RECEIPTS",
+	0x10: "ETH_RECEIPTS",
+}
+
 // protoHandshake is the RLP structure of the protocol handshake.
 type protoHandshake struct {
 	Version    uint64
@@ -275,7 +296,7 @@ loop:
 	}
 
 	close(p.closed)
-	p.rw.close(reason)
+	p.rw.close(reason, p.ConnInfoCtx()...)
 	p.wg.Wait()
 	return remoteRequested, err
 }
@@ -287,7 +308,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendItems(p.rw, pingMsg); err != nil {
+			if err := SendItems(p.rw, pingMsg, p.ConnInfoCtx()); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -324,7 +345,7 @@ func (p *Peer) handle(msg Msg) error {
 	case msg.Code == pingMsg:
 		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		msg.Discard()
-		go SendItems(p.rw, pongMsg)
+		go SendItems(p.rw, pongMsg, connInfoCtx)
 	case msg.Code == pongMsg:
 		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		msg.Discard()
@@ -336,6 +357,7 @@ func (p *Peer) handle(msg Msg) error {
 		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
 		return reason[0]
 	case msg.Code < baseProtocolLength:
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
 		// ignore other base protocol messages
 		return msg.Discard()
 	default:

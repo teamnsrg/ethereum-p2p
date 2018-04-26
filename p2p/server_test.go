@@ -64,7 +64,7 @@ func (c *testTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...int
 	return &protoHandshake{ID: c.id, Name: "test"}, nil
 }
 
-func (c *testTransport) close(err error) {
+func (c *testTransport) close(err error, connInfoCtx ...interface{}) {
 	c.rlpx.fd.Close()
 	c.closeErr = err
 }
@@ -319,7 +319,7 @@ func (c *setupTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...in
 	}
 	return c.phs, nil
 }
-func (c *setupTransport) close(err error) {
+func (c *setupTransport) close(err error, connInfoCtx ...interface{}) {
 	c.calls += "close,"
 	c.closeErr = err
 }
