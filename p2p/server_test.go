@@ -64,7 +64,7 @@ func (c *testTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...int
 	return &protoHandshake{ID: c.id, Name: "test"}, nil
 }
 
-func (c *testTransport) close(err error) {
+func (c *testTransport) close(err error, connInfoCtx ...interface{}) {
 	c.rlpx.fd.Close()
 	c.closeErr = err
 }
@@ -188,7 +188,7 @@ func (tg taskgen) newTasks(running int, needStatic int, peers map[discover.NodeI
 	return tg.newFunc(running, peers)
 }
 
-func (tg taskgen) taskDone(t task, now time.Time) {
+func (tg taskgen) taskDone(t task, now time.Time, peers map[discover.NodeID]*Peer) {
 	tg.doneFunc(t)
 }
 
@@ -319,7 +319,7 @@ func (c *setupTransport) doProtoHandshake(our *protoHandshake, connInfoCtx ...in
 	}
 	return c.phs, nil
 }
-func (c *setupTransport) close(err error) {
+func (c *setupTransport) close(err error, connInfoCtx ...interface{}) {
 	c.calls += "close,"
 	c.closeErr = err
 }

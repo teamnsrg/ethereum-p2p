@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/teamnsrg/go-ethereum/event"
+	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p/discover"
 	"github.com/teamnsrg/go-ethereum/rlp"
 )
@@ -91,27 +92,49 @@ type MsgReadWriter interface {
 	MsgWriter
 }
 
-// Send writes an RLP-encoded message with the given code.
-// data should encode as an RLP list.
-func Send(w MsgWriter, msgcode uint64, data interface{}) error {
+func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...interface{}) error {
 	size, r, err := rlp.EncodeToReader(data)
 	if err != nil {
 		return err
 	}
-	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	currentTime := time.Now()
+	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	msgType, ok := ethCodeToString[msgcode]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
+	}
+	log.MessageTx(currentTime, ">>"+msgType, size, connInfoCtx, err)
+	return err
+}
+
+// Send writes an RLP-encoded message with the given code.
+// data should encode as an RLP list.
+func Send(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...interface{}) error {
+	size, r, err := rlp.EncodeToReader(data)
+	if err != nil {
+		return err
+	}
+	currentTime := time.Now()
+	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	msgType, ok := devp2pCodeToString[msgcode]
+	if !ok {
+		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
+	}
+	log.MessageTx(currentTime, ">>"+msgType, size, connInfoCtx, err)
+	return err
 }
 
 // SendItems writes an RLP with the given code and data elements.
 // For a call such as:
 //
-//    SendItems(w, code, e1, e2, e3)
+//    SendItems(w, code, [connInfoCtx...], e1, e2, e3)
 //
 // the message payload will be an RLP list containing the items:
 //
 //    [e1, e2, e3]
 //
-func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
-	return Send(w, msgcode, elems)
+func SendItems(w MsgWriter, msgcode uint64, connInfoCtx []interface{}, elems ...interface{}) error {
+	return Send(w, msgcode, elems, connInfoCtx...)
 }
 
 // netWrapper wraps a MsgReadWriter with locks around

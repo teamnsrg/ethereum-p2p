@@ -214,15 +214,14 @@ func (s *dialstate) checkDial(n *discover.Node, peers map[discover.NodeID]*Peer)
 	return nil
 }
 
-func (s *dialstate) taskDone(t task, now time.Time) {
+func (s *dialstate) taskDone(t task, now time.Time, peers map[discover.NodeID]*Peer) {
 	switch t := t.(type) {
 	case *dialTask:
 		s.hist.add(t.dest.ID, now.Add(s.redialFreq))
 		delete(s.dialing, t.dest.ID)
 		if !t.lastSuccess.IsZero() {
-			currentTime := time.Now()
 			deadline := t.lastSuccess.Add(s.redialExp)
-			if deadline.Before(currentTime) || deadline.Equal(currentTime) {
+			if peers[t.dest.ID] == nil && (deadline.Before(now) || deadline.Equal(now)) {
 				log.Warn("Removing static dial candidate", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)}, "err", errRedialExpired)
 				delete(s.static, t.dest.ID)
 			}

@@ -69,7 +69,7 @@ func testStatusMsgErrors(t *testing.T, protocol int) {
 		p, errc := newTestPeer("peer", protocol, pm, false)
 		// The send call might hang until reset because
 		// the protocol might not read the payload.
-		go p2p.Send(p.app, test.code, test.data)
+		go p2p.SendEthSubproto(p.app, test.code, test.data)
 
 		select {
 		case err := <-errc:

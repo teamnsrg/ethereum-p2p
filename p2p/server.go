@@ -260,7 +260,7 @@ type transport interface {
 	// transports must provide Close because we use MsgPipe in some of
 	// the tests. Closing the actual network connection doesn't do
 	// anything in those tests because NsgPipe doesn't use it.
-	close(err error)
+	close(err error, connInfoCtx ...interface{})
 }
 
 func (c *conn) String() string {
@@ -522,7 +522,7 @@ func (srv *Server) startListening() error {
 type dialer interface {
 	newTasks(nRunning int, needStatic int, peers map[discover.NodeID]*Peer, now time.Time) []task
 	newDiscoverTask() task
-	taskDone(task, time.Time)
+	taskDone(task, time.Time, map[discover.NodeID]*Peer)
 	addStatic(*discover.Node)
 	removeStatic(*discover.Node)
 }
@@ -631,7 +631,7 @@ func (srv *Server) run(dialstate dialer) {
 	// removes t from runningTasks
 	delTask := func(t task) {
 		log.Task("DONE", t.TaskInfoCtx())
-		dialstate.taskDone(t, time.Now())
+		dialstate.taskDone(t, time.Now(), peers)
 		// discoverTask doesn't need anything else to be done
 		if _, ok := t.(*discoverTask); ok {
 			return
@@ -918,31 +918,31 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
-		c.close(DiscUnexpectedIdentity)
+		c.close(DiscUnexpectedIdentity, c.connInfoCtx...)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
 		return
 	}
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
-		c.close(err)
+		c.close(err, c.connInfoCtx...)
 		return
 	}
 	// Run the protocol handshake
 	phs, err := c.doProtoHandshake(srv.ourHandshake, c.connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		c.close(err)
+		c.close(err, c.connInfoCtx...)
 		return
 	}
 	if phs.ID != c.id {
 		clog.Trace("Wrong devp2p handshake identity", "err", phs.ID)
-		c.close(DiscUnexpectedIdentity)
+		c.close(DiscUnexpectedIdentity, c.connInfoCtx...)
 		return
 	}
 	c.version, c.caps, c.name = phs.Version, phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
-		c.close(err)
+		c.close(err, c.connInfoCtx...)
 		return
 	}
 	// If the checks completed successfully, runPeer has now been

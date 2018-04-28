@@ -43,8 +43,8 @@ do
     --mysql \"${MYSQL_URL}\" \
     --logtofile \
     --queryfreq 180 \
-    --redialfreq 180 \
-    --redialcheckfreq 5 \
+    --redialfreq 60 \
+    --redialcheckfreq 3 \
     --redialexp 24 \
     --maxnumfile 1048576 \
     --maxredial 100"
