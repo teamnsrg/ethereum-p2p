@@ -229,14 +229,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
 
 	// Execute the Ethereum handshake
-	td, head, genesis := pm.blockchain.Status()
+	td, _, genesis := pm.blockchain.Status()
 
-	// if mainnet, always advertise block 1920001 as our head
+	// always advertise block 0 as our head
 	if genesis == params.MainnetGenesisHash && pm.networkId == 1 {
-		td, _ = td.SetString("39491026755346691452", 10)
-		head = common.HexToHash("87b2bc3f12e3ded808c6d4b9b528381fa2a7e95ff2368ba93191a9495daa7f50")
+		td, _ = td.SetString("17179869184", 10)
 	}
-	if err := p.Handshake(pm.networkId, td, head, genesis); err != nil {
+	if err := p.Handshake(pm.networkId, td, genesis, genesis); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		return err
 	}
