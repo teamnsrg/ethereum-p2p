@@ -249,6 +249,8 @@ type conn struct {
 }
 
 type transport interface {
+	MssRx() uint32
+	MssTx() uint32
 	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
@@ -915,34 +917,37 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 		"addr", c.fd.RemoteAddr().String(),
 		"conn", c.flags.String(),
 	}
+	connInfoCtx := append(c.connInfoCtx,
+		"mss", c.MssRx(),
+	)
 	clog := log.New("id", c.id, "addr", c.fd.RemoteAddr(), "conn", c.flags)
 	// For dialed connections, check that the remote public key matches.
 	if dialDest != nil && c.id != dialDest.ID {
-		c.close(DiscUnexpectedIdentity, c.connInfoCtx...)
+		c.close(DiscUnexpectedIdentity, connInfoCtx...)
 		clog.Trace("Dialed identity mismatch", "want", c, dialDest.ID)
 		return
 	}
 	if err := srv.checkpoint(c, srv.posthandshake); err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
-		c.close(err, c.connInfoCtx...)
+		c.close(err, connInfoCtx...)
 		return
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake, c.connInfoCtx...)
+	phs, err := c.doProtoHandshake(srv.ourHandshake, connInfoCtx...)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
-		c.close(err, c.connInfoCtx...)
+		c.close(err, connInfoCtx...)
 		return
 	}
 	if phs.ID != c.id {
 		clog.Trace("Wrong devp2p handshake identity", "err", phs.ID)
-		c.close(DiscUnexpectedIdentity, c.connInfoCtx...)
+		c.close(DiscUnexpectedIdentity, connInfoCtx...)
 		return
 	}
 	c.version, c.caps, c.name = phs.Version, phs.Caps, phs.Name
 	if err := srv.checkpoint(c, srv.addpeer); err != nil {
 		clog.Trace("Rejected peer", "err", err)
-		c.close(err, c.connInfoCtx...)
+		c.close(err, connInfoCtx...)
 		return
 	}
 	// If the checks completed successfully, runPeer has now been
