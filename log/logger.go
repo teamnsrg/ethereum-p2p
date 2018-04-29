@@ -201,17 +201,17 @@ type Logger interface {
 	GetGlogger() *GlogHandler
 
 	// Log a message at the given level with context key/value pairs
-	NewBlockHashesTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
-	NewBlockHashesRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
-	NewBlockTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
-	NewBlockRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string)
-	NewBlockData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, block string)
-	TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string)
-	TxRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string)
-	TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string)
+	NewBlockHashesTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string)
+	NewBlockHashesRx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string)
+	NewBlockTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string)
+	NewBlockRx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string)
+	NewBlockData(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, block string)
+	TxTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, txHash string)
+	TxRx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, txHash string)
+	TxData(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, tx string)
 	Task(msg string, taskInfoCtx []interface{})
-	MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
-	MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
+	MessageTx(t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error)
+	MessageRx(t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error)
 	Sql(msg string, ctx ...interface{})
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
@@ -257,11 +257,11 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	return newCtx
 }
 
-func (l *logger) writeTimeMsgType(lvl Lvl, t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
-	ctx := []interface{}{
+func (l *logger) writeTimeMsgType(lvl Lvl, t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error) {
+	ctx := append(connInfoCtx,
 		"size", size,
-	}
-	ctx = append(ctx, connInfoCtx...)
+		"encodedSize", encodedSize,
+	)
 	if err != nil {
 		ctx = append(ctx, "err", err)
 	}
@@ -272,87 +272,79 @@ func (l *logger) writeTime(lvl Lvl, t time.Time, ctx []interface{}) {
 	l.write(fmt.Sprintf("%.6f", float64(t.UnixNano())/1e9), lvl, ctx)
 }
 
-func (l *logger) NewBlockHashesTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) NewBlockHashesTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"blockHash", blockHash,
 		"blockNumber", blockNumber,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlNewBlockHashesTx, t, ctx)
 }
 
-func (l *logger) NewBlockHashesRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) NewBlockHashesRx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"blockHash", blockHash,
 		"blockNumber", blockNumber,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlNewBlockHashesRx, t, ctx)
 }
 
-func (l *logger) NewBlockTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) NewBlockTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"blockHash", blockHash,
 		"blockNumber", blockNumber,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlNewBlockTx, t, ctx)
 }
 
-func (l *logger) NewBlockRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, blockHash string, blockNumber string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) NewBlockRx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, blockHash string, blockNumber string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"blockHash", blockHash,
 		"blockNumber", blockNumber,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlNewBlockRx, t, ctx)
 }
 
-func (l *logger) NewBlockData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, block string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) NewBlockData(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, block string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"block", block,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlNewBlockData, t, ctx)
 }
 
-func (l *logger) TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) TxTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, txHash string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"txHash", txHash,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlTxTx, t, ctx)
 }
 
-func (l *logger) TxRx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) TxRx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, txHash string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"txHash", txHash,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlTxRx, t, ctx)
 }
 
-func (l *logger) TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) TxData(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, tx string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"tx", tx,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlTxData, t, ctx)
 }
 
@@ -360,12 +352,12 @@ func (l *logger) Task(msg string, taskInfoCtx []interface{}) {
 	l.write(msg, LvlTask, taskInfoCtx)
 }
 
-func (l *logger) MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
-	l.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
+func (l *logger) MessageTx(t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error) {
+	l.writeTimeMsgType(LvlMessageTx, t, msgType, size, encodedSize, connInfoCtx, err)
 }
 
-func (l *logger) MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
-	l.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
+func (l *logger) MessageRx(t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error) {
+	l.writeTimeMsgType(LvlMessageRx, t, msgType, size, encodedSize, connInfoCtx, err)
 }
 
 func (l *logger) Sql(msg string, ctx ...interface{}) {
