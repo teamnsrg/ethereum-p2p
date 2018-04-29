@@ -10,6 +10,24 @@ import (
 	"github.com/teamnsrg/go-ethereum/tcpinfo"
 )
 
+// Receiver mss in bytes
+func (rw *rlpxFrameRW) MssRx() uint32 {
+	tcpInfo := rw.GetTCPInfo()
+	if tcpInfo == nil {
+		return 0
+	}
+	return tcpInfo.Maxseg
+}
+
+// Sender mss in bytes
+func (rw *rlpxFrameRW) MssTx() uint32 {
+	tcpInfo := rw.GetTCPInfo()
+	if tcpInfo == nil {
+		return 0
+	}
+	return tcpInfo.Maxseg
+}
+
 // Srtt in seconds (originally milliseconds)
 func (rw *rlpxFrameRW) Rtt() float64 {
 	tcpInfo := rw.GetTCPInfo()

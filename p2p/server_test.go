@@ -308,6 +308,15 @@ type setupTransport struct {
 	closeErr error
 }
 
+func (c *setupTransport) MssRx() uint32 {
+	return 0
+}
+func (c *setupTransport) MssTx() uint32 {
+	return 0
+}
+func (c *setupTransport) Rtt() float64 {
+	return 0.0
+}
 func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr
@@ -325,7 +334,7 @@ func (c *setupTransport) close(err error, connInfoCtx ...interface{}) {
 }
 
 // setupConn shouldn't write to/read from the connection.
-func (c *setupTransport) WriteMsg(Msg) error {
+func (c *setupTransport) WriteMsg(Msg) (uint32, error) {
 	panic("WriteMsg called on setupTransport")
 }
 func (c *setupTransport) ReadMsg() (Msg, error) {
