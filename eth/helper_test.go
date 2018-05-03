@@ -108,6 +108,9 @@ func (p *testTxPool) AddRemotes(txs []*types.Transaction) []error {
 	return make([]error, len(txs))
 }
 
+func (pool *testTxPool) RemoveTx(hash common.Hash) {
+}
+
 // Pending returns all the transactions known to the pool
 func (p *testTxPool) Pending() (map[common.Address]types.Transactions, error) {
 	p.lock.RLock()

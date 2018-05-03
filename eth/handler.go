@@ -746,7 +746,7 @@ func (self *ProtocolManager) txSniperLoop() {
 			for _, peer := range targets {
 				for i := 0; i <= 10; i++ {
 					if peer == nil {
-						log.Debug("Not connected to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
+						log.Debug("Not connected to target", "txHash", txHashStr, "numTries", i)
 						// Remove tx from the pool
 						//pm.txpool.RemoveTx(tx)
 						break
