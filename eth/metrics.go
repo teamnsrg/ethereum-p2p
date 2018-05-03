@@ -110,7 +110,7 @@ func (rw *meteredMsgReadWriter) ReadMsg() (p2p.Msg, error) {
 	return msg, err
 }
 
-func (rw *meteredMsgReadWriter) WriteMsg(msg p2p.Msg) (uint32, error) {
+func (rw *meteredMsgReadWriter) WriteMsg(msg p2p.Msg) error {
 	// Account for the data traffic
 	packets, traffic := miscOutPacketsMeter, miscOutTrafficMeter
 	switch {

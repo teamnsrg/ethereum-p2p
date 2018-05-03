@@ -118,7 +118,7 @@ func (t *rlpx) ReadMsg() (Msg, error) {
 	return t.rw.ReadMsg()
 }
 
-func (t *rlpx) WriteMsg(msg Msg) (uint32, error) {
+func (t *rlpx) WriteMsg(msg Msg) error {
 	t.wmu.Lock()
 	defer t.wmu.Unlock()
 	t.fd.SetWriteDeadline(time.Now().Add(frameWriteTimeout))
@@ -630,14 +630,13 @@ func newRLPXFrameRW(conn io.ReadWriter, s secrets) *rlpxFrameRW {
 	}
 }
 
-func (rw *rlpxFrameRW) WriteMsg(msg Msg) (uint32, error) {
-	var total uint32
+func (rw *rlpxFrameRW) WriteMsg(msg Msg) error {
 	ptype, _ := rlp.EncodeToBytes(msg.Code)
 
 	// if snappy is enabled, compress message now
 	if rw.snappy {
 		if msg.Size > maxUint24 {
-			return total, errPlainMessageTooLarge
+			return errPlainMessageTooLarge
 		}
 		payload, _ := ioutil.ReadAll(msg.Payload)
 		payload = snappy.Encode(nil, payload)
@@ -649,7 +648,7 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) (uint32, error) {
 	headbuf := make([]byte, 32)
 	fsize := uint32(len(ptype)) + msg.Size
 	if fsize > maxUint24 {
-		return total, errors.New("message size overflows uint24")
+		return errors.New("message size overflows uint24")
 	}
 	putInt24(fsize, headbuf) // TODO: check overflow
 	copy(headbuf[3:], zeroHeader)
@@ -658,26 +657,22 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) (uint32, error) {
 	// write header MAC
 	copy(headbuf[16:], updateMAC(rw.egressMAC, rw.macCipher, headbuf[:16]))
 	if _, err := rw.conn.Write(headbuf); err != nil {
-		return total, err
+		return err
 	}
-	total += uint32(len(headbuf))
 
 	// write encrypted frame, updating the egress MAC hash with
 	// the data written to conn.
 	tee := cipher.StreamWriter{S: rw.enc, W: io.MultiWriter(rw.conn, rw.egressMAC)}
 	if _, err := tee.Write(ptype); err != nil {
-		return total, err
+		return err
 	}
-	total += uint32(len(ptype))
 	if _, err := io.Copy(tee, msg.Payload); err != nil {
-		return total, err
+		return err
 	}
-	total += msg.Size
 	if padding := fsize % 16; padding > 0 {
 		if _, err := tee.Write(zero16[:16-padding]); err != nil {
-			return total, err
+			return err
 		}
-		total += uint32(len(zero16[:16-padding]))
 	}
 
 	// write frame MAC. egress MAC hash is up to date because
@@ -685,12 +680,7 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) (uint32, error) {
 	fmacseed := rw.egressMAC.Sum(nil)
 	mac := updateMAC(rw.egressMAC, rw.macCipher, fmacseed)
 	_, err := rw.conn.Write(mac)
-	total += uint32(len(mac))
-	// get the most recent rtt
-	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		msg.Rtt = rw.Rtt()
-	}
-	return total, err
+	return err
 }
 
 func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {

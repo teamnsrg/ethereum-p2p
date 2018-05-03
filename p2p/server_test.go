@@ -334,7 +334,7 @@ func (c *setupTransport) close(err error, connInfoCtx ...interface{}) {
 }
 
 // setupConn shouldn't write to/read from the connection.
-func (c *setupTransport) WriteMsg(Msg) (uint32, error) {
+func (c *setupTransport) WriteMsg(Msg) error {
 	panic("WriteMsg called on setupTransport")
 }
 func (c *setupTransport) ReadMsg() (Msg, error) {
