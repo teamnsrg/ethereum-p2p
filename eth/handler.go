@@ -746,10 +746,11 @@ func (self *ProtocolManager) txSniperLoop() {
 			for _, peer := range targets {
 				for i := 0; i <= 10; i++ {
 					if peer == nil {
-						log.Debug("Not connected to target", "txHash", txHashStr, "numTries", i)
 						// Remove tx from the pool
 						//pm.txpool.RemoveTx(tx)
-						break
+						peer = self.peers.RandomPeer()
+						log.Debug("Not connected to target. Random peer chosen as target instead", "newTarget", peer.id, "txHash", txHashStr, "numTries", i)
+						continue
 					}
 					sentTime, err := peer.SendTransactions(types.Transactions{tx})
 					rtt := peer.Rtt()

@@ -30,6 +30,7 @@ import (
 	"github.com/teamnsrg/go-ethereum/log"
 	"github.com/teamnsrg/go-ethereum/p2p"
 	"github.com/teamnsrg/go-ethereum/rlp"
+	"math/rand"
 )
 
 var (
@@ -410,6 +411,19 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 		}
 	}
 	return list
+}
+
+func (ps *peerSet) RandomPeer() *peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	l := len(ps.peers)
+	list := make([]*peer, 0, l)
+	for _, p := range ps.peers {
+		list = append(list, p)
+	}
+	rand.Seed(time.Now().UnixNano())
+	return list[rand.Intn(l-1)]
 }
 
 // BestPeer retrieves the known peer with the currently highest total difficulty.
