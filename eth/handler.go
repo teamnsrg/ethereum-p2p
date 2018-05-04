@@ -774,6 +774,7 @@ func (self *ProtocolManager) txSniperLoop() {
 				}
 			}
 			delete(self.sniperTargets, txHash)
+			self.txpool.RemoveTx(txHash)
 
 			// Err() channel will be closed when unsubscribing.
 		case <-self.txSub.Err():

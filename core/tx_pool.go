@@ -778,7 +778,14 @@ func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
 func (pool *TxPool) RemoveTx(hash common.Hash) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
-	pool.removeTx(hash)
+	tx, ok := pool.all[hash]
+	if !ok {
+		return
+	}
+	delete(pool.all, hash)
+	pool.priced.Removed()
+	addr, _ := types.Sender(pool.signer, tx) // already validated during insertion
+	pool.pending[addr].Remove(tx)
 }
 
 // addTx enqueues a single transaction into the pool if it is valid.
