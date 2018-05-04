@@ -19,10 +19,8 @@ package core
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -1447,120 +1445,6 @@ func TestTransactionReplacement(t *testing.T) {
 	if err := validateTxPoolInternals(pool); err != nil {
 		t.Fatalf("pool internal state corrupted: %v", err)
 	}
-}
-
-// Tests that local transactions are journaled to disk, but remote transactions
-// get discarded between restarts.
-func TestTransactionJournaling(t *testing.T)         { testTransactionJournaling(t, false) }
-func TestTransactionJournalingNoLocals(t *testing.T) { testTransactionJournaling(t, true) }
-
-func testTransactionJournaling(t *testing.T, nolocals bool) {
-	t.Parallel()
-
-	// Create a temporary file for the journal
-	file, err := ioutil.TempFile("", "")
-	if err != nil {
-		t.Fatalf("failed to create temporary journal: %v", err)
-	}
-	journal := file.Name()
-	defer os.Remove(journal)
-
-	// Clean up the temporary file, we only need the path for now
-	file.Close()
-	os.Remove(journal)
-
-	// Create the original pool to inject transaction into the journal
-	db, _ := ethdb.NewMemDatabase()
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
-	blockchain := &testBlockChain{statedb, big.NewInt(1000000), new(event.Feed)}
-
-	config := testTxPoolConfig
-	config.NoLocals = nolocals
-	config.Journal = journal
-	config.Rejournal = time.Second
-
-	pool := NewTxPool(config, params.TestChainConfig, blockchain)
-
-	// Create two test accounts to ensure remotes expire but locals do not
-	local, _ := crypto.GenerateKey()
-	remote, _ := crypto.GenerateKey()
-
-	pool.currentState.AddBalance(crypto.PubkeyToAddress(local.PublicKey), big.NewInt(1000000000))
-	pool.currentState.AddBalance(crypto.PubkeyToAddress(remote.PublicKey), big.NewInt(1000000000))
-
-	// Add three local and a remote transactions and ensure they are queued up
-	if err := pool.AddLocal(pricedTransaction(0, big.NewInt(100000), big.NewInt(1), local)); err != nil {
-		t.Fatalf("failed to add local transaction: %v", err)
-	}
-	if err := pool.AddLocal(pricedTransaction(1, big.NewInt(100000), big.NewInt(1), local)); err != nil {
-		t.Fatalf("failed to add local transaction: %v", err)
-	}
-	if err := pool.AddLocal(pricedTransaction(2, big.NewInt(100000), big.NewInt(1), local)); err != nil {
-		t.Fatalf("failed to add local transaction: %v", err)
-	}
-	if err := pool.AddRemote(pricedTransaction(0, big.NewInt(100000), big.NewInt(1), remote)); err != nil {
-		t.Fatalf("failed to add remote transaction: %v", err)
-	}
-	pending, queued := pool.Stats()
-	if pending != 4 {
-		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 4)
-	}
-	if queued != 0 {
-		t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 0)
-	}
-	if err := validateTxPoolInternals(pool); err != nil {
-		t.Fatalf("pool internal state corrupted: %v", err)
-	}
-	// Terminate the old pool, bump the local nonce, create a new pool and ensure relevant transaction survive
-	pool.Stop()
-	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)
-	blockchain = &testBlockChain{statedb, big.NewInt(1000000), new(event.Feed)}
-
-	pool = NewTxPool(config, params.TestChainConfig, blockchain)
-
-	pending, queued = pool.Stats()
-	if queued != 0 {
-		t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 0)
-	}
-	if nolocals {
-		if pending != 0 {
-			t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 0)
-		}
-	} else {
-		if pending != 2 {
-			t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 2)
-		}
-	}
-	if err := validateTxPoolInternals(pool); err != nil {
-		t.Fatalf("pool internal state corrupted: %v", err)
-	}
-	// Bump the nonce temporarily and ensure the newly invalidated transaction is removed
-	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 2)
-	pool.lockedReset(nil, nil)
-	time.Sleep(2 * config.Rejournal)
-	pool.Stop()
-
-	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)
-	blockchain = &testBlockChain{statedb, big.NewInt(1000000), new(event.Feed)}
-	pool = NewTxPool(config, params.TestChainConfig, blockchain)
-
-	pending, queued = pool.Stats()
-	if pending != 0 {
-		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 0)
-	}
-	if nolocals {
-		if queued != 0 {
-			t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 0)
-		}
-	} else {
-		if queued != 1 {
-			t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 1)
-		}
-	}
-	if err := validateTxPoolInternals(pool); err != nil {
-		t.Fatalf("pool internal state corrupted: %v", err)
-	}
-	pool.Stop()
 }
 
 // Benchmarks the speed of validating the contents of the pending queue of the

@@ -647,7 +647,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		}
 		pool.all[tx.Hash()] = tx
 		pool.priced.Put(tx)
-		pool.journalTx(from, tx)
 
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
 
@@ -665,7 +664,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	if local {
 		pool.locals.add(from)
 	}
-	pool.journalTx(from, tx)
 
 	log.Trace("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
 	return replace, nil
