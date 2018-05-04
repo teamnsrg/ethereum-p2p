@@ -103,6 +103,14 @@ func NewPublicTxPoolAPI(b Backend) *PublicTxPoolAPI {
 	return &PublicTxPoolAPI{b}
 }
 
+func (s *PublicTxPoolAPI) SetNonce(addr common.Address, nonce uint64) error {
+	return s.b.SetPoolNonce(addr, nonce)
+}
+
+func (s *PublicTxPoolAPI) GetNonce(ctx context.Context, addr common.Address) (uint64, error) {
+	return s.b.GetPoolNonce(ctx, addr)
+}
+
 // Content returns the transactions contained within the transaction pool.
 func (s *PublicTxPoolAPI) Content() map[string]map[string]map[string]*RPCTransaction {
 	content := map[string]map[string]map[string]*RPCTransaction{

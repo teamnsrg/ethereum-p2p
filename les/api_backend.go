@@ -113,6 +113,10 @@ func (b *LesApiBackend) GetPoolTransaction(txHash common.Hash) *types.Transactio
 	return b.eth.txPool.GetTransaction(txHash)
 }
 
+func (b *LesApiBackend) SetPoolNonce(addr common.Address, nonce uint64) error {
+	return nil
+}
+
 func (b *LesApiBackend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) {
 	return b.eth.txPool.GetNonce(ctx, addr)
 }

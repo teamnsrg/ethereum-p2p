@@ -648,7 +648,20 @@ web3._extend({
 const TxPool_JS = `
 web3._extend({
 	property: 'txpool',
-	methods: [],
+	methods: [
+		new web3._extend.Method({
+			name: 'setNonce',
+			call: 'txpool_setNonce',
+			params: 2,
+			inputFormatter: [web3._extend.formatters.inputAddressFormatter, null]
+		}),
+		new web3._extend.Method({
+			name: 'getNonce',
+			call: 'txpool_getNonce',
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputAddressFormatter]
+		}),
+	],
 	properties:
 	[
 		new web3._extend.Property({
