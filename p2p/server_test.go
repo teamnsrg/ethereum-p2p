@@ -41,9 +41,9 @@ type testTransport struct {
 	closeErr error
 }
 
-func newTestTransport(id discover.NodeID, fd net.Conn) transport {
-	wrapped := newRLPX(fd).(*rlpx)
-	wrapped.rw = newRLPXFrameRW(fd, secrets{
+func newTestTransport(id discover.NodeID, fd net.Conn, tc *tcpConn) transport {
+	wrapped := newRLPX(fd, tc).(*rlpx)
+	wrapped.rw = newRLPXFrameRW(fd, tc, secrets{
 		MAC:        zero16,
 		AES:        zero16,
 		IngressMAC: sha3.NewKeccak256(),
@@ -79,7 +79,7 @@ func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	server := &Server{
 		Config:       config,
 		newPeerHook:  pf,
-		newTransport: func(fd net.Conn) transport { return newTestTransport(id, fd) },
+		newTransport: func(fd net.Conn, tc *tcpConn) transport { return newTestTransport(id, fd, tc) },
 	}
 	if err := server.Start(); err != nil {
 		t.Fatalf("Could not start server: %v", err)
@@ -278,7 +278,7 @@ func TestServerSetupConn(t *testing.T) {
 				MaxPeers:   10,
 				Protocols:  []Protocol{discard},
 			},
-			newTransport: func(fd net.Conn) transport { return test.tt },
+			newTransport: func(fd net.Conn, tc *tcpConn) transport { return test.tt },
 		}
 		if !test.dontstart {
 			if err := srv.Start(); err != nil {
@@ -308,6 +308,15 @@ type setupTransport struct {
 	closeErr error
 }
 
+func (c *setupTransport) MssRx() uint32 {
+	return 0
+}
+func (c *setupTransport) MssTx() uint32 {
+	return 0
+}
+func (c *setupTransport) Rtt() float64 {
+	return 0.0
+}
 func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr

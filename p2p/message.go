@@ -43,9 +43,10 @@ import (
 type Msg struct {
 	Code         uint64
 	Size         uint32 // size of the paylod
+	EncodedSize  uint32
 	Payload      io.Reader
 	ReceivedAt   time.Time
-	PeerRtt      float64
+	Rtt          float64
 	PeerDuration float64
 }
 
@@ -103,7 +104,7 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx 
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
-	log.MessageTx(currentTime, ">>"+msgType, size, connInfoCtx, err)
+	log.MessageTx(currentTime, ">>"+msgType, uint32(size), uint32(size), connInfoCtx, err)
 	return err
 }
 
@@ -120,7 +121,7 @@ func Send(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...interfac
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
-	log.MessageTx(currentTime, ">>"+msgType, size, connInfoCtx, err)
+	log.MessageTx(currentTime, ">>"+msgType, uint32(size), uint32(size), connInfoCtx, err)
 	return err
 }
 
