@@ -478,14 +478,14 @@ type protoRW struct {
 	w      MsgWriter
 }
 
-func (rw *protoRW) WriteMsg(msg Msg) (err error) {
+func (rw *protoRW) WriteMsg(msg Msg) (total uint32, err error) {
 	if msg.Code >= rw.Length {
-		return newPeerError(errInvalidMsgCode, "not handled")
+		return total, newPeerError(errInvalidMsgCode, "not handled")
 	}
 	msg.Code += rw.offset
 	select {
 	case <-rw.wstart:
-		err = rw.w.WriteMsg(msg)
+		total, err = rw.w.WriteMsg(msg)
 		// Report write status back to Peer.run. It will initiate
 		// shutdown if the error is non-nil and unblock the next write
 		// otherwise. The calling protocol code should exit for errors
@@ -494,7 +494,7 @@ func (rw *protoRW) WriteMsg(msg Msg) (err error) {
 	case <-rw.closed:
 		err = fmt.Errorf("shutting down")
 	}
-	return err
+	return total, err
 }
 
 func (rw *protoRW) ReadMsg() (Msg, error) {
