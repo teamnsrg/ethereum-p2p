@@ -82,7 +82,7 @@ type MsgWriter interface {
 	//
 	// Note that messages can be sent only once because their
 	// payload reader is drained.
-	WriteMsg(Msg) error
+	WriteMsg(Msg) (uint32, error)
 }
 
 // MsgReadWriter provides reading and writing of encoded messages.
@@ -99,12 +99,12 @@ func SendEthSubproto(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx 
 		return err
 	}
 	currentTime := time.Now()
-	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	encodedSize, err := w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 	msgType, ok := ethCodeToString[msgcode]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
-	log.MessageTx(currentTime, ">>"+msgType, uint32(size), uint32(size), connInfoCtx, err)
+	log.MessageTx(currentTime, ">>"+msgType, uint32(size), encodedSize, connInfoCtx, err)
 	return err
 }
 
@@ -116,12 +116,12 @@ func Send(w MsgWriter, msgcode uint64, data interface{}, connInfoCtx ...interfac
 		return err
 	}
 	currentTime := time.Now()
-	err = w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
+	encodedSize, err := w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 	msgType, ok := devp2pCodeToString[msgcode]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msgcode)
 	}
-	log.MessageTx(currentTime, ">>"+msgType, uint32(size), uint32(size), connInfoCtx, err)
+	log.MessageTx(currentTime, ">>"+msgType, uint32(size), encodedSize, connInfoCtx, err)
 	return err
 }
 
@@ -155,7 +155,7 @@ func (rw *netWrapper) ReadMsg() (Msg, error) {
 	return rw.wrapped.ReadMsg()
 }
 
-func (rw *netWrapper) WriteMsg(msg Msg) error {
+func (rw *netWrapper) WriteMsg(msg Msg) (uint32, error) {
 	rw.wmu.Lock()
 	defer rw.wmu.Unlock()
 	rw.conn.SetWriteDeadline(time.Now().Add(rw.wtimeout))
@@ -223,7 +223,7 @@ type MsgPipeRW struct {
 
 // WriteMsg sends a messsage on the pipe.
 // It blocks until the receiver has consumed the message payload.
-func (p *MsgPipeRW) WriteMsg(msg Msg) error {
+func (p *MsgPipeRW) WriteMsg(msg Msg) (total uint32, err error) {
 	if atomic.LoadInt32(p.closed) == 0 {
 		consumed := make(chan struct{}, 1)
 		msg.Payload = &eofSignal{msg.Payload, msg.Size, consumed}
@@ -236,11 +236,11 @@ func (p *MsgPipeRW) WriteMsg(msg Msg) error {
 				case <-p.closing:
 				}
 			}
-			return nil
+			return total, nil
 		case <-p.closing:
 		}
 	}
-	return ErrPipeClosed
+	return total, ErrPipeClosed
 }
 
 // ReadMsg returns a message sent on the other end of the pipe.
@@ -340,10 +340,10 @@ func (self *msgEventer) ReadMsg() (Msg, error) {
 
 // WriteMsg writes a message to the underlying MsgReadWriter and emits a
 // "message sent" event
-func (self *msgEventer) WriteMsg(msg Msg) error {
-	err := self.MsgReadWriter.WriteMsg(msg)
+func (self *msgEventer) WriteMsg(msg Msg) (uint32, error) {
+	total, err := self.MsgReadWriter.WriteMsg(msg)
 	if err != nil {
-		return err
+		return total, err
 	}
 	self.feed.Send(&PeerEvent{
 		Type:     PeerEventTypeMsgSend,
@@ -352,7 +352,7 @@ func (self *msgEventer) WriteMsg(msg Msg) error {
 		MsgCode:  &msg.Code,
 		MsgSize:  &msg.Size,
 	})
-	return nil
+	return total, nil
 }
 
 // Close closes the underlying MsgReadWriter if it implements the io.Closer
