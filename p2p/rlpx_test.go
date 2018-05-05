@@ -87,7 +87,7 @@ func testEncHandshake(token []byte) error {
 		prv0, _  = crypto.GenerateKey()
 		prv1, _  = crypto.GenerateKey()
 		fd0, fd1 = net.Pipe()
-		c0, c1   = newRLPX(fd0).(*rlpx), newRLPX(fd1).(*rlpx)
+		c0, c1   = newRLPX(fd0, newTCPConn(fd0)).(*rlpx), newRLPX(fd1, newTCPConn(fd1)).(*rlpx)
 		output   = make(chan result)
 	)
 
@@ -164,7 +164,7 @@ func TestProtocolHandshake(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		defer fd1.Close()
-		rlpx := newRLPX(fd0)
+		rlpx := newRLPX(fd0, newTCPConn(fd0))
 		remid, err := rlpx.doEncHandshake(prv0, node1)
 		if err != nil {
 			t.Errorf("dial side enc handshake failed: %v", err)
@@ -190,7 +190,7 @@ func TestProtocolHandshake(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		defer fd1.Close()
-		rlpx := newRLPX(fd1)
+		rlpx := newRLPX(fd1, newTCPConn(fd1))
 		remid, err := rlpx.doEncHandshake(prv1, nil)
 		if err != nil {
 			t.Errorf("listen side enc handshake failed: %v", err)
@@ -266,7 +266,7 @@ func TestProtocolHandshakeErrors(t *testing.T) {
 func TestRLPXFrameFake(t *testing.T) {
 	buf := new(bytes.Buffer)
 	hash := fakeHash([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})
-	rw := newRLPXFrameRW(buf, secrets{
+	rw := newRLPXFrameRW(buf, &tcpConn{}, secrets{
 		AES:        crypto.Keccak256(),
 		MAC:        crypto.Keccak256(),
 		IngressMAC: hash,
@@ -337,7 +337,7 @@ func TestRLPXFrameRW(t *testing.T) {
 	}
 	s1.EgressMAC.Write(egressMACinit)
 	s1.IngressMAC.Write(ingressMACinit)
-	rw1 := newRLPXFrameRW(conn, s1)
+	rw1 := newRLPXFrameRW(conn, &tcpConn{}, s1)
 
 	s2 := secrets{
 		AES:        aesSecret,
@@ -347,7 +347,7 @@ func TestRLPXFrameRW(t *testing.T) {
 	}
 	s2.EgressMAC.Write(ingressMACinit)
 	s2.IngressMAC.Write(egressMACinit)
-	rw2 := newRLPXFrameRW(conn, s2)
+	rw2 := newRLPXFrameRW(conn, &tcpConn{}, s2)
 
 	// send some messages
 	for i := 0; i < 10; i++ {

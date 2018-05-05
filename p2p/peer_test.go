@@ -45,8 +45,10 @@ var discard = Protocol{
 
 func testPeer(protos []Protocol) (func(), *conn, *Peer, <-chan error) {
 	fd1, fd2 := net.Pipe()
-	c1 := &conn{fd: fd1, transport: newTestTransport(randomID(), fd1)}
-	c2 := &conn{fd: fd2, transport: newTestTransport(randomID(), fd2)}
+	tc1 := newTCPConn(fd1)
+	tc2 := newTCPConn(fd2)
+	c1 := &conn{fd: fd1, tc: tc1, transport: newTestTransport(randomID(), fd1, tc1)}
+	c2 := &conn{fd: fd2, tc: tc2, transport: newTestTransport(randomID(), fd2, tc2)}
 	for _, p := range protos {
 		c1.caps = append(c1.caps, p.cap())
 		c2.caps = append(c2.caps, p.cap())

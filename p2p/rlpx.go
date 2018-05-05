@@ -32,7 +32,6 @@ import (
 	"io/ioutil"
 	mrand "math/rand"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 
@@ -80,18 +79,15 @@ var errPlainMessageTooLarge = errors.New("message length >= 16MB")
 // It wraps the frame encoder with locks and read/write deadlines.
 type rlpx struct {
 	fd net.Conn
+	tc *tcpConn
 
 	rmu, wmu sync.Mutex
 	rw       *rlpxFrameRW
 }
 
-func newRLPX(fd net.Conn) transport {
+func newRLPX(fd net.Conn, tc *tcpConn) transport {
 	fd.SetDeadline(time.Now().Add(handshakeTimeout))
-	return &rlpx{fd: fd}
-}
-
-func (t *rlpx) Rtt() float64 {
-	return t.rw.rtt
+	return &rlpx{fd: fd, tc: tc}
 }
 
 func (t *rlpx) ReadMsg() (Msg, error) {
@@ -101,7 +97,7 @@ func (t *rlpx) ReadMsg() (Msg, error) {
 	return t.rw.ReadMsg()
 }
 
-func (t *rlpx) WriteMsg(msg Msg) error {
+func (t *rlpx) WriteMsg(msg Msg) (uint32, error) {
 	t.wmu.Lock()
 	defer t.wmu.Unlock()
 	t.fd.SetWriteDeadline(time.Now().Add(frameWriteTimeout))
@@ -153,6 +149,10 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...int
 	if msg.Size > baseProtocolMaxMsgSize {
 		return nil, fmt.Errorf("message too big")
 	}
+	connInfoCtx = append(connInfoCtx,
+		"srtt", msg.Srtt,
+		"duration", msg.PeerDuration,
+	)
 	msgType, ok := devp2pCodeToString[msg.Code]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
@@ -164,20 +164,20 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...int
 		// back otherwise. Wrap it in a string instead.
 		var reason [1]DiscReason
 		err := rlp.Decode(msg.Payload, &reason)
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 		return nil, reason[0]
 	}
 	if msg.Code != handshakeMsg {
-		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		return nil, fmt.Errorf("expected handshake, got %x", msg.Code)
 	}
 	var hs protoHandshake
 	if err := msg.Decode(&hs); err != nil {
-		log.MessageRx(msg.ReceivedAt, "<<FAIL_"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<FAIL_"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		return nil, err
 	}
 
-	log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+	log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 
 	if (hs.ID == discover.NodeID{}) {
 		return nil, DiscInvalidIdentity
@@ -199,7 +199,7 @@ func (t *rlpx) doEncHandshake(prv *ecdsa.PrivateKey, dial *discover.Node) (disco
 		return discover.NodeID{}, err
 	}
 	t.wmu.Lock()
-	t.rw = newRLPXFrameRW(t.fd, sec)
+	t.rw = newRLPXFrameRW(t.fd, t.tc, sec)
 	t.wmu.Unlock()
 	return sec.RemoteID, nil
 }
@@ -575,6 +575,7 @@ var (
 // rlpxFrameRW is not safe for concurrent use from multiple goroutines.
 type rlpxFrameRW struct {
 	conn io.ReadWriter
+	tc   *tcpConn
 	enc  cipher.Stream
 	dec  cipher.Stream
 
@@ -582,12 +583,10 @@ type rlpxFrameRW struct {
 	egressMAC  hash.Hash
 	ingressMAC hash.Hash
 
-	rtt float64 // most recent rtt recorded when receiving messages
-
 	snappy bool
 }
 
-func newRLPXFrameRW(conn io.ReadWriter, s secrets) *rlpxFrameRW {
+func newRLPXFrameRW(conn io.ReadWriter, tc *tcpConn, s secrets) *rlpxFrameRW {
 	macc, err := aes.NewCipher(s.MAC)
 	if err != nil {
 		panic("invalid MAC secret: " + err.Error())
@@ -601,6 +600,7 @@ func newRLPXFrameRW(conn io.ReadWriter, s secrets) *rlpxFrameRW {
 	iv := make([]byte, encc.BlockSize())
 	return &rlpxFrameRW{
 		conn:       conn,
+		tc:         tc,
 		enc:        cipher.NewCTR(encc, iv),
 		dec:        cipher.NewCTR(encc, iv),
 		macCipher:  macc,
@@ -609,13 +609,14 @@ func newRLPXFrameRW(conn io.ReadWriter, s secrets) *rlpxFrameRW {
 	}
 }
 
-func (rw *rlpxFrameRW) WriteMsg(msg Msg) error {
+func (rw *rlpxFrameRW) WriteMsg(msg Msg) (uint32, error) {
+	var total uint32
 	ptype, _ := rlp.EncodeToBytes(msg.Code)
 
 	// if snappy is enabled, compress message now
 	if rw.snappy {
 		if msg.Size > maxUint24 {
-			return errPlainMessageTooLarge
+			return total, errPlainMessageTooLarge
 		}
 		payload, _ := ioutil.ReadAll(msg.Payload)
 		payload = snappy.Encode(nil, payload)
@@ -627,7 +628,7 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) error {
 	headbuf := make([]byte, 32)
 	fsize := uint32(len(ptype)) + msg.Size
 	if fsize > maxUint24 {
-		return errors.New("message size overflows uint24")
+		return total, errors.New("message size overflows uint24")
 	}
 	putInt24(fsize, headbuf) // TODO: check overflow
 	copy(headbuf[3:], zeroHeader)
@@ -636,22 +637,26 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) error {
 	// write header MAC
 	copy(headbuf[16:], updateMAC(rw.egressMAC, rw.macCipher, headbuf[:16]))
 	if _, err := rw.conn.Write(headbuf); err != nil {
-		return err
+		return total, err
 	}
+	total += uint32(len(headbuf))
 
 	// write encrypted frame, updating the egress MAC hash with
 	// the data written to conn.
 	tee := cipher.StreamWriter{S: rw.enc, W: io.MultiWriter(rw.conn, rw.egressMAC)}
 	if _, err := tee.Write(ptype); err != nil {
-		return err
+		return total, err
 	}
+	total += uint32(len(ptype))
 	if _, err := io.Copy(tee, msg.Payload); err != nil {
-		return err
+		return total, err
 	}
+	total += msg.Size
 	if padding := fsize % 16; padding > 0 {
 		if _, err := tee.Write(zero16[:16-padding]); err != nil {
-			return err
+			return total, err
 		}
+		total += uint32(len(zero16[:16-padding]))
 	}
 
 	// write frame MAC. egress MAC hash is up to date because
@@ -659,7 +664,12 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) error {
 	fmacseed := rw.egressMAC.Sum(nil)
 	mac := updateMAC(rw.egressMAC, rw.macCipher, fmacseed)
 	_, err := rw.conn.Write(mac)
-	return err
+	total += uint32(len(mac))
+	rw.tc.updateRtt(rw.tc.getTCPInfo())
+	rw.tc.updateSrtt(rw.tc.getTCPInfo())
+	msg.Rtt = rw.tc.rtt
+	msg.Srtt = rw.tc.srtt
+	return total, err
 }
 
 func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
@@ -709,12 +719,6 @@ func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
 	msg.Size = uint32(content.Len())
 	msg.Payload = content
 
-	msg.ReceivedAt = time.Now()
-	// get the most recent rtt and duration of the peer
-	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		msg.PeerRtt = rw.Rtt()
-	}
-
 	// if snappy is enabled, verify and decompress message
 	if rw.snappy {
 		payload, err := ioutil.ReadAll(msg.Payload)
@@ -734,6 +738,13 @@ func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
 		}
 		msg.Size, msg.Payload = uint32(size), bytes.NewReader(payload)
 	}
+
+	msg.ReceivedAt = time.Now()
+	rw.tc.updateRtt(rw.tc.getTCPInfo())
+	rw.tc.updateSrtt(rw.tc.getTCPInfo())
+	msg.Rtt = rw.tc.rtt
+	msg.Srtt = rw.tc.srtt
+	msg.EncodedSize = 32 + rsize + 16
 	return msg, nil
 }
 
