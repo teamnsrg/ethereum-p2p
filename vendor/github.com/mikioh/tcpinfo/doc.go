@@ -15,32 +15,6 @@
 // Shared Use of Experimental TCP Options is defined in RFC 6994.
 // TCP Extensions for High Performance is defined in RFC 7323.
 //
-// Example:
-//
-//	import (
-//		"github.com/mikioh/tcp"
-//		"github.com/mikioh/tcpinfo"
-//	)
-//
-//	c, err := net.Dial("tcp", "golang.org:80")
-//	if err != nil {
-//		// error handling
-//	}
-//	defer c.Close()
-//
-//	tc, err := tcp.NewConn(c)
-//	if err != nil {
-//		// error handling
-//	}
-//	var o tcpinfo.Info
-//	var b [256]byte
-//	i, err := tc.Option(o.Level(), o.Name(), b[:])
-//	if err != nil {
-//		// error handling
-//	}
-//	txt, err := json.Marshal(i)
-//	if err != nil {
-//		// error handling
-//	}
-//	fmt.Println(txt)
+// NOTE: Older Linux kernels may not support extended TCP statistics
+// described in RFC 4898.
 package tcpinfo

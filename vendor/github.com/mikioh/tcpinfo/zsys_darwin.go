@@ -1,14 +1,23 @@
 // Created by cgo -godefs - DO NOT EDIT
-// cgo -godefs tcpinfo/defs_darwin.go
+// cgo -godefs defs_darwin.go
 
 package tcpinfo
 
 const (
-	TCP_CONNECTION_INFO     = 0x106
-	SizeofTCPConnectionInfo = 0x70
+	sysTCP_CONNECTION_INFO = 0x106
+
+	sysTCPCI_OPT_TIMESTAMPS = 0x1
+	sysTCPCI_OPT_SACK       = 0x2
+	sysTCPCI_OPT_WSCALE     = 0x4
+	sysTCPCI_OPT_ECN        = 0x8
+
+	SysFlagLossRecovery       SysFlags = 0x1
+	SysFlagReorderingDetected SysFlags = 0x2
+
+	sizeofTCPConnectionInfo = 0x70
 )
 
-type TCPConnectionInfo struct {
+type tcpConnectionInfo struct {
 	State               uint8
 	Snd_wscale          uint8
 	Rcv_wscale          uint8

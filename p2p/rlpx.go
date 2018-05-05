@@ -32,7 +32,6 @@ import (
 	"io/ioutil"
 	mrand "math/rand"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 
@@ -80,35 +79,15 @@ var errPlainMessageTooLarge = errors.New("message length >= 16MB")
 // It wraps the frame encoder with locks and read/write deadlines.
 type rlpx struct {
 	fd net.Conn
+	tc *tcpConn
 
 	rmu, wmu sync.Mutex
 	rw       *rlpxFrameRW
 }
 
-func newRLPX(fd net.Conn) transport {
+func newRLPX(fd net.Conn, tc *tcpConn) transport {
 	fd.SetDeadline(time.Now().Add(handshakeTimeout))
-	return &rlpx{fd: fd}
-}
-
-func (t *rlpx) MssRx() uint32 {
-	if t.rw == nil {
-		return 0
-	}
-	return t.rw.MssRx()
-}
-
-func (t *rlpx) MssTx() uint32 {
-	if t.rw == nil {
-		return 0
-	}
-	return t.rw.MssTx()
-}
-
-func (t *rlpx) Rtt() float64 {
-	if t.rw == nil {
-		return 0.0
-	}
-	return t.rw.rtt
+	return &rlpx{fd: fd, tc: tc}
 }
 
 func (t *rlpx) ReadMsg() (Msg, error) {
@@ -220,7 +199,7 @@ func (t *rlpx) doEncHandshake(prv *ecdsa.PrivateKey, dial *discover.Node) (disco
 		return discover.NodeID{}, err
 	}
 	t.wmu.Lock()
-	t.rw = newRLPXFrameRW(t.fd, sec)
+	t.rw = newRLPXFrameRW(t.fd, t.tc, sec)
 	t.wmu.Unlock()
 	return sec.RemoteID, nil
 }
@@ -596,6 +575,7 @@ var (
 // rlpxFrameRW is not safe for concurrent use from multiple goroutines.
 type rlpxFrameRW struct {
 	conn io.ReadWriter
+	tc   *tcpConn
 	enc  cipher.Stream
 	dec  cipher.Stream
 
@@ -603,12 +583,10 @@ type rlpxFrameRW struct {
 	egressMAC  hash.Hash
 	ingressMAC hash.Hash
 
-	rtt float64 // most recent rtt recorded when receiving messages
-
 	snappy bool
 }
 
-func newRLPXFrameRW(conn io.ReadWriter, s secrets) *rlpxFrameRW {
+func newRLPXFrameRW(conn io.ReadWriter, tc *tcpConn, s secrets) *rlpxFrameRW {
 	macc, err := aes.NewCipher(s.MAC)
 	if err != nil {
 		panic("invalid MAC secret: " + err.Error())
@@ -622,6 +600,7 @@ func newRLPXFrameRW(conn io.ReadWriter, s secrets) *rlpxFrameRW {
 	iv := make([]byte, encc.BlockSize())
 	return &rlpxFrameRW{
 		conn:       conn,
+		tc:         tc,
 		enc:        cipher.NewCTR(encc, iv),
 		dec:        cipher.NewCTR(encc, iv),
 		macCipher:  macc,
@@ -731,10 +710,8 @@ func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
 	msg.Payload = content
 
 	msg.ReceivedAt = time.Now()
-	// get the most recent rtt
-	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		msg.Rtt = rw.Rtt()
-	}
+	rw.tc.updateRtt(rw.tc.getTCPInfo())
+	msg.Rtt = rw.tc.rtt
 
 	// if snappy is enabled, verify and decompress message
 	if rw.snappy {

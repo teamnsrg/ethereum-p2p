@@ -1,14 +1,11 @@
 // Created by cgo -godefs - DO NOT EDIT
-// cgo -godefs tcpinfo/defs_linux.go
+// go tool cgo -godefs defs_linux.go
+// it was edited to remove duplicated code. Also removed last field (tcpi_last_new_data_recv)
+// because we do not use it and getsockopt does not fill it anyway
 
 package tcpinfo
 
-const (
-	TCP_INFO      = 0xb
-	SizeofTCPInfo = 0x90
-)
-
-type TCPInfo struct {
+type tcpInfo3_19 struct {
 	State           uint8
 	Ca_state        uint8
 	Retransmits     uint8
@@ -42,8 +39,4 @@ type TCPInfo struct {
 	Total_retrans   uint32
 	Pacing_rate     uint64
 	Max_pacing_rate uint64
-	Bytes_acked     uint64
-	Bytes_received  uint64
-	Segs_out        uint32
-	Segs_in         uint32
 }

@@ -230,6 +230,24 @@
 			"revisionTime": "2017-02-01T02:35:40Z"
 		},
 		{
+			"checksumSHA1": "ivtw8g85QHSNcSMfrBo7W/+Jxuk=",
+			"path": "github.com/mikioh/tcp",
+			"revision": "a2964c74d73b11ff68e6c9bfabb496cfe29a9a60",
+			"revisionTime": "2018-03-12T23:28:10Z"
+		},
+		{
+			"checksumSHA1": "A8zHFqov7rdzEf/U7GZ0sxyuR6o=",
+			"path": "github.com/mikioh/tcpinfo",
+			"revision": "fd8b9a80d71e11a9ffcf963e3548d336c8b39e1d",
+			"revisionTime": "2018-02-10T23:49:01Z"
+		},
+		{
+			"checksumSHA1": "CckjL74KJmJeLPVVm7BKDf8pSYk=",
+			"path": "github.com/mikioh/tcpopt",
+			"revision": "18f4a8218095cbd44df0d49c3dd91e7f2a3b12e0",
+			"revisionTime": "2018-02-10T23:37:10Z"
+		},
+		{
 			"checksumSHA1": "L3leymg2RT8hFl5uL+5KP/LpBkg=",
 			"path": "github.com/mitchellh/go-wordwrap",
 			"revision": "ad45545899c7b13c020ea92b2072220eefad42b8",
@@ -726,6 +744,10 @@
 			"path": "gopkg.in/urfave/cli.v1",
 			"revision": "cfb38830724cc34fedffe9a2a29fb54fa9169cd1",
 			"revisionTime": "2017-08-11T01:42:03Z"
+		},
+		{
+			"path": "https://github.com/mikioh/tcpinfo",
+			"revision": ""
 		}
 	],
 	"rootPath": "github.com/teamnsrg/go-ethereum"

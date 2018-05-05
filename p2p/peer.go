@@ -145,12 +145,8 @@ type Peer struct {
 // NewPeer returns a peer for testing purposes.
 func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
-	conn := &conn{fd: pipe, transport: nil, id: id, caps: caps, name: name}
-	conn.connInfoCtx = []interface{}{
-		"id", conn.id.String(),
-		"addr", conn.fd.RemoteAddr().String(),
-		"conn", conn.flags.String(),
-	}
+	conn := &conn{fd: pipe, tc: newTCPConn(pipe), transport: nil, id: id, caps: caps, name: name}
+	conn.connInfoCtx = []interface{}{}
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
@@ -177,25 +173,16 @@ func (p *Peer) Caps() []Cap {
 	return p.rw.caps
 }
 
-func (p *Peer) MssRx() uint32 {
-	if p.rw.transport == nil {
-		return 0
-	}
-	return p.rw.MssRx()
+func (p *Peer) ReceiverMss() uint32 {
+	return p.rw.tc.receiverMss
 }
 
-func (p *Peer) MssTx() uint32 {
-	if p.rw.transport == nil {
-		return 0
-	}
-	return p.rw.MssTx()
+func (p *Peer) SenderMss() uint32 {
+	return p.rw.tc.senderMss
 }
 
 func (p *Peer) Rtt() float64 {
-	if p.rw.transport == nil {
-		return 0.0
-	}
-	return p.rw.Rtt()
+	return p.rw.tc.rtt
 }
 
 func (p *Peer) Duration() float64 {
@@ -254,9 +241,17 @@ func (p *Peer) ConnInfoCtx(ctx ...interface{}) []interface{} {
 	return append(p.rw.connInfoCtx, ctx...)
 }
 
-func (p *Peer) TxConnInfoCtx() []interface{} {
+func (p *Peer) ReceiverConnInfoCtx() []interface{} {
 	return p.ConnInfoCtx(
-		"mss", p.MssTx(),
+		"mss", p.ReceiverMss(),
+		"rtt", p.Rtt(),
+		"duration", p.Duration(),
+	)
+}
+
+func (p *Peer) SenderConnInfoCtx() []interface{} {
+	return p.ConnInfoCtx(
+		"mss", p.SenderMss(),
 		"rtt", p.Rtt(),
 		"duration", p.Duration(),
 	)
@@ -318,7 +313,7 @@ loop:
 	}
 
 	close(p.closed)
-	p.rw.close(reason, p.TxConnInfoCtx()...)
+	p.rw.close(reason, p.SenderConnInfoCtx()...)
 	p.wg.Wait()
 	return remoteRequested, err
 }
@@ -330,7 +325,7 @@ func (p *Peer) pingLoop() {
 	for {
 		select {
 		case <-ping.C:
-			if err := SendItems(p.rw, pingMsg, p.TxConnInfoCtx()); err != nil {
+			if err := SendItems(p.rw, pingMsg, p.SenderConnInfoCtx()); err != nil {
 				p.protoErr <- err
 				return
 			}
@@ -358,11 +353,7 @@ func (p *Peer) readLoop(errc chan<- error) {
 }
 
 func (p *Peer) handle(msg Msg) error {
-	connInfoCtx := p.ConnInfoCtx(
-		"mss", p.MssRx(),
-		"rtt", msg.Rtt,
-		"duration", msg.PeerDuration,
-	)
+	connInfoCtx := p.ReceiverConnInfoCtx()
 	msgType, ok := devp2pCodeToString[msg.Code]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
@@ -520,14 +511,14 @@ func (rw *protoRW) ReadMsg() (Msg, error) {
 // peer. Sub-protocol independent fields are contained and initialized here, with
 // protocol specifics delegated to all connected sub-protocols.
 type PeerInfo struct {
-	ID       string   `json:"id"`   // Unique node identifier (also the encryption key)
-	Name     string   `json:"name"` // Name of the node, including client type, version, OS, custom data
-	Caps     []string `json:"caps"` // Sum-protocols advertised by this particular peer
-	MssTx    uint32   `json:"mssTx"`
-	MssRx    uint32   `json:"mssRx"`
-	Rtt      float64  `json:"rtt"`
-	Duration float64  `json:"duration"`
-	Network  struct {
+	ID          string   `json:"id"`   // Unique node identifier (also the encryption key)
+	Name        string   `json:"name"` // Name of the node, including client type, version, OS, custom data
+	Caps        []string `json:"caps"` // Sum-protocols advertised by this particular peer
+	SenderMss   uint32   `json:"senderMss"`
+	ReceiverMss uint32   `json:"receiverMss"`
+	Rtt         float64  `json:"rtt"`
+	Duration    float64  `json:"duration"`
+	Network     struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
@@ -551,8 +542,8 @@ func (p *Peer) Info() *PeerInfo {
 		Protocols: make(map[string]interface{}),
 	}
 	if p.rw.transport != nil {
-		info.MssTx = p.MssTx()
-		info.MssRx = p.MssRx()
+		info.SenderMss = p.SenderMss()
+		info.ReceiverMss = p.ReceiverMss()
 		info.Rtt = p.Rtt()
 	}
 	info.Network.LocalAddress = p.LocalAddr().String()

@@ -300,11 +300,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
-	connInfoCtx := p.ConnInfoCtx(
-		"mss", p.MssRx(),
-		"rtt", msg.Rtt,
-		"duration", msg.PeerDuration,
-	)
+	connInfoCtx := p.ReceiverConnInfoCtx()
 	msgType, ok := ethCodeToString[msg.Code]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
