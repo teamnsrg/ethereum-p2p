@@ -840,6 +840,7 @@ func (srv *Server) listenLoop() {
 	}
 
 	for {
+		log.Debug(fmt.Sprintf("Remaining handshake tokens: %d", len(slots)))
 		// Wait for a handshake slot before accepting.
 		<-slots
 
