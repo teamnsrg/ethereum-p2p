@@ -52,10 +52,6 @@ func newTestTransport(id discover.NodeID, fd net.Conn, tc *tcpConn) transport {
 	return &testTransport{id: id, rlpx: wrapped}
 }
 
-func (c *testTransport) Rtt() float64 {
-	return 0.0
-}
-
 func (c *testTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	return c.id, nil
 }
@@ -308,15 +304,6 @@ type setupTransport struct {
 	closeErr error
 }
 
-func (c *setupTransport) MssRx() uint32 {
-	return 0
-}
-func (c *setupTransport) MssTx() uint32 {
-	return 0
-}
-func (c *setupTransport) Rtt() float64 {
-	return 0.0
-}
 func (c *setupTransport) doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error) {
 	c.calls += "doEncHandshake,"
 	return c.id, c.encHandshakeErr

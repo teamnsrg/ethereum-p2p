@@ -5,8 +5,8 @@ package p2p
 import "github.com/mikioh/tcpinfo"
 
 // Srtt in seconds
-func (tc *tcpConn) updateRtt(info *tcpinfo.Info) {
+func (tc *tcpConn) updateSrtt(info *tcpinfo.Info) {
 	if info != nil {
-		tc.rtt = float64(info.RTT) / 1e9
+		tc.srtt = float64(info.RTT) / 1e9
 	}
 }
