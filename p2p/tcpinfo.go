@@ -12,6 +12,7 @@ type tcpConn struct {
 
 	receiverMss uint32
 	senderMss   uint32
+	rtt         float64 // recent rtt
 	srtt        float64 // smoothed rtt
 }
 
@@ -41,6 +42,7 @@ func newTCPConn(conn net.Conn) *tcpConn {
 	}
 	tc.receiverMss = uint32(info.ReceiverMSS)
 	tc.senderMss = uint32(info.SenderMSS)
+	tc.updateRtt(info)
 	tc.updateSrtt(info)
 	return tc
 }

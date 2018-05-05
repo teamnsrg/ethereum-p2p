@@ -158,9 +158,10 @@ func (api *PublicAdminAPI) PeerList() (string, error) {
 		connType := info.Conn
 		senderMss := info.SenderMss
 		receiverMss := info.ReceiverMss
+		rtt := info.Rtt
 		srtt := info.Srtt
 		duration := info.Duration
-		p2pInfoStr := fmt.Sprintf("%s|%v|%v|%s|%v|%v|%.6f|%.6f|%v|%v", id, remoteAddr, localAddr, connType, senderMss, receiverMss, srtt, duration, name, caps)
+		p2pInfoStr := fmt.Sprintf("%s|%v|%v|%s|%v|%v|%.6f|%.6f|%.6f|%v|%v", id, remoteAddr, localAddr, connType, senderMss, receiverMss, rtt, srtt, duration, name, caps)
 		var ethInfoStr string
 		if ethInfo := info.Protocols["eth"]; ethInfo != nil {
 			r := reflect.ValueOf(ethInfo)

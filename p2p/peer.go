@@ -181,6 +181,10 @@ func (p *Peer) SenderMss() uint32 {
 	return p.rw.tc.senderMss
 }
 
+func (p *Peer) Rtt() float64 {
+	return p.rw.tc.rtt
+}
+
 func (p *Peer) Srtt() float64 {
 	return p.rw.tc.srtt
 }
@@ -244,6 +248,7 @@ func (p *Peer) ConnInfoCtx(ctx ...interface{}) []interface{} {
 func (p *Peer) ReceiverConnInfoCtx() []interface{} {
 	return p.ConnInfoCtx(
 		"mss", p.ReceiverMss(),
+		"rtt", p.Rtt(),
 		"srtt", p.Srtt(),
 		"duration", p.Duration(),
 	)
@@ -252,6 +257,7 @@ func (p *Peer) ReceiverConnInfoCtx() []interface{} {
 func (p *Peer) SenderConnInfoCtx() []interface{} {
 	return p.ConnInfoCtx(
 		"mss", p.SenderMss(),
+		"rtt", p.Rtt(),
 		"srtt", p.Srtt(),
 		"duration", p.Duration(),
 	)
@@ -516,6 +522,7 @@ type PeerInfo struct {
 	Caps        []string `json:"caps"` // Sum-protocols advertised by this particular peer
 	SenderMss   uint32   `json:"senderMss"`
 	ReceiverMss uint32   `json:"receiverMss"`
+	Rtt         float64  `json:"rtt"`
 	Srtt        float64  `json:"srtt"`
 	Duration    float64  `json:"duration"`
 	Network     struct {
@@ -541,11 +548,10 @@ func (p *Peer) Info() *PeerInfo {
 		Conn:      p.rw.flags.String(),
 		Protocols: make(map[string]interface{}),
 	}
-	if p.rw.transport != nil {
-		info.SenderMss = p.SenderMss()
-		info.ReceiverMss = p.ReceiverMss()
-		info.Srtt = p.Srtt()
-	}
+	info.SenderMss = p.SenderMss()
+	info.ReceiverMss = p.ReceiverMss()
+	info.Rtt = p.Rtt()
+	info.Srtt = p.Srtt()
 	info.Network.LocalAddress = p.LocalAddr().String()
 	info.Network.RemoteAddress = p.RemoteAddr().String()
 
