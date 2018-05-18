@@ -12,73 +12,40 @@ WORKING_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # get env variables
 source .env
 
+DATE=$(date '+%Y%m%d')
 NODEFINDER_NAME="geth-node-finder"
 TRIMMED="${ARCHIVE_DIR}/${NODEFINDER_NAME}/trimmed-logs"
-PROCESSED="${ARCHIVE_DIR}/${NODEFINDER_NAME}/processed-logs"
-[ -d "${PROCESSED}" ] || mkdir -p -m 755 ${PROCESSED}
+PROCESSED="${ARCHIVE_DIR}/${NODEFINDER_NAME}/processed-logs/${DATE}"
+TMP="${PROCESSED}/tmp"
+[ -d "${TMP}" ] || mkdir -p -m 755 ${TMP}
 if cd ${TRIMMED} ; then
-  # get unique nodeids
-  grep 'DEVP2P' peer-*.txt | cut -d'|' -f3 | sort -uV > ${PROCESSED}/devp2p-id.txt
-  grep 'ETHEREUM' peer-*.txt | cut -d'|' -f3 | sort -uV > ${PROCESSED}/ethereum-id.txt
-  grep 'MAINNET' peer-*.txt | cut -d'|' -f3 | sort -uV > ${PROCESSED}/mainnet-id.txt
+  rm ${PROCESSED}/combined-{hello,status,task,daofork}.txt
+  rm ${TMP}/{1..30}-instance-hello-disc-proto.txt
+  for i in `seq 0 29`;
+  do
+    awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' status-${i}.txt >> ${PROCESSED}/combined-status.txt
+    awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"$3"|"substr($0, index($0,$4))}' task-${i}.txt >> ${PROCESSED}/combined-task.txt
+    awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' daofork-${i}.txt >> ${PROCESSED}/combined-daofork.txt
+    awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' hello-${i}.txt > ${TMP}/hello.tmp
+    cat ${TMP}/hello.tmp >> ${PROCESSED}/combined-hello.txt
+    awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' disc-proto-${i}.txt > ${TMP}/disc-proto.tmp
+    cat ${TMP}/disc-proto.tmp >> ${PROCESSED}/combined-disc-proto.txt
+    ii=$(( 30 - i ))
+    for j in `seq ${ii} 30`;
+    do
+      cut -d'|' -f1-8 ${TMP}/{hello,disc-proto}.tmp >> ${TMP}/${j}-instance-hello-disc-proto.txt
+    done
+  done
+  rm ${TMP}/{hello,disc-proto}.tmp
+  grep 'discover' ${PROCESSED}/combined-task.txt > ${PROCESSED}/combined-task-discover.txt &
+  cut -d'|' -f2,3,9 ${PROCESSED}/combined-daofork.txt | sort -t'|' -Vk2,2 -k1nr,1 | sort -t'|' -u -Vk2,2 | cut -d'|' -f2- > ${PROCESSED}/daofork-id-abbr.txt &
 
-  # 1 instance
-  cp hello-0.txt ${PROCESSED}/1-instance-hello.txt
-  cp status-0.txt ${PROCESSED}/1-instance-status.txt
-  cp task-0.txt ${PROCESSED}/1-instance-task.txt
-  cp disc-proto-0.txt ${PROCESSED}/1-instance-disc-proto.txt
-  cut -d'|' -f1-7 {hello,disc-proto}-0.txt | sort -V > ${PROCESSED}/1-instance-hello-disc-proto.txt
-  cd ${WORKING_DIR} && ./process-logs.sh 1 mainnet &
-  cd ${WORKING_DIR} && ./process-logs.sh 1 ethereum &
-  cd ${WORKING_DIR} && ./process-logs.sh 1 &
-  # 10 instances
-  cat hello-{0..9}.txt > 10-instance-hello.tmp
-  sort -V 10-instance-hello.tmp > ${PROCESSED}/10-instance-hello.txt
-  cat status-{0..9}.txt > 10-instance-status.tmp
-  sort -V 10-instance-status.tmp > ${PROCESSED}/10-instance-status.txt
-  cat task-{0..9}.txt > 10-instance-task.tmp
-  sort -V 10-instance-task.tmp > ${PROCESSED}/10-instance-task.txt
-  cat disc-proto-{0..9}.txt > 10-instance-disc-proto.tmp
-  sort -V 10-instance-disc-proto.tmp > ${PROCESSED}/10-instance-disc-proto.txt
-  cut -d'|' -f1-7 10-instance-{hello,disc-proto}.tmp | sort -V > ${PROCESSED}/10-instance-hello-disc-proto.txt
-  mv 10-instance-hello.tmp 20-instance-hello.tmp
-  mv 10-instance-status.tmp 20-instance-status.tmp
-  mv 10-instance-task.tmp 20-instance-task.tmp
-  mv 10-instance-disc-proto.tmp 20-instance-disc-proto.tmp
-  cd ${WORKING_DIR} && ./process-logs.sh 10 mainnet &
-  cd ${WORKING_DIR} && ./process-logs.sh 10 ethereum &
-  cd ${WORKING_DIR} && ./process-logs.sh 10 &
-  # 20 instances
-  cat hello-{10..19}.txt >> 20-instance-hello.tmp
-  sort -V 20-instance-hello.tmp > ${PROCESSED}/20-instance-hello.txt
-  cat status-{10..19}.txt >> 20-instance-status.tmp
-  sort -V 20-instance-status.tmp > ${PROCESSED}/20-instance-status.txt
-  cat task-{10..19}.txt >> 20-instance-task.tmp
-  sort -V 20-instance-task.tmp > ${PROCESSED}/20-instance-task.txt
-  cat disc-proto-{10..19}.txt >> 20-instance-disc-proto.tmp
-  sort -V 20-instance-disc-proto.tmp > ${PROCESSED}/20-instance-disc-proto.txt
-  cut -d'|' -f1-7 20-instance-{hello,disc-proto}.tmp | sort -V > ${PROCESSED}/20-instance-hello-disc-proto.txt
-  mv 20-instance-hello.tmp 30-instance-hello.tmp
-  mv 20-instance-status.tmp 30-instance-status.tmp
-  mv 20-instance-task.tmp 30-instance-task.tmp
-  mv 20-instance-disc-proto.tmp 30-instance-disc-proto.tmp
-  cd ${WORKING_DIR} && ./process-logs.sh 20 mainnet &
-  cd ${WORKING_DIR} && ./process-logs.sh 20 ethereum &
-  cd ${WORKING_DIR} && ./process-logs.sh 20 &
-  # 30 instances
-  cat hello-{20..29}.txt >> 30-instance-hello.tmp
-  sort -V 30-instance-hello.tmp > ${PROCESSED}/30-instance-hello.txt
-  cat status-{20..29}.txt >> 30-instance-status.tmp
-  sort -V 30-instance-status.tmp > ${PROCESSED}/30-instance-status.txt
-  cat task-{20..29}.txt >> 30-instance-task.tmp
-  sort -V 30-instance-task.tmp > ${PROCESSED}/30-instance-task.txt
-  cat disc-proto-{20..29}.txt >> 30-instance-disc-proto.tmp
-  sort -V 30-instance-disc-proto.tmp > ${PROCESSED}/30-instance-disc-proto.txt
-  cut -d'|' -f1-7 30-instance-{hello,disc-proto}.tmp | sort -V > ${PROCESSED}/30-instance-hello-disc-proto.txt
-  rm 30-instance-{hello,status,task,disc-proto}.tmp
-  cd ${WORKING_DIR} && ./process-logs.sh 30 mainnet &
-  cd ${WORKING_DIR} && ./process-logs.sh 30 ethereum &
-  cd ${WORKING_DIR} && ./process-logs.sh 30 &
+  # get unique nodeids
+  cut -d'|' -f3 ${PROCESSED}/combined-hello.txt | sort -u > ${PROCESSED}/devp2p-id-abbr.txt &
+  cut -d'|' -f3 ${PROCESSED}/combined-status.txt | sort -u > ${PROCESSED}/ethereum-id-abbr.txt &
+  grep '|1|[0-9]*|[0-9a-zA-Z]*|d4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3$' ${PROCESSED}/combined-status.txt > ${PROCESSED}/combined-status-mainnet.txt
+  cut -d'|' -f3 ${PROCESSED}/combined-status-mainnet.txt | sort -u > ${PROCESSED}/mainnet-id-abbr.txt
+  grep -Ff ${PROCESSED}/mainnet-id-abbr.txt ${PROCESSED}/combined-hello.txt > ${PROCESSED}/combined-hello-mainnet.txt &
 else
   echo "dir ${TRIMMED} doesn't exist"
 fi

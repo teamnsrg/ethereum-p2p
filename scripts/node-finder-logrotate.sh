@@ -41,6 +41,7 @@ if cd ${LOGDIR} ; then
     mv ${FILENAME} ${FILENAME}-${DATE}Z
   done
   mv * ${NEWLOGDIR}
+  cd ${WORKING_DIR} && ./combine-logs.sh &
 else
   echo "logdir ${LOGDIR} doesn't exist"
 fi

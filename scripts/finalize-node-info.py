@@ -30,6 +30,16 @@ with open(outfile, "w") as out:
             conn = "{}-{}".format(conn1, conn2)
             first = first1 if float(first1) < float(first2) else first2
             last = last1 if float(last1) > float(last2) else last2
+        elif n == 9:
+            nodeid, ip1, conn1, first1, last1, ip2, conn2, first2, last2 = info
+            conn = "{}-{}".format(conn1, conn2)
+            first = first1 if float(first1) < float(first2) else first2
+            if float(last1) > float(last2):
+                last = last1
+                ip = ip1
+            else:
+                last = last2
+                ip = ip2
         else:
             continue
         asn = ASES.lookup(ip)[0]
