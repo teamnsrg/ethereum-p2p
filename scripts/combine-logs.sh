@@ -23,7 +23,7 @@ if cd ${TRIMMED} ; then
   rm ${TMP}/{1..30}-instance-hello-disc-proto.txt
   for i in `seq 0 29`;
   do
-    awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' status-${i}.txt >> ${PROCESSED}/combined-status.txt
+    awk -F'|' -v instance="${i}" '{s=index($0,$3);l=index($0,$15)-s-1;print instance"|"$1"|"substr($2,1,16)"|"substr($0,s,l)"|"substr($0,index($0,$15),16)"|"substr($0,index($0,$16),16)}' status-${i}.txt >> ${PROCESSED}/combined-status.txt
     awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"$3"|"substr($0, index($0,$4))}' task-${i}.txt >> ${PROCESSED}/combined-task.txt
     awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' daofork-${i}.txt >> ${PROCESSED}/combined-daofork.txt
     awk -F'|' -v instance="${i}" '{print instance"|"$1"|"substr($2,1,16)"|"substr($0, index($0,$3))}' hello-${i}.txt > ${TMP}/hello.tmp
