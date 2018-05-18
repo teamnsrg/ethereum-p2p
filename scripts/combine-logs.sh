@@ -41,7 +41,7 @@ if cd ${TRIMMED} ; then
   cut -d'|' -f2,3,9 ${PROCESSED}/combined-daofork.txt | sort -t'|' -Vk2,2 -k1nr,1 | sort -t'|' -u -Vk2,2 | cut -d'|' -f2- > ${PROCESSED}/daofork-id-abbr.txt &
 
   # get unique nodeids
-  cut -d'|' -f3 ${PROCESSED}/combined-hello.txt | sort -u > ${PROCESSED}/devp2p-id-abbr.txt &
+  cut -d'|' -f3 ${TMP}/30-instance-hello-disc-proto.txt | sort -u > ${PROCESSED}/devp2p-id-abbr.txt &
   cut -d'|' -f3 ${PROCESSED}/combined-status.txt | sort -u > ${PROCESSED}/ethereum-id-abbr.txt &
   grep '|1|[0-9]*|[0-9a-zA-Z]*|d4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3$' ${PROCESSED}/combined-status.txt > ${PROCESSED}/combined-status-mainnet.txt
   cut -d'|' -f3 ${PROCESSED}/combined-status-mainnet.txt | sort -u > ${PROCESSED}/mainnet-id-abbr.txt
