@@ -19,7 +19,7 @@ PROCESSED="${ARCHIVE_DIR}/${NODEFINDER_NAME}/processed-logs/${DATE}"
 TMP="${PROCESSED}/tmp"
 [ -d "${TMP}" ] || mkdir -p -m 755 ${TMP}
 if cd ${TRIMMED} ; then
-  rm ${PROCESSED}/combined-{hello,status,task,daofork}.txt
+  rm ${PROCESSED}/combined-{hello,disc-proto,status,task,daofork}.txt
   rm ${TMP}/{1..30}-instance-hello-disc-proto.txt
   for i in `seq 0 29`;
   do
