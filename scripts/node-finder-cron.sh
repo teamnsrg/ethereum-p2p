@@ -23,6 +23,6 @@ for i in `seq 0 ${n}`;
 do
   CRONJOBS="${CRONJOBS}\n0 0 * * * cd ${WORKING_DIR} && ./node-finder-logrotate.sh ${i}"
 done
-#CRONJOBS="${CRONJOBS}\n0 6 * * * cd ${WORKING_DIR} && ./combine-logs.sh"
+CRONJOBS="${CRONJOBS}\n10 0 * * * cd ${WORKING_DIR} && ./combine-logs.sh"
 echo -e "${CRONJOBS}" | crontab -
 echo "${NODEFINDER_NAME} logrotate cronjobs added"
