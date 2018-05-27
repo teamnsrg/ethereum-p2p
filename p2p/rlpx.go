@@ -150,7 +150,7 @@ func readProtocolHandshake(rw MsgReader, our *protoHandshake, connInfoCtx ...int
 		return nil, fmt.Errorf("message too big")
 	}
 	connInfoCtx = append(connInfoCtx,
-		"rtt", msg.Rtt,
+		"srtt", msg.Srtt,
 		"duration", msg.PeerDuration,
 	)
 	msgType, ok := devp2pCodeToString[msg.Code]
@@ -666,7 +666,9 @@ func (rw *rlpxFrameRW) WriteMsg(msg Msg) (uint32, error) {
 	_, err := rw.conn.Write(mac)
 	total += uint32(len(mac))
 	rw.tc.updateRtt(rw.tc.getTCPInfo())
+	rw.tc.updateSrtt(rw.tc.getTCPInfo())
 	msg.Rtt = rw.tc.rtt
+	msg.Srtt = rw.tc.srtt
 	return total, err
 }
 
@@ -739,7 +741,9 @@ func (rw *rlpxFrameRW) ReadMsg() (msg Msg, err error) {
 
 	msg.ReceivedAt = time.Now()
 	rw.tc.updateRtt(rw.tc.getTCPInfo())
+	rw.tc.updateSrtt(rw.tc.getTCPInfo())
 	msg.Rtt = rw.tc.rtt
+	msg.Srtt = rw.tc.srtt
 	msg.EncodedSize = 32 + rsize + 16
 	return msg, nil
 }

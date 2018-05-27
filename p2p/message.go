@@ -47,6 +47,7 @@ type Msg struct {
 	Payload      io.Reader
 	ReceivedAt   time.Time
 	Rtt          float64
+	Srtt         float64
 	PeerDuration float64
 }
 
