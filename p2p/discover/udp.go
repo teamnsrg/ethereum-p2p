@@ -484,7 +484,7 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet, peer NodeID) err
 		"id", peer.String(),
 		"addr", toaddr.String(),
 	}
-	log.MessageTx(currentTime, ">>"+req.name(), len(packet), connInfoCtx, err)
+	log.MessageTx(currentTime, ">>"+req.name(), uint32(len(packet)), uint32(len(packet)), connInfoCtx, err)
 	return err
 }
 
@@ -543,7 +543,7 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 		"id", fromID.String(),
 		"addr", from.String(),
 	}
-	log.MessageRx(currentTime, "<<"+packet.name(), len(buf), connInfoCtx, nil)
+	log.MessageRx(currentTime, "<<"+packet.name(), uint32(len(buf)), uint32(len(buf)), connInfoCtx, nil)
 	err = packet.handle(t, from, fromID, hash)
 	return err
 }

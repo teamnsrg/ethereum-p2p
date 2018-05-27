@@ -325,16 +325,18 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	}
 	defer msg.Discard()
 
-	connInfoCtx := p.ConnInfoCtx()
+	connInfoCtx := p.ReceiverConnInfoCtx()
 	msgType, ok := ethCodeToString[msg.Code]
 	if !ok {
 		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
+		return p.suppressMessageError(errResp(ErrInvalidMsgCode, "%v", msg.Code))
 	}
 	// Handle the message depending on its contents
 	switch {
 	case msg.Code == StatusMsg:
 		// Status messages should never arrive after the handshake
-		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<UNEXPECTED_"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		return p.suppressMessageError(errResp(ErrExtraStatusMsg, "uncontrolled status message"))
 
 	// Block header query, collect the requested headers and reply
@@ -342,10 +344,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the complex header query
 		var query getBlockHeadersData
 		if err := msg.Decode(&query); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		hashMode := query.Origin.Hash != (common.Hash{})
 
 		// Gather headers until the fetch or network limits is reached
@@ -422,10 +424,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of headers arrived to one of our previous requests
 		var headers []*types.Header
 		if err := msg.Decode(&headers); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// If no headers were received, but we're expending a DAO fork check, maybe it's that
 		if len(headers) == 0 && p.forkDrop != nil {
 			// Possibly an empty reply to the fork header checks, sanity check TDs
@@ -477,10 +479,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(err)
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// Gather blocks until the fetch or network limits is reached
 		var (
 			hash   common.Hash
@@ -506,10 +508,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of block bodies arrived to one of our previous requests
 		var request blockBodiesData
 		if err := msg.Decode(&request); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// Deliver them all to the downloader for queuing
 		trasactions := make([][]*types.Transaction, len(request))
 		uncles := make([][]*types.Header, len(request))
@@ -534,10 +536,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(err)
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash  common.Hash
@@ -563,10 +565,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of node state data arrived to one of our previous requests
 		var data [][]byte
 		if err := msg.Decode(&data); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverNodeData(p.id, data); err != nil {
 			log.Debug("Failed to deliver node state data", "err", err)
@@ -576,10 +578,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
 		if _, err := msgStream.List(); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(err)
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// Gather state data until the fetch or network limits is reached
 		var (
 			hash     common.Hash
@@ -614,10 +616,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// A batch of receipts arrived to one of our previous requests
 		var receipts [][]*types.Receipt
 		if err := msg.Decode(&receipts); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		// Deliver all to the downloader
 		if err := pm.downloader.DeliverReceipts(p.id, receipts); err != nil {
 			log.Debug("Failed to deliver receipts", "err", err)
@@ -626,10 +628,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 	case msg.Code == NewBlockHashesMsg:
 		var announces newBlockHashesData
 		if err := msg.Decode(&announces); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 
 		// Mark the hashes as present at the remote node
 		for _, block := range announces {
@@ -650,10 +652,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Retrieve and decode the propagated block
 		var request newBlockData
 		if err := msg.Decode(&request); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "%v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
@@ -685,13 +687,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Transactions can be processed, parse all of them and deliver to the pool
 		var txs []*types.Transaction
 		if err := msg.Decode(&txs); err != nil {
-			log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, err)
 			return p.suppressMessageError(errResp(ErrDecode, "msg %v: %v", msg, err))
 		}
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 
 	default:
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, msg.EncodedSize, connInfoCtx, nil)
 		return p.suppressMessageError(errResp(ErrInvalidMsgCode, "%v", msg.Code))
 	}
 	return nil
@@ -752,18 +754,17 @@ func (self *ProtocolManager) txSniperLoop() {
 						log.Debug("Not connected to target. Random peer chosen as target instead", "newTarget", peer.id, "txHash", txHashStr, "numTries", i)
 						continue
 					}
-					sentTime, err := peer.SendTransactions(types.Transactions{tx})
-					rtt := peer.Rtt()
-					duration := peer.Duration()
+					sentTime, size, encodedSize, err := peer.SendTransactions(types.Transactions{tx})
+					connInfoCtx := peer.SenderConnInfoCtx()
 					if err == nil && !sentTime.IsZero() {
 						// if previously unknown tx, log the entire tx-data
 						self.knownTxs.Lock()
 						if _, ok := self.knownTxs.known[txHash]; !ok {
 							self.knownTxs.known[txHash] = struct{}{}
-							log.TxData(sentTime, peer.ConnInfoCtx(), rtt, duration, tx.LogString())
+							log.TxData(sentTime, connInfoCtx, size, encodedSize, tx.LogString())
 						}
 						self.knownTxs.Unlock()
-						log.TxTx(sentTime, peer.ConnInfoCtx(), rtt, duration, txHashStr)
+						log.TxTx(sentTime, connInfoCtx, size, encodedSize, txHash.String()[2:])
 						// self.removePeer(peer.id)
 						log.Info("Transaction sent to target", "target", peer.id, "txHash", txHashStr, "numTries", i)
 						// Remove tx from the pool

@@ -30,23 +30,21 @@ func Root() Logger {
 // etc.) to keep the call depth the same for all paths to logger.write so
 // runtime.Caller(2) always refers to the call site in client code.
 
-func TxTx(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, txHash string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func TxTx(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, txHash string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"txHash", txHash,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlTxTx, t, ctx)
 }
 
-func TxData(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, tx string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func TxData(t time.Time, connInfoCtx []interface{}, size uint32, encodedSize uint32, tx string) {
+	ctx := append(connInfoCtx,
+		"size", size,
+		"encodedSize", encodedSize,
 		"tx", tx,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlTxData, t, ctx)
 }
 
@@ -54,12 +52,12 @@ func Task(msg string, taskInfoCtx []interface{}) {
 	root.write(msg, LvlTask, taskInfoCtx)
 }
 
-func MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
-	root.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
+func MessageTx(t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error) {
+	root.writeTimeMsgType(LvlMessageTx, t, msgType, size, encodedSize, connInfoCtx, err)
 }
 
-func MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
-	root.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
+func MessageRx(t time.Time, msgType string, size uint32, encodedSize uint32, connInfoCtx []interface{}, err error) {
+	root.writeTimeMsgType(LvlMessageRx, t, msgType, size, encodedSize, connInfoCtx, err)
 }
 
 // Trace is a convenient alias for Root().Trace
