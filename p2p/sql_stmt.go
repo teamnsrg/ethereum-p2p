@@ -256,8 +256,8 @@ func (srv *Server) createTables() error {
 			hash VARCHAR(64) NOT NULL, 
 			dial_count BIGINT unsigned DEFAULT 0, 
 			accept_count BIGINT unsigned DEFAULT 0, 
-			p2p_disc4_count bigint unsigned default 0, 
-			eth_disc4_count bigint unsigned default 0, 
+			p2p_disc4_count BIGINT unsigned default 0, 
+			eth_disc4_count BIGINT unsigned default 0, 
 			PRIMARY KEY (node_id)
 		)
 	`); err != nil {
@@ -274,7 +274,7 @@ func (srv *Server) createTables() error {
 			tcp_port SMALLINT unsigned NOT NULL, 
 			remote_port SMALLINT unsigned NOT NULL, 
 			p2p_version BIGINT unsigned NOT NULL, 
-			client_id VARCHAR(255) NOT NULL, 
+			client_id VARBINARY(511) NOT NULL, 
 			caps VARCHAR(255) NOT NULL, 
 			listen_port SMALLINT unsigned NOT NULL, 
 			hello_count BIGINT unsigned DEFAULT 0, 
@@ -297,7 +297,7 @@ func (srv *Server) createTables() error {
 			tcp_port SMALLINT unsigned NOT NULL, 
 			remote_port SMALLINT unsigned NOT NULL, 
 			p2p_version BIGINT unsigned NOT NULL, 
-			client_id VARCHAR(255) NOT NULL, 
+			client_id VARBINARY(511) NOT NULL, 
 			caps VARCHAR(255) NOT NULL, 
 			listen_port SMALLINT unsigned NOT NULL, 
 			protocol_version BIGINT unsigned NOT NULL, 
