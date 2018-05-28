@@ -14,6 +14,10 @@ innodb_use_native_aio = 0
 max_user_connections = 0
 secure_file_priv="/backup"
 max_allowed_packet=64M
+innodb_file_per_table
+innodb_flush_method=O_DIRECT
+innodb_log_file_size=4G
+innodb_buffer_pool_size=16G
   
 [mysqld_safe]
 default-character-set=utf8mb4
