@@ -30,64 +30,44 @@ func Root() Logger {
 // etc.) to keep the call depth the same for all paths to logger.write so
 // runtime.Caller(2) always refers to the call site in client code.
 
-func DaoFork(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, support bool) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func DaoFork(t time.Time, connInfoCtx []interface{}, support bool) {
+	ctx := append(connInfoCtx,
 		"support", support,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlDaoFork, t, ctx)
 }
 
-func Status(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string, statusStr string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func Status(t time.Time, connInfoCtx []interface{}, helloStr string, statusStr string) {
+	ctx := append(connInfoCtx,
 		"hello", helloStr,
 		"status", statusStr,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlStatus, t, ctx)
 }
 
-func DiscPeer(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func DiscPeer(t time.Time, connInfoCtx []interface{}, discReason string) {
+	ctx := append(connInfoCtx,
 		"discReason", discReason,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlDiscPeer, t, ctx)
 }
 
-func DiscProto(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func DiscProto(t time.Time, connInfoCtx []interface{}, discReason string) {
+	ctx := append(connInfoCtx,
 		"discReason", discReason,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlDiscProto, t, ctx)
 }
 
-func Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func Hello(t time.Time, connInfoCtx []interface{}, helloStr string) {
+	ctx := append(connInfoCtx,
 		"hello", helloStr,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlHello, t, ctx)
 }
 
-func Peer(msg string, connInfoCtx []interface{}, rtt float64, duration float64) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
-	}
-	ctx = append(connInfoCtx, ctx...)
-	root.write(msg, LvlPeer, ctx)
+func Peer(msg string, connInfoCtx []interface{}) {
+	root.write(msg, LvlPeer, connInfoCtx)
 }
 
 func Task(msg string, taskInfoCtx []interface{}) {
@@ -95,18 +75,17 @@ func Task(msg string, taskInfoCtx []interface{}) {
 }
 
 func Neighbors(t time.Time, connInfoCtx []interface{}, neighbor interface{}) {
-	ctx := []interface{}{
+	ctx := append(connInfoCtx,
 		"neighbor", neighbor,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	root.writeTime(LvlNeighbors, t, ctx)
 }
 
-func MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+func MessageTx(t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error) {
 	root.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
 }
 
-func MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+func MessageRx(t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error) {
 	root.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
 }
 

@@ -287,7 +287,7 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 		}
 	}
 
-	log.Hello(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, newInfo.Hello())
+	log.Hello(msg.ReceivedAt, append(connInfoCtx, "rtt", msg.Rtt, "duration", msg.PeerDuration), newInfo.Hello())
 
 	// update or add a new entry to node_p2p_info
 	if srv.p2pInfoChan != nil {

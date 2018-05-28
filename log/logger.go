@@ -195,15 +195,15 @@ type Logger interface {
 
 	// Log a message at the given level with context key/value pairs
 	DaoFork(t time.Time, connInfoCtx []interface{}, support bool)
-	Status(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string, statusStr string)
-	DiscPeer(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string)
-	DiscProto(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string)
-	Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string)
-	Peer(msg string, connInfoCtx []interface{}, rtt float64, duration float64)
+	Status(t time.Time, connInfoCtx []interface{}, helloStr string, statusStr string)
+	DiscPeer(t time.Time, connInfoCtx []interface{}, discReason string)
+	DiscProto(t time.Time, connInfoCtx []interface{}, discReason string)
+	Hello(t time.Time, connInfoCtx []interface{}, helloStr string)
+	Peer(msg string, connInfoCtx []interface{})
 	Task(msg string, taskInfoCtx []interface{})
-	Neighbors(t time.Time, ctx []interface{})
-	MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
-	MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error)
+	Neighbors(t time.Time, ctx []interface{}, neighbor interface{})
+	MessageTx(t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error)
+	MessageRx(t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error)
 	Sql(msg string, ctx ...interface{})
 	Trace(msg string, ctx ...interface{})
 	Debug(msg string, ctx ...interface{})
@@ -249,7 +249,7 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	return newCtx
 }
 
-func (l *logger) writeTimeMsgType(lvl Lvl, t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+func (l *logger) writeTimeMsgType(lvl Lvl, t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error) {
 	ctx := []interface{}{
 		"size", size,
 	}
@@ -265,76 +265,61 @@ func (l *logger) writeTime(lvl Lvl, t time.Time, ctx []interface{}) {
 }
 
 func (l *logger) DaoFork(t time.Time, connInfoCtx []interface{}, support bool) {
-	ctx := []interface{}{
+	ctx := append(connInfoCtx,
 		"support", support,
-	}
-	ctx = append(ctx, connInfoCtx...)
+	)
 	l.writeTime(LvlDaoFork, t, ctx)
 }
 
-func (l *logger) Status(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string, statusStr string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) Status(t time.Time, connInfoCtx []interface{}, helloStr string, statusStr string) {
+	ctx := append(connInfoCtx,
 		"hello", helloStr,
 		"status", statusStr,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlStatus, t, ctx)
 }
 
-func (l *logger) DiscPeer(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) DiscPeer(t time.Time, connInfoCtx []interface{}, discReason string) {
+	ctx := append(connInfoCtx,
 		"discReason", discReason,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlDiscPeer, t, ctx)
 }
 
-func (l *logger) DiscProto(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, discReason string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) DiscProto(t time.Time, connInfoCtx []interface{}, discReason string) {
+	ctx := append(connInfoCtx,
 		"discReason", discReason,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlDiscProto, t, ctx)
 }
 
-func (l *logger) Hello(t time.Time, connInfoCtx []interface{}, rtt float64, duration float64, helloStr string) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
+func (l *logger) Hello(t time.Time, connInfoCtx []interface{}, helloStr string) {
+	ctx := append(connInfoCtx,
 		"hello", helloStr,
-	}
-	ctx = append(connInfoCtx, ctx...)
+	)
 	l.writeTime(LvlHello, t, ctx)
 }
 
-func (l *logger) Peer(msg string, connInfoCtx []interface{}, rtt float64, duration float64) {
-	ctx := []interface{}{
-		"rtt", rtt,
-		"duration", duration,
-	}
-	ctx = append(connInfoCtx, ctx...)
-	l.write(msg, LvlPeer, ctx)
+func (l *logger) Peer(msg string, connInfoCtx []interface{}) {
+	l.write(msg, LvlPeer, connInfoCtx)
 }
 
 func (l *logger) Task(msg string, taskInfoCtx []interface{}) {
 	l.write(msg, LvlTask, taskInfoCtx)
 }
 
-func (l *logger) Neighbors(t time.Time, ctx []interface{}) {
+func (l *logger) Neighbors(t time.Time, connInfoCtx []interface{}, neighbor interface{}) {
+	ctx := append(connInfoCtx,
+		"neighbor", neighbor,
+	)
 	l.writeTime(LvlNeighbors, t, ctx)
 }
 
-func (l *logger) MessageTx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+func (l *logger) MessageTx(t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error) {
 	l.writeTimeMsgType(LvlMessageTx, t, msgType, size, connInfoCtx, err)
 }
 
-func (l *logger) MessageRx(t time.Time, msgType string, size int, connInfoCtx []interface{}, err error) {
+func (l *logger) MessageRx(t time.Time, msgType string, size uint32, connInfoCtx []interface{}, err error) {
 	l.writeTimeMsgType(LvlMessageRx, t, msgType, size, connInfoCtx, err)
 }
 

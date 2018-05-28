@@ -44,7 +44,7 @@ type Msg struct {
 	Size         uint32 // size of the paylod
 	Payload      io.Reader
 	ReceivedAt   time.Time
-	PeerRtt      float64
+	Rtt          float64
 	PeerDuration float64
 }
 

@@ -228,25 +228,29 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 		msgType = fmt.Sprintf("UNKNOWN_%v", msg.Code)
 	}
 	if msg.Code != StatusMsg {
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, nil)
 		return errResp(ErrNoStatusMsg, "first msg has code %x (!= %x)", msg.Code, StatusMsg)
 	}
 	if msg.Size > ProtocolMaxMsgSize {
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, nil)
 		return errResp(ErrMsgTooLarge, "%v > %v", msg.Size, ProtocolMaxMsgSize)
 	}
 	var status statusData
 	// Decode the handshake and make sure everything matches
 	if err := msg.Decode(&status); err != nil {
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, err)
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
-	log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+	log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, nil)
 	statusWrapper.ReceivedAt = &msg.ReceivedAt
 	statusWrapper.Status = &status
-	statusWrapper.PeerRtt = msg.PeerRtt
+	statusWrapper.PeerRtt = msg.Rtt
 	statusWrapper.PeerDuration = msg.PeerDuration
-	log.Peer("ADD|ETHEREUM", p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration)
+	connInfoCtx = p.ConnInfoCtx(
+		"rtt", msg.Rtt,
+		"duration", msg.PeerDuration,
+	)
+	log.Peer("ADD|ETHEREUM", connInfoCtx)
 
 	if status.GenesisBlock != genesis {
 		statusWrapper.ErrorCode = ErrGenesisBlockMismatch
@@ -260,7 +264,7 @@ func (p *peer) readStatus(network uint64, statusWrapper *statusDataWrapper, gene
 		statusWrapper.ErrorCode = ErrProtocolVersionMismatch
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", status.ProtocolVersion, p.version)
 	}
-	log.Peer("ADD|MAINNET", p.ConnInfoCtx(), msg.PeerRtt, msg.PeerDuration)
+	log.Peer("ADD|MAINNET", connInfoCtx)
 	return nil
 }
 
