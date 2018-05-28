@@ -124,12 +124,8 @@ type Peer struct {
 // NewPeer returns a peer for testing purposes.
 func NewPeer(id discover.NodeID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
-	conn := &conn{fd: pipe, transport: nil, id: id, caps: caps, name: name}
-	conn.connInfoCtx = []interface{}{
-		"id", conn.id.String(),
-		"addr", conn.fd.RemoteAddr().String(),
-		"conn", conn.flags.String(),
-	}
+	conn := &conn{fd: pipe, tc: newTCPConn(pipe), transport: nil, id: id, caps: caps, name: name}
+	conn.connInfoCtx = []interface{}{}
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
@@ -157,10 +153,7 @@ func (p *Peer) Caps() []Cap {
 }
 
 func (p *Peer) Rtt() float64 {
-	if p.rw.transport == nil {
-		return 0.0
-	}
-	return p.rw.Rtt()
+	return p.rw.tc.rtt
 }
 
 func (p *Peer) Duration() float64 {
@@ -215,8 +208,15 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 	return p
 }
 
-func (p *Peer) ConnInfoCtx() []interface{} {
-	return p.rw.connInfoCtx
+func (p *Peer) ConnInfoCtx(ctx ...interface{}) []interface{} {
+	return append(p.rw.connInfoCtx, ctx...)
+}
+
+func (p *Peer) ReceiverConnInfoCtx() []interface{} {
+	return p.ConnInfoCtx(
+		"rtt", p.Rtt(),
+		"duration", p.Duration(),
+	)
 }
 
 func (p *Peer) IsInbound() bool {
@@ -322,19 +322,19 @@ func (p *Peer) handle(msg Msg) error {
 	}
 	switch {
 	case msg.Code == pingMsg:
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, nil)
 		msg.Discard()
 		go SendItems(p.rw, pongMsg)
 	case msg.Code == pongMsg:
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, nil)
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, nil)
 		msg.Discard()
 	case msg.Code == discMsg:
 		var reason [1]DiscReason
 		// This is the last message. We don't need to discard or
 		// check errors because, the connection will be closed after it.
 		err := rlp.Decode(msg.Payload, &reason)
-		log.MessageRx(msg.ReceivedAt, "<<"+msgType, int(msg.Size), connInfoCtx, err)
-		log.DiscPeer(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, reason[0].String())
+		log.MessageRx(msg.ReceivedAt, "<<"+msgType, msg.Size, connInfoCtx, err)
+		log.DiscPeer(msg.ReceivedAt, p.ConnInfoCtx("rtt", msg.Rtt, "duration", msg.PeerDuration), reason[0].String())
 		return reason[0]
 	case msg.Code < baseProtocolLength:
 		// ignore other base protocol messages
@@ -343,7 +343,7 @@ func (p *Peer) handle(msg Msg) error {
 		// it's a subprotocol message
 		proto, err := p.getProto(msg.Code)
 		if err != nil {
-			log.MessageRx(msg.ReceivedAt, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), int(msg.Size), connInfoCtx, err)
+			log.MessageRx(msg.ReceivedAt, fmt.Sprintf("<<CODE_OUT_OF_RANGE_%v", msg.Code), msg.Size, connInfoCtx, err)
 			return fmt.Errorf("msg code out of range: %v", msg.Code)
 		}
 		select {
@@ -482,6 +482,7 @@ type PeerInfo struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 	} `json:"network"`
+	Conn      string                 `json:"conn"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
 }
 
@@ -497,6 +498,7 @@ func (p *Peer) Info() *PeerInfo {
 		ID:        p.ID().String(),
 		Name:      p.Name(),
 		Caps:      caps,
+		Conn:      p.rw.flags.String(),
 		Protocols: make(map[string]interface{}),
 	}
 	if p.rw.transport != nil {

@@ -33,7 +33,7 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 	if currentInfo == nil {
 		if err := pm.fillP2PInfo(p, newInfo); err != nil {
 			p.Log().Debug("Failed to fill P2P info", "err", err)
-			log.Status(*newInfo.LastStatusAt.Time, connInfoCtx, statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
+			log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx("rtt", statusWrapper.PeerRtt, "duration", statusWrapper.PeerDuration), newInfo.Hello(), newInfo.Status())
 			return
 		}
 		newInfo.RLock()
@@ -56,7 +56,7 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 		newInfo = currentInfo
 	}
 
-	log.Status(*newInfo.LastStatusAt.Time, connInfoCtx, statusWrapper.PeerRtt, statusWrapper.PeerDuration, newInfo.Hello(), newInfo.Status())
+	log.Status(*newInfo.LastStatusAt.Time, p.ConnInfoCtx("rtt", statusWrapper.PeerRtt, "duration", statusWrapper.PeerDuration), newInfo.Hello(), newInfo.Status())
 
 	// queue updated/new entry to node_eth_info
 	if pm.ethInfoChan != nil {
@@ -110,7 +110,7 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoFor
 	// missing other node information
 	// log but don't update database
 	if currentInfo == nil {
-		log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+		log.DaoFork(msg.ReceivedAt, p.ConnInfoCtx("rtt", msg.Rtt, "duration", msg.PeerDuration), daoForkSupport > 0)
 		return
 	}
 
@@ -137,12 +137,12 @@ func (pm *ProtocolManager) storeDAOForkSupportInfo(p *peer, msg *p2p.Msg, daoFor
 		currentInfo.LastStatusAt = receivedAt
 	}
 	if currentInfo.DAOForkSupport == daoForkSupport {
-		log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+		log.DaoFork(msg.ReceivedAt, p.ConnInfoCtx("rtt", msg.Rtt, "duration", msg.PeerDuration), daoForkSupport > 0)
 		return
 	}
 	currentInfo.DAOForkSupport = daoForkSupport
 
-	log.DaoFork(msg.ReceivedAt, connInfoCtx, msg.PeerRtt, msg.PeerDuration, daoForkSupport > 0)
+	log.DaoFork(msg.ReceivedAt, p.ConnInfoCtx("rtt", msg.Rtt, "duration", msg.PeerDuration), daoForkSupport > 0)
 
 	// queue updated/new entry to node_eth_info
 	if pm.ethInfoChan != nil {

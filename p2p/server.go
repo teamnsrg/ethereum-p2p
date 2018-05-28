@@ -207,7 +207,7 @@ type Server struct {
 
 	// Hooks for testing. These are useful because we can inhibit
 	// the whole protocol stack.
-	newTransport func(net.Conn) transport
+	newTransport func(net.Conn, *tcpConn) transport
 	newPeerHook  func(*Peer)
 
 	lock    sync.Mutex // protects running
@@ -260,7 +260,9 @@ const (
 // during the two handshakes.
 type conn struct {
 	fd net.Conn
+	tc *tcpConn
 	transport
+
 	flags       connFlag
 	cont        chan error      // The run loop uses cont to signal errors to SetupConn.
 	id          discover.NodeID // valid after the encryption handshake
@@ -273,7 +275,6 @@ type conn struct {
 }
 
 type transport interface {
-	Rtt() float64
 	// The two handshakes.
 	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *discover.Node) (discover.NodeID, error)
 	doProtoHandshake(our *protoHandshake, connInfoCtx ...interface{}) (*protoHandshake, Msg, error)
@@ -854,7 +855,7 @@ running:
 				}
 			}
 			d := common.PrettyDuration(mclock.Now() - pd.created)
-			log.Peer("REMOVE|DEVP2P", pd.ConnInfoCtx(), pd.Rtt(), time.Duration(d).Seconds())
+			log.Peer("REMOVE|DEVP2P", pd.ConnInfoCtx("rtt", pd.Rtt(), "duration", time.Duration(d).Seconds()))
 			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
 		}
@@ -978,7 +979,8 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	srv.lock.Lock()
 	running := srv.running
 	srv.lock.Unlock()
-	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
+	tc := newTCPConn(fd)
+	c := &conn{fd: fd, tc: tc, transport: srv.newTransport(fd, tc), flags: flags, cont: make(chan error)}
 	if !running {
 		c.close(errServerStopped)
 		return
@@ -1012,7 +1014,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		if r, ok := err.(DiscReason); ok {
-			log.DiscProto(msg.ReceivedAt, c.connInfoCtx, msg.PeerRtt, msg.PeerDuration, r.String())
+			log.DiscProto(msg.ReceivedAt, append(c.connInfoCtx, "rtt", msg.Rtt, "duration", msg.PeerDuration), r.String())
 			if r == DiscTooManyPeers {
 				newInfo, dial, accept := srv.getNodeAddress(c, nil)
 				if newInfo.TCPPort != 0 {
@@ -1044,7 +1046,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *discover.Nod
 	}
 	// If the checks completed successfully, runPeer has now been
 	// launched by run.
-	log.Peer("ADD|DEVP2P", c.connInfoCtx, msg.PeerRtt, msg.PeerDuration)
+	log.Peer("ADD|DEVP2P", append(c.connInfoCtx, "rtt", msg.Rtt, "duration", msg.PeerDuration))
 }
 
 func truncateName(s string) string {

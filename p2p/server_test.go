@@ -41,9 +41,9 @@ type testTransport struct {
 	closeErr error
 }
 
-func newTestTransport(id discover.NodeID, fd net.Conn) transport {
-	wrapped := newRLPX(fd).(*rlpx)
-	wrapped.rw = newRLPXFrameRW(fd, secrets{
+func newTestTransport(id discover.NodeID, fd net.Conn, tc *tcpConn) transport {
+	wrapped := newRLPX(fd, tc).(*rlpx)
+	wrapped.rw = newRLPXFrameRW(fd, tc, secrets{
 		MAC:        zero16,
 		AES:        zero16,
 		IngressMAC: sha3.NewKeccak256(),
@@ -80,7 +80,7 @@ func startTestServer(t *testing.T, id discover.NodeID, pf func(*Peer)) *Server {
 	server := &Server{
 		Config:       config,
 		newPeerHook:  pf,
-		newTransport: func(fd net.Conn) transport { return newTestTransport(id, fd) },
+		newTransport: func(fd net.Conn, tc *tcpConn) transport { return newTestTransport(id, fd, tc) },
 	}
 	if err := server.Start(); err != nil {
 		t.Fatalf("Could not start server: %v", err)
@@ -101,7 +101,7 @@ func startTestConnectServer(listener net.Listener, t *testing.T, id discover.Nod
 	server := &Server{
 		Config:       config,
 		newPeerHook:  pf,
-		newTransport: func(fd net.Conn) transport { return newTestTransport(id, fd) },
+		newTransport: func(fd net.Conn, tc *tcpConn) transport { return newTestTransport(id, fd, tc) },
 	}
 	if err := server.Start(); err != nil {
 		t.Fatalf("Could not start server: %v", err)
@@ -370,7 +370,8 @@ func TestServerAtCap(t *testing.T) {
 
 	newconn := func(id discover.NodeID) *conn {
 		fd, _ := net.Pipe()
-		tx := newTestTransport(id, fd)
+		tc := newTCPConn(fd)
+		tx := newTestTransport(id, fd, tc)
 		return &conn{fd: fd, transport: tx, flags: inboundConn, id: id, cont: make(chan error)}
 	}
 
@@ -465,7 +466,7 @@ func TestServerSetupConn(t *testing.T) {
 				NoDial:     true,
 				Protocols:  []Protocol{discard},
 			},
-			newTransport: func(fd net.Conn) transport { return test.tt },
+			newTransport: func(fd net.Conn, tc *tcpConn) transport { return test.tt },
 		}
 		if !test.dontstart {
 			if err := srv.Start(); err != nil {
