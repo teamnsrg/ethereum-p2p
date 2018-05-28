@@ -21,7 +21,7 @@ source .env
 ETHMONITOR_NAME="geth-eth-monitor"
 DATADIR="${ROOT_DIR}/${ETHMONITOR_NAME}/${i}"
 LOGDIR="${DATADIR}/${ETHMONITOR_NAME}/logs"
-NEWLOGDIR="${ARCHIVE_DIR}/${ETHMONITOR_NAME}/${i}/peerlists"
+NEWLOGDIR="${ARCHIVE_DIR}/${ETHMONITOR_NAME}/${i}/$(date -u +%Y%m%d)/peerlists"
 [ -d "${NEWLOGDIR}" ] || mkdir -p -m 755 ${NEWLOGDIR}
 if cd ${LOGDIR} ; then
   FILENAME="peerlist.log-$(date -u +%Y%m%dT%H%M%S)Z"

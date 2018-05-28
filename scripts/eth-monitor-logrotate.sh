@@ -21,7 +21,7 @@ source .env
 ETHMONITOR_NAME="geth-eth-monitor"
 DATADIR="${ROOT_DIR}/${ETHMONITOR_NAME}/${i}"
 LOGDIR="${DATADIR}/${ETHMONITOR_NAME}/logs"
-NEWLOGDIR="${ARCHIVE_DIR}/${ETHMONITOR_NAME}/${i}"
+NEWLOGDIR="${ARCHIVE_DIR}/${ETHMONITOR_NAME}/${i}/$(date -u +%Y%m%d)"
 [ -d "${NEWLOGDIR}" ] || mkdir -p -m 755 ${NEWLOGDIR}
 if cd ${LOGDIR} ; then
   [ -d old ] || mkdir -p -m 755 old
