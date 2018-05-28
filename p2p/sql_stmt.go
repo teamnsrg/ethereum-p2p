@@ -382,10 +382,10 @@ func (srv *Server) loadKnownNodeInfos() error {
 				 FROM (SELECT * 
 				 	   FROM node_p2p_info AS x 
 				 	   		INNER JOIN 
-				 	   			(SELECT node_id, MAX(last_hello_at) AS last_ts 
+				 	   			(SELECT node_id nid, MAX(last_hello_at) AS last_ts 
 				 	   			 FROM node_p2p_info 
 				 	   			 WHERE last_hello_at >= ? 
-				 	   			 GROUP BY node_id
+				 	   			 GROUP BY nid
 				 	   			 ) AS last_tss 
 				 	   			ON x.last_hello_at = last_tss.last_ts
 				 	   ) AS p2p 
@@ -393,10 +393,10 @@ func (srv *Server) loadKnownNodeInfos() error {
 				 	  (SELECT * 
 					   FROM node_eth_info AS x 
 					   		INNER JOIN 
-					   			(SELECT node_id, MAX(last_status_at) AS last_ts 
+					   			(SELECT node_id nid, MAX(last_status_at) AS last_ts 
 							  	 FROM node_eth_info 
 				 	   			 WHERE last_status_at >= ? 
-							  	 GROUP BY node_id
+							  	 GROUP BY nid
 							  	 ) AS last_tss 
 								ON x.last_status_at = last_tss.last_ts
 					   ) AS eth 
