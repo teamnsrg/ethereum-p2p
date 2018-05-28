@@ -365,7 +365,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 		srv.RedialExp = 24.0
 	}
 	if srv.LastActive != 0 {
-		loadHours := srv.RedialExp + float64(srv.LastActive)
+		loadHours := srv.RedialExp + float64(srv.LastActive+1)
 		loadCutoffUnix = time.Now().Add(-time.Duration(loadHours * float64(time.Hour))).Unix()
 	}
 	rows, err := srv.db.Query(`
@@ -544,11 +544,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 		srv.KnownNodeInfos.AddInfo(id, nodeInfo)
 
 		// add the node to the initial static node list
-		currentTime := time.Now()
-		deadline := nodeInfo.LastHelloAt.Add(time.Duration(srv.RedialExp * float64(time.Hour)))
-		if deadline.After(currentTime) {
-			srv.addInitialStatic(id, nodeInfo)
-		}
+		srv.addInitialStatic(id, nodeInfo)
 	}
 	return nil
 }
