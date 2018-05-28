@@ -276,6 +276,9 @@ func (srv *Server) storeNodeP2PInfo(c *conn, msg *Msg, hs *protoHandshake) {
 			// if the node's listening port changed
 			// add it as a static node
 			if currentInfo.TCPPort != newInfo.TCPPort {
+				if newInfo.TCPPort == 0 {
+					newInfo.TCPPort = currentInfo.TCPPort
+				}
 				srv.addNewStatic(id, newInfo)
 			}
 			// replace the current info with new info, setting all fields related to Ethereum Status to null
@@ -308,39 +311,43 @@ func isNewNode(oldInfo *Info, newInfo *Info) bool {
 // if a node seems to be listening (ie TCPPort != 0)
 // add it as a static node
 func (srv *Server) addInitialStatic(id discover.NodeID, nodeInfo *Info) {
-	if nodeInfo.TCPPort != 0 {
-		var ip net.IP
-		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Error("Failed to add node to initial StaticNodes list", "node",
-				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort),
-				"err", "failed to parse ip")
-		} else {
-			// Ensure the IP is 4 bytes long for IPv4 addresses.
-			if ipv4 := ip.To4(); ipv4 != nil {
-				ip = ipv4
-			}
-			log.Debug("Adding node to initial StaticNodes list", "node",
-				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort))
-			srv.StaticNodes = append(srv.StaticNodes, discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
+	tcpPort := nodeInfo.TCPPort
+	if nodeInfo.TCPPort == 0 {
+		tcpPort = 30303
+	}
+	var ip net.IP
+	if ip = net.ParseIP(nodeInfo.IP); ip == nil {
+		log.Error("Failed to add node to initial StaticNodes list", "node",
+			fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort),
+			"err", "failed to parse ip")
+	} else {
+		// Ensure the IP is 4 bytes long for IPv4 addresses.
+		if ipv4 := ip.To4(); ipv4 != nil {
+			ip = ipv4
 		}
+		log.Debug("Adding node to initial StaticNodes list", "node",
+			fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, tcpPort))
+		srv.StaticNodes = append(srv.StaticNodes, discover.NewNode(id, ip, tcpPort, tcpPort))
 	}
 }
 
 // if a node seems to be listening (ie TCPPort != 0)
 // add it as a static node
 func (srv *Server) addNewStatic(id discover.NodeID, nodeInfo *Info) {
-	if nodeInfo.TCPPort != 0 {
-		var ip net.IP
-		if ip = net.ParseIP(nodeInfo.IP); ip == nil {
-			log.Error("Failed to add static node", "node",
-				fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, nodeInfo.TCPPort),
-				"err", "failed to parse ip")
-		} else {
-			// Ensure the IP is 4 bytes long for IPv4 addresses.
-			if ipv4 := ip.To4(); ipv4 != nil {
-				ip = ipv4
-			}
-			srv.AddPeer(discover.NewNode(id, ip, nodeInfo.TCPPort, nodeInfo.TCPPort))
+	tcpPort := nodeInfo.TCPPort
+	if nodeInfo.TCPPort == 0 {
+		tcpPort = 30303
+	}
+	var ip net.IP
+	if ip = net.ParseIP(nodeInfo.IP); ip == nil {
+		log.Error("Failed to add static node", "node",
+			fmt.Sprintf("enode://%s@%s:%d", id.String(), nodeInfo.IP, tcpPort),
+			"err", "failed to parse ip")
+	} else {
+		// Ensure the IP is 4 bytes long for IPv4 addresses.
+		if ipv4 := ip.To4(); ipv4 != nil {
+			ip = ipv4
 		}
+		srv.AddPeer(discover.NewNode(id, ip, tcpPort, tcpPort))
 	}
 }
