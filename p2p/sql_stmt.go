@@ -365,7 +365,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 		srv.RedialExp = 24.0
 	}
 	if srv.LastActive != 0 {
-		loadHours := srv.RedialExp + float64(srv.LastActive+1)
+		loadHours := srv.RedialExp + float64(srv.LastActive)
 		loadCutoffUnix = time.Now().Add(-time.Duration(loadHours * float64(time.Hour))).Unix()
 	}
 	rows, err := srv.db.Query(`
