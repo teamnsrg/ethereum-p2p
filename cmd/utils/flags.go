@@ -113,6 +113,11 @@ func NewApp(gitCommit, usage string) *cli.App {
 
 var (
 	// Node Finder settings
+	LastActiveFlag = cli.IntFlag{
+		Name:  "lastactive",
+		Usage: "Specify how many hours ago this instance was last shutdown (in hours)",
+		Value: 1,
+	}
 	MaxDialFlag = cli.IntFlag{
 		Name:  "maxdial",
 		Usage: "Maximum number of concurrently dialing outbound connections",
@@ -880,6 +885,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	if ctx.GlobalIsSet(ResetSQLFlag.Name) {
 		cfg.ResetSQL = true
 		cfg.BackupSQL = true
+	}
+	if ctx.GlobalIsSet(LastActiveFlag.Name) {
+		cfg.LastActive = ctx.GlobalInt(LastActiveFlag.Name)
 	}
 	if ctx.GlobalIsSet(MaxDialFlag.Name) {
 		cfg.MaxDial = ctx.GlobalInt(MaxDialFlag.Name)

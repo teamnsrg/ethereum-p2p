@@ -51,6 +51,7 @@ var DefaultConfig = Config{
 		RedialFreq:      30.0,
 		RedialCheckFreq: 0.0,
 		RedialExp:       24.0,
+		LastActive:      1,
 		PushFreq:        1.0,
 		MaxSqlChunk:     50,
 		MaxSqlQueue:     1e6,

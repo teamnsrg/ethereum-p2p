@@ -360,6 +360,14 @@ func (srv *Server) closeSql() {
 }
 
 func (srv *Server) loadKnownNodeInfos() error {
+	var loadCutoffUnix int64
+	if srv.RedialExp <= 0.0 {
+		srv.RedialExp = 24.0
+	}
+	if srv.LastActive != 0 {
+		loadHours := srv.RedialExp + float64(srv.LastActive)
+		loadCutoffUnix = time.Now().Add(-time.Duration(loadHours * float64(time.Hour))).Unix()
+	}
 	rows, err := srv.db.Query(`
 		SELECT nmi.node_id, nmi.hash, ip, tcp_port, remote_port, 
 			p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
@@ -376,6 +384,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 				 	   		INNER JOIN 
 				 	   			(SELECT node_id AS nid, MAX(last_hello_at) AS last_ts 
 				 	   			 FROM node_p2p_info 
+				 	   			 WHERE last_hello_at >= ? 
 				 	   			 GROUP BY node_id
 				 	   			 ) AS last_tss 
 				 	   			ON x.last_hello_at = last_tss.last_ts
@@ -386,6 +395,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 					   		INNER JOIN 
 					   			(SELECT node_id AS nid, MAX(last_status_at) AS last_ts 
 							  	 FROM node_eth_info 
+				 	   			 WHERE last_status_at >= ? 
 							  	 GROUP BY node_id
 							  	 ) AS last_tss 
 								ON x.last_status_at = last_tss.last_ts
@@ -393,7 +403,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 						ON p2p.node_id = eth.node_id
 				 ) AS nodes
 					ON nmi.node_id = nodes.node_id
-	`)
+	`, loadCutoffUnix, loadCutoffUnix)
 	if err != nil {
 		log.Sql("Failed to execute initial query", "database", srv.MySQLName, "err", err)
 		return err
