@@ -21,9 +21,9 @@ import (
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/ethdb"
-	"github.com/teamnsrg/go-ethereum/trie"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/ethdb"
+	"github.com/teamnsrg/ethereum-p2p/trie"
 )
 
 // Trie cache generation limit after which to evic trie nodes from memory.

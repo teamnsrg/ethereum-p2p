@@ -23,7 +23,7 @@ import (
 	"math/rand"
 	"path/filepath"
 
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 // nginxDockerfile is theis the Dockerfile required to build an nginx reverse-

@@ -26,12 +26,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/internal/debug"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/node"
-	"github.com/teamnsrg/go-ethereum/rlp"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/internal/debug"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/node"
+	"github.com/teamnsrg/ethereum-p2p/rlp"
 )
 
 const (

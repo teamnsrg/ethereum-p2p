@@ -19,8 +19,8 @@ package vm
 import (
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/math"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/math"
 )
 
 // calculates the memory size required for a step

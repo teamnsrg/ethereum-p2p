@@ -41,23 +41,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/accounts"
-	"github.com/teamnsrg/go-ethereum/accounts/keystore"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/eth"
-	"github.com/teamnsrg/go-ethereum/eth/downloader"
-	"github.com/teamnsrg/go-ethereum/ethclient"
-	"github.com/teamnsrg/go-ethereum/ethstats"
-	"github.com/teamnsrg/go-ethereum/les"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/node"
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/discv5"
-	"github.com/teamnsrg/go-ethereum/p2p/nat"
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/accounts"
+	"github.com/teamnsrg/ethereum-p2p/accounts/keystore"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/eth"
+	"github.com/teamnsrg/ethereum-p2p/eth/downloader"
+	"github.com/teamnsrg/ethereum-p2p/ethclient"
+	"github.com/teamnsrg/ethereum-p2p/ethstats"
+	"github.com/teamnsrg/ethereum-p2p/les"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/node"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discv5"
+	"github.com/teamnsrg/ethereum-p2p/p2p/nat"
+	"github.com/teamnsrg/ethereum-p2p/params"
 	"golang.org/x/net/websocket"
 )
 
@@ -443,7 +443,7 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		case strings.HasPrefix(msg.URL, "https://www.facebook.com/"):
 			username, avatar, address, err = authFacebook(msg.URL)
 		default:
-			err = errors.New("Something funky happened, please open an issue at https://github.com/teamnsrg/go-ethereum/issues")
+			err = errors.New("Something funky happened, please open an issue at https://github.com/teamnsrg/ethereum-p2p/issues")
 		}
 		if err != nil {
 			if err = sendError(conn, err); err != nil {

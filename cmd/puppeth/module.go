@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 var (
