@@ -19,7 +19,7 @@ package event_test
 import (
 	"fmt"
 
-	"github.com/teamnsrg/go-ethereum/event"
+	"github.com/teamnsrg/ethereum-p2p/event"
 )
 
 func ExampleNewSubscription() {

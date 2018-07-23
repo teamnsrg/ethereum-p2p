@@ -25,7 +25,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/teamnsrg/go-ethereum/compression/rle"
+	"github.com/teamnsrg/ethereum-p2p/compression/rle"
 )
 
 const openFileLimit = 128
