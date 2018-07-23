@@ -20,7 +20,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 const Version = "1.0"

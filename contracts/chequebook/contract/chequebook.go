@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/accounts/abi"
-	"github.com/teamnsrg/go-ethereum/accounts/abi/bind"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/ethereum-p2p/accounts/abi"
+	"github.com/teamnsrg/ethereum-p2p/accounts/abi/bind"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
 )
 
 // ChequebookABI is the input ABI used to generate the binding from.

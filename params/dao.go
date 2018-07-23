@@ -19,7 +19,7 @@ package params
 import (
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 // DAOForkBlockExtra is the block header extra-data field to set for the DAO fork

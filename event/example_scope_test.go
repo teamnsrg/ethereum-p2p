@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/teamnsrg/go-ethereum/event"
+	"github.com/teamnsrg/ethereum-p2p/event"
 )
 
 // This example demonstrates how SubscriptionScope can be used to control the lifetime of

@@ -1,5 +1,5 @@
 language: go
-go_import_path: github.com/teamnsrg/go-ethereum
+go_import_path: github.com/teamnsrg/ethereum-p2p
 sudo: false
 matrix:
   include:

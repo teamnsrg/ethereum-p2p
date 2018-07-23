@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/swarm/storage"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/swarm/storage"
 )
 
 // Handler for storage/retrieval related protocol requests
