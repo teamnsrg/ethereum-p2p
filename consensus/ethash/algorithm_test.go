@@ -25,9 +25,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/hexutil"
-	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/hexutil"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
 )
 
 // Tests that verification caches can be correctly generated.

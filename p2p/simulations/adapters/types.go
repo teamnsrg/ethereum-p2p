@@ -25,11 +25,11 @@ import (
 	"os"
 
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/node"
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/node"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 )
 
 // Node represents a node in a simulation network which is created by a

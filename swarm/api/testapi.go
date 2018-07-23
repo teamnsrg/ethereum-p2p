@@ -17,7 +17,7 @@
 package api
 
 import (
-	"github.com/teamnsrg/go-ethereum/swarm/network"
+	"github.com/teamnsrg/ethereum-p2p/swarm/network"
 )
 
 type Control struct {

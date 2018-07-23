@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core/state"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/ethdb"
-	"github.com/teamnsrg/go-ethereum/event"
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core/state"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/ethdb"
+	"github.com/teamnsrg/ethereum-p2p/event"
+	"github.com/teamnsrg/ethereum-p2p/params"
 )
 
 // testTxPoolConfig is a transaction pool configuration without stateful disk

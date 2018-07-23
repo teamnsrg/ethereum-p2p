@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/accounts/keystore"
-	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/ethereum-p2p/accounts/keystore"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
 )
 
 // Tests that the account management snippets work correctly.

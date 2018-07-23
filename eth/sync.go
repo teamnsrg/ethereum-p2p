@@ -21,11 +21,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/eth/downloader"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/eth/downloader"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
 )
 
 const (

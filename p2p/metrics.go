@@ -21,7 +21,7 @@ package p2p
 import (
 	"net"
 
-	"github.com/teamnsrg/go-ethereum/metrics"
+	"github.com/teamnsrg/ethereum-p2p/metrics"
 )
 
 var (

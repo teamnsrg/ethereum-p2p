@@ -40,7 +40,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
 )
 
 var dumpEnc bool

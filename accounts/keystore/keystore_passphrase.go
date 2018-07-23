@@ -37,10 +37,10 @@ import (
 	"path/filepath"
 
 	"github.com/pborman/uuid"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/math"
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/crypto/randentropy"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/math"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/crypto/randentropy"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/scrypt"
 )
