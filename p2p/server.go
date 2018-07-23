@@ -26,14 +26,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/mclock"
-	"github.com/teamnsrg/go-ethereum/event"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/discv5"
-	"github.com/teamnsrg/go-ethereum/p2p/nat"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/mclock"
+	"github.com/teamnsrg/ethereum-p2p/event"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discv5"
+	"github.com/teamnsrg/ethereum-p2p/p2p/nat"
+	"github.com/teamnsrg/ethereum-p2p/p2p/netutil"
 )
 
 const (

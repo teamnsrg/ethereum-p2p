@@ -16,7 +16,7 @@
 
 package ethclient
 
-import "github.com/teamnsrg/go-ethereum"
+import "github.com/teamnsrg/ethereum-p2p"
 
 // Verify that Client implements the ethereum interfaces.
 var (

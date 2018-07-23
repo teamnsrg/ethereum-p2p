@@ -29,11 +29,11 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/teamnsrg/go-ethereum/event"
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/simulations/adapters"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/event"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/p2p/simulations/adapters"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 	"golang.org/x/net/websocket"
 )
 

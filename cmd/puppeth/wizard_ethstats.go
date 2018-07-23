@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 // deployEthstats queries the user for various input on deploying an ethstats
