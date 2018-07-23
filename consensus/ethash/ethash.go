@@ -33,9 +33,9 @@ import (
 
 	mmap "github.com/edsrzf/mmap-go"
 	metrics "github.com/rcrowley/go-metrics"
-	"github.com/teamnsrg/go-ethereum/consensus"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/consensus"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 )
 
 var ErrInvalidDumpMagic = errors.New("invalid dump magic")

@@ -54,7 +54,7 @@ func TestBloom(t *testing.T) {
 import (
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/core/state"
+	"github.com/teamnsrg/ethereum-p2p/core/state"
 )
 
 func TestBloom9(t *testing.T) {

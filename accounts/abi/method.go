@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
 )
 
 // Callable method given a `Name` and whether the method is a constant.

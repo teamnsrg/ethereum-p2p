@@ -22,7 +22,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/core/vm"
+	"github.com/teamnsrg/ethereum-p2p/core/vm"
 )
 
 func TestState(t *testing.T) {

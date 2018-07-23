@@ -19,7 +19,7 @@ package p2p
 import (
 	"fmt"
 
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
 )
 
 // Protocol represents a P2P subprotocol implementation.

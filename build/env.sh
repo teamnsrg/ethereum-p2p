@@ -11,10 +11,10 @@ fi
 workspace="$PWD/build/_workspace"
 root="$PWD"
 ethdir="$workspace/src/github.com/teamnsrg"
-if [ ! -L "$ethdir/go-ethereum" ]; then
+if [ ! -L "$ethdir/ethereum-p2p" ]; then
     mkdir -p "$ethdir"
     cd "$ethdir"
-    ln -s ../../../../../. go-ethereum
+    ln -s ../../../../../. ethereum-p2p
     cd "$root"
 fi
 
@@ -23,8 +23,8 @@ GOPATH="$workspace"
 export GOPATH
 
 # Run the command inside the workspace.
-cd "$ethdir/go-ethereum"
-PWD="$ethdir/go-ethereum"
+cd "$ethdir/ethereum-p2p"
+PWD="$ethdir/ethereum-p2p"
 
 # Launch the arguments with the configured environment.
 exec "$@"

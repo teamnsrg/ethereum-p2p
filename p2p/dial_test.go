@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/p2p/netutil"
 )
 
 func init() {

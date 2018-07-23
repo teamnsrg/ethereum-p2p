@@ -3,8 +3,8 @@ package eth
 import (
 	"fmt"
 
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
 )
 
 func (pm *ProtocolManager) queueNodeEthInfo(id discover.NodeID, newInfo *p2p.Info, newStatus bool) error {

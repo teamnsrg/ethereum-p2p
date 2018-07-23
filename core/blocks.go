@@ -16,7 +16,7 @@
 
 package core
 
-import "github.com/teamnsrg/go-ethereum/common"
+import "github.com/teamnsrg/ethereum-p2p/common"
 
 // BadHashes represent a set of manually tracked bad hashes (usually hard forks)
 var BadHashes = map[common.Hash]bool{
