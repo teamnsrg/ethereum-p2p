@@ -46,7 +46,8 @@ func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWr
 		currentInfo.LastStatusAt = newInfo.LastStatusAt
 		currentInfo.LastReceivedTd = newInfo.LastReceivedTd
 		currentInfo.BestHash = newInfo.BestHash
-		if currentInfo.FirstStatusAt == nil || isNewEthNode(currentInfo, newInfo) {
+		//if currentInfo.FirstStatusAt == nil || isNewEthNode(currentInfo, newInfo) {
+		if currentInfo.FirstStatusAt == nil {
 			currentInfo.FirstStatusAt = newInfo.FirstStatusAt
 			currentInfo.FirstReceivedTd = newInfo.FirstReceivedTd
 			currentInfo.ProtocolVersion = newInfo.ProtocolVersion

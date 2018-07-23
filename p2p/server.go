@@ -61,6 +61,9 @@ var errServerStopped = errors.New("server stopped")
 
 // Config holds Server options.
 type Config struct {
+	// MaxDial specifies how many hours ago this instance was last shutdown (in hours).
+	LastActive int
+
 	// MaxDial is the maximum number of concurrently dialing outbound connections.
 	MaxDial int
 

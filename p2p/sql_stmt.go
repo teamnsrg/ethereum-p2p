@@ -56,7 +56,12 @@ var (
 			"(node_id, ip, tcp_port, remote_port, " +
 			"p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, hello_count) VALUES ",
 		Suffix: " ON DUPLICATE KEY UPDATE " +
+			"tcp_port=IF(last_hello_at <= VALUES(last_hello_at), VALUES(tcp_port), tcp_port), " +
 			"remote_port=IF(last_hello_at <= VALUES(last_hello_at), VALUES(remote_port), remote_port), " +
+			"p2p_version=IF(last_hello_at <= VALUES(last_hello_at), VALUES(p2p_version), p2p_version), " +
+			"client_id=IF(last_hello_at <= VALUES(last_hello_at), VALUES(client_id), client_id), " +
+			"caps=IF(last_hello_at <= VALUES(last_hello_at), VALUES(caps), caps), " +
+			"listen_port=IF(last_hello_at <= VALUES(last_hello_at), VALUES(listen_port), listen_port), " +
 			"last_hello_at=IF(last_hello_at <= VALUES(last_hello_at), VALUES(last_hello_at), last_hello_at), " +
 			"hello_count=hello_count+1",
 		Values:    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
@@ -69,9 +74,17 @@ var (
 			"protocol_version, network_id, first_received_td, last_received_td, " +
 			"best_hash, genesis_hash, dao_fork, first_status_at, last_status_at, status_count) VALUES ",
 		Suffix: " ON DUPLICATE KEY UPDATE " +
+			"tcp_port=IF(last_status_at <= VALUES(last_status_at), VALUES(tcp_port), tcp_port), " +
 			"remote_port=IF(last_status_at <= VALUES(last_status_at), VALUES(remote_port), remote_port), " +
+			"p2p_version=IF(last_status_at <= VALUES(last_status_at), VALUES(p2p_version), p2p_version), " +
+			"client_id=IF(last_status_at <= VALUES(last_status_at), VALUES(client_id), client_id), " +
+			"caps=IF(last_status_at <= VALUES(last_status_at), VALUES(caps), caps), " +
+			"listen_port=IF(last_status_at <= VALUES(last_status_at), VALUES(listen_port), listen_port), " +
+			"protocol_version=IF(last_status_at <= VALUES(last_status_at), VALUES(protocol_version), protocol_version), " +
+			"network_id=IF(last_status_at <= VALUES(last_status_at), VALUES(network_id), network_id), " +
 			"last_received_td=IF(last_status_at <= VALUES(last_status_at), VALUES(last_received_td), last_received_td), " +
 			"best_hash=IF(last_status_at <= VALUES(last_status_at), VALUES(best_hash), best_hash), " +
+			"genesis_hash=IF(last_status_at <= VALUES(last_status_at), VALUES(genesis_hash), genesis_hash), " +
 			"dao_fork=IF(last_status_at <= VALUES(last_status_at), VALUES(dao_fork), dao_fork), " +
 			"last_status_at=IF(last_status_at <= VALUES(last_status_at), VALUES(last_status_at), last_status_at), " +
 			"status_count=status_count+VALUES(status_count)",
@@ -280,7 +293,7 @@ func (srv *Server) createTables() error {
 			hello_count BIGINT unsigned DEFAULT 0, 
 			first_hello_at DECIMAL(18,6) NOT NULL, 
 			last_hello_at DECIMAL(18,6) NOT NULL, 
-			PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port),
+			PRIMARY KEY (node_id, ip), 
 			KEY (last_hello_at)
 		)
 	`); err != nil {
@@ -310,7 +323,7 @@ func (srv *Server) createTables() error {
 			status_count BIGINT unsigned DEFAULT 0, 
 			first_status_at DECIMAL(18,6) NOT NULL, 
 			last_status_at DECIMAL(18,6) NOT NULL, 
-			PRIMARY KEY (node_id, ip, tcp_port, p2p_version, client_id, caps, listen_port, protocol_version, network_id, genesis_hash), 
+			PRIMARY KEY (node_id, ip), 
 			KEY (last_status_at)
 		)
 	`); err != nil {
@@ -347,6 +360,14 @@ func (srv *Server) closeSql() {
 }
 
 func (srv *Server) loadKnownNodeInfos() error {
+	var loadCutoffUnix int64
+	if srv.RedialExp <= 0.0 {
+		srv.RedialExp = 24.0
+	}
+	if srv.LastActive != 0 {
+		loadHours := srv.RedialExp + float64(srv.LastActive)
+		loadCutoffUnix = time.Now().Add(-time.Duration(loadHours * float64(time.Hour))).Unix()
+	}
 	rows, err := srv.db.Query(`
 		SELECT nmi.node_id, nmi.hash, ip, tcp_port, remote_port, 
 			p2p_version, client_id, caps, listen_port, first_hello_at, last_hello_at, 
@@ -361,9 +382,10 @@ func (srv *Server) loadKnownNodeInfos() error {
 				 FROM (SELECT * 
 				 	   FROM node_p2p_info AS x 
 				 	   		INNER JOIN 
-				 	   			(SELECT node_id AS nid, MAX(last_hello_at) AS last_ts 
+				 	   			(SELECT node_id nid, MAX(last_hello_at) AS last_ts 
 				 	   			 FROM node_p2p_info 
-				 	   			 GROUP BY node_id
+				 	   			 WHERE last_hello_at >= ? 
+				 	   			 GROUP BY nid
 				 	   			 ) AS last_tss 
 				 	   			ON x.last_hello_at = last_tss.last_ts
 				 	   ) AS p2p 
@@ -371,16 +393,17 @@ func (srv *Server) loadKnownNodeInfos() error {
 				 	  (SELECT * 
 					   FROM node_eth_info AS x 
 					   		INNER JOIN 
-					   			(SELECT node_id AS nid, MAX(last_status_at) AS last_ts 
+					   			(SELECT node_id nid, MAX(last_status_at) AS last_ts 
 							  	 FROM node_eth_info 
-							  	 GROUP BY node_id
+				 	   			 WHERE last_status_at >= ? 
+							  	 GROUP BY nid
 							  	 ) AS last_tss 
 								ON x.last_status_at = last_tss.last_ts
 					   ) AS eth 
 						ON p2p.node_id = eth.node_id
 				 ) AS nodes
 					ON nmi.node_id = nodes.node_id
-	`)
+	`, loadCutoffUnix, loadCutoffUnix)
 	if err != nil {
 		log.Sql("Failed to execute initial query", "database", srv.MySQLName, "err", err)
 		return err
@@ -521,11 +544,7 @@ func (srv *Server) loadKnownNodeInfos() error {
 		srv.KnownNodeInfos.AddInfo(id, nodeInfo)
 
 		// add the node to the initial static node list
-		currentTime := time.Now()
-		deadline := nodeInfo.LastHelloAt.Add(time.Duration(srv.RedialExp * float64(time.Hour)))
-		if deadline.After(currentTime) {
-			srv.addInitialStatic(id, nodeInfo)
-		}
+		srv.addInitialStatic(id, nodeInfo)
 	}
 	return nil
 }
