@@ -19,7 +19,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/core/vm"
+	"github.com/teamnsrg/ethereum-p2p/core/vm"
 )
 
 func TestVM(t *testing.T) {

@@ -58,7 +58,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/internal/build"
+	"github.com/teamnsrg/ethereum-p2p/internal/build"
 )
 
 var (
@@ -179,11 +179,17 @@ func doInstall(cmdline []string) {
 
 	// Check Go version. People regularly open issues about compilation
 	// failure with outdated Go. This should save them the trouble.
-	if runtime.Version() < "go1.7" && !strings.Contains(runtime.Version(), "devel") {
-		log.Println("You have Go version", runtime.Version())
-		log.Println("go-ethereum requires at least Go version 1.7 and cannot")
-		log.Println("be compiled with an earlier version. Please upgrade your Go installation.")
-		os.Exit(1)
+	if !strings.Contains(runtime.Version(), "devel") {
+		// Figure out the minor version number since we can't textually compare (1.10 < 1.7)
+		var minor int
+		fmt.Sscanf(strings.TrimPrefix(runtime.Version(), "go1."), "%d", &minor)
+
+		if minor < 7 {
+			log.Println("You have Go version", runtime.Version())
+			log.Println("go-ethereum requires at least Go version 1.7 and cannot")
+			log.Println("be compiled with an earlier version. Please upgrade your Go installation.")
+			os.Exit(1)
+		}
 	}
 	// Compile packages given as arguments, or everything if there are no arguments.
 	packages := []string{"./..."}
@@ -716,7 +722,7 @@ func doAndroidArchive(cmdline []string) {
 	// Build the Android archive and Maven resources
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile"))
 	build.MustRun(gomobileTool("init", "--ndk", os.Getenv("ANDROID_NDK")))
-	build.MustRun(gomobileTool("bind", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/teamnsrg/go-ethereum/mobile"))
+	build.MustRun(gomobileTool("bind", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/teamnsrg/ethereum-p2p/mobile"))
 
 	if *local {
 		// If we're building locally, copy bundle to build dir and skip Maven
@@ -836,7 +842,7 @@ func doXCodeFramework(cmdline []string) {
 	// Build the iOS XCode framework
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile"))
 	build.MustRun(gomobileTool("init"))
-	bind := gomobileTool("bind", "--target", "ios", "--tags", "ios", "-v", "github.com/teamnsrg/go-ethereum/mobile")
+	bind := gomobileTool("bind", "--target", "ios", "--tags", "ios", "-v", "github.com/teamnsrg/ethereum-p2p/mobile")
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards

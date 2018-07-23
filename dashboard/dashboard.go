@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/rcrowley/go-metrics"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 	"golang.org/x/net/websocket"
 )
 

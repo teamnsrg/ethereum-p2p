@@ -80,7 +80,7 @@ run_image() {
     --rm \
     --hostname "${name}" \
     --name     "${name}" \
-    --volume   "${ROOT}:/go/src/github.com/teamnsrg/go-ethereum" \
+    --volume   "${ROOT}:/go/src/github.com/teamnsrg/ethereum-p2p" \
     --volume   "/var/run/docker.sock:/var/run/docker.sock" \
     ${docker_args} \
     "${name}" \

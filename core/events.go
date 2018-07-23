@@ -17,8 +17,8 @@
 package core
 
 import (
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core/types"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
 )
 
 // TxPreEvent is posted when a transaction enters the transaction pool.

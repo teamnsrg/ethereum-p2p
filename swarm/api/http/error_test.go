@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/swarm/testutil"
+	"github.com/teamnsrg/ethereum-p2p/swarm/testutil"
 )
 
 func TestError(t *testing.T) {

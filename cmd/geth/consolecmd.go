@@ -21,10 +21,10 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/cmd/utils"
-	"github.com/teamnsrg/go-ethereum/console"
-	"github.com/teamnsrg/go-ethereum/node"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/cmd/utils"
+	"github.com/teamnsrg/ethereum-p2p/console"
+	"github.com/teamnsrg/ethereum-p2p/node"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -40,7 +40,7 @@ var (
 		Description: `
 The Geth console is an interactive shell for the JavaScript runtime environment
 which exposes a node admin interface as well as the Ðapp JavaScript API.
-See https://github.com/teamnsrg/go-ethereum/wiki/Javascipt-Console.`,
+See https://github.com/teamnsrg/ethereum-p2p/wiki/Javascipt-Console.`,
 	}
 
 	attachCommand = cli.Command{
@@ -53,7 +53,7 @@ See https://github.com/teamnsrg/go-ethereum/wiki/Javascipt-Console.`,
 		Description: `
 The Geth console is an interactive shell for the JavaScript runtime environment
 which exposes a node admin interface as well as the Ðapp JavaScript API.
-See https://github.com/teamnsrg/go-ethereum/wiki/Javascipt-Console.
+See https://github.com/teamnsrg/ethereum-p2p/wiki/Javascipt-Console.
 This command allows to open a console on a running geth node.`,
 	}
 
@@ -66,7 +66,7 @@ This command allows to open a console on a running geth node.`,
 		Category:  "CONSOLE COMMANDS",
 		Description: `
 The JavaScript VM exposes a node admin interface as well as the Ðapp
-JavaScript API. See https://github.com/teamnsrg/go-ethereum/wiki/Javascipt-Console`,
+JavaScript API. See https://github.com/teamnsrg/ethereum-p2p/wiki/Javascipt-Console`,
 	}
 )
 
