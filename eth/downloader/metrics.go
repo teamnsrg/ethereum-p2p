@@ -19,7 +19,7 @@
 package downloader
 
 import (
-	"github.com/teamnsrg/go-ethereum/metrics"
+	"github.com/teamnsrg/ethereum-p2p/metrics"
 )
 
 var (

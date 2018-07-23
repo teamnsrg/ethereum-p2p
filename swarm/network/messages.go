@@ -21,11 +21,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/contracts/chequebook"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
-	"github.com/teamnsrg/go-ethereum/swarm/network/kademlia"
-	"github.com/teamnsrg/go-ethereum/swarm/services/swap"
-	"github.com/teamnsrg/go-ethereum/swarm/storage"
+	"github.com/teamnsrg/ethereum-p2p/contracts/chequebook"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/swarm/network/kademlia"
+	"github.com/teamnsrg/ethereum-p2p/swarm/services/swap"
+	"github.com/teamnsrg/ethereum-p2p/swarm/storage"
 )
 
 /*

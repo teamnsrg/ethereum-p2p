@@ -20,13 +20,13 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/hexutil"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/internal/ethapi"
-	"github.com/teamnsrg/go-ethereum/rlp"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/hexutil"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/internal/ethapi"
+	"github.com/teamnsrg/ethereum-p2p/rlp"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 )
 
 // ContractBackend implements bind.ContractBackend with direct calls to Ethereum

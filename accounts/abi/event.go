@@ -21,8 +21,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
 )
 
 // Event is an event potentially triggered by the EVM's LOG mechanism. The Event

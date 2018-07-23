@@ -21,7 +21,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/teamnsrg/go-ethereum/event"
+	"github.com/teamnsrg/ethereum-p2p/event"
 )
 
 // Manager is an overarching account manager that can communicate with various
