@@ -19,7 +19,7 @@ package number
 import (
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 var tt256 = new(big.Int).Lsh(big.NewInt(1), 256)

@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/gizak/termui"
-	"github.com/teamnsrg/go-ethereum/cmd/utils"
-	"github.com/teamnsrg/go-ethereum/node"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/cmd/utils"
+	"github.com/teamnsrg/ethereum-p2p/node"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 	"gopkg.in/urfave/cli.v1"
 )
 

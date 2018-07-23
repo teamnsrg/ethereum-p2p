@@ -23,17 +23,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/math"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/state"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/core/vm"
-	"github.com/teamnsrg/go-ethereum/eth"
-	"github.com/teamnsrg/go-ethereum/ethdb"
-	"github.com/teamnsrg/go-ethereum/light"
-	"github.com/teamnsrg/go-ethereum/params"
-	"github.com/teamnsrg/go-ethereum/rlp"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/math"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/state"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/core/vm"
+	"github.com/teamnsrg/ethereum-p2p/eth"
+	"github.com/teamnsrg/ethereum-p2p/ethdb"
+	"github.com/teamnsrg/ethereum-p2p/light"
+	"github.com/teamnsrg/ethereum-p2p/params"
+	"github.com/teamnsrg/ethereum-p2p/rlp"
 )
 
 type odrTestFn func(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte

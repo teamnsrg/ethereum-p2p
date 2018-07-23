@@ -25,11 +25,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/event"
-	"github.com/teamnsrg/go-ethereum/rpc"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/event"
+	"github.com/teamnsrg/ethereum-p2p/rpc"
 )
 
 // Type determines the kind of filter and is used to put the filter in to

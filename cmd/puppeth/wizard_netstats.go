@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 // networkStats verifies the status of network components and generates a protip

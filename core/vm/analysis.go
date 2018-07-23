@@ -19,7 +19,7 @@ package vm
 import (
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 // destinations stores one map per contract (keyed by hash of code).

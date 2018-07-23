@@ -23,7 +23,7 @@ import (
 	"os"
 	"runtime/trace"
 
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 // StartGoTrace turns on tracing, writing to the given file.

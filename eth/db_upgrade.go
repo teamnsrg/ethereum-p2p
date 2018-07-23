@@ -21,11 +21,11 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/ethdb"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/rlp"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/ethdb"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/rlp"
 )
 
 var deduplicateData = []byte("dbUpgrade_20170714deduplicateData")

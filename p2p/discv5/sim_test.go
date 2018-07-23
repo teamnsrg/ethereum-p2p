@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 // In this test, nodes try to randomly resolve each other.

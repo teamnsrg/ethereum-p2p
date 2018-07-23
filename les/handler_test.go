@@ -23,17 +23,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/eth/downloader"
-	"github.com/teamnsrg/go-ethereum/ethdb"
-	"github.com/teamnsrg/go-ethereum/light"
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/params"
-	"github.com/teamnsrg/go-ethereum/rlp"
-	"github.com/teamnsrg/go-ethereum/trie"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/eth/downloader"
+	"github.com/teamnsrg/ethereum-p2p/ethdb"
+	"github.com/teamnsrg/ethereum-p2p/light"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/params"
+	"github.com/teamnsrg/ethereum-p2p/rlp"
+	"github.com/teamnsrg/ethereum-p2p/trie"
 )
 
 func expectResponse(r p2p.MsgReader, msgcode, reqID, bv uint64, data interface{}) error {

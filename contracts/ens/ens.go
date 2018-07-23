@@ -22,11 +22,11 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/accounts/abi/bind"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/contracts/ens/contract"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/ethereum-p2p/accounts/abi/bind"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/contracts/ens/contract"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
 )
 
 var (

@@ -20,7 +20,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 /*
