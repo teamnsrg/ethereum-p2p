@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/robertkrimen/otto"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/hexutil"
-	"github.com/teamnsrg/go-ethereum/core/vm"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/hexutil"
+	"github.com/teamnsrg/ethereum-p2p/core/vm"
 )
 
 // fakeBig is used to provide an interface to Javascript for 'big.NewInt'

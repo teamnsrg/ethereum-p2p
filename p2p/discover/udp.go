@@ -25,11 +25,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/p2p/nat"
-	"github.com/teamnsrg/go-ethereum/p2p/netutil"
-	"github.com/teamnsrg/go-ethereum/rlp"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/p2p/nat"
+	"github.com/teamnsrg/ethereum-p2p/p2p/netutil"
+	"github.com/teamnsrg/ethereum-p2p/rlp"
 	"sync"
 )
 

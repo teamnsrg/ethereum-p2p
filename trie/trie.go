@@ -22,9 +22,9 @@ import (
 	"fmt"
 
 	"github.com/rcrowley/go-metrics"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/crypto/sha3"
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/crypto/sha3"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 var (

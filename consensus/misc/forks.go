@@ -19,9 +19,9 @@ package misc
 import (
 	"fmt"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/params"
 )
 
 // VerifyForkHashes verifies that blocks conforming to network hard-forks do have
