@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/teamnsrg/go-ethereum/common/hexutil"
+	"github.com/teamnsrg/ethereum-p2p/common/hexutil"
 	"gopkg.in/fatih/set.v0"
 )
 

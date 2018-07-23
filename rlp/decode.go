@@ -27,7 +27,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 var (

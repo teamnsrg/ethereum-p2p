@@ -24,8 +24,8 @@ import (
 	"reflect"
 
 	"encoding/json"
-	"github.com/teamnsrg/go-ethereum/common/hexutil"
-	"github.com/teamnsrg/go-ethereum/crypto/sha3"
+	"github.com/teamnsrg/ethereum-p2p/common/hexutil"
+	"github.com/teamnsrg/ethereum-p2p/crypto/sha3"
 )
 
 const (

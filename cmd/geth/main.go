@@ -29,17 +29,17 @@ import (
 	cli "gopkg.in/urfave/cli.v1"
 
 	"github.com/prometheus/prometheus/util/flock"
-	"github.com/teamnsrg/go-ethereum/accounts"
-	"github.com/teamnsrg/go-ethereum/accounts/keystore"
-	"github.com/teamnsrg/go-ethereum/cmd/utils"
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/console"
-	"github.com/teamnsrg/go-ethereum/eth"
-	"github.com/teamnsrg/go-ethereum/ethclient"
-	"github.com/teamnsrg/go-ethereum/internal/debug"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/metrics"
-	"github.com/teamnsrg/go-ethereum/node"
+	"github.com/teamnsrg/ethereum-p2p/accounts"
+	"github.com/teamnsrg/ethereum-p2p/accounts/keystore"
+	"github.com/teamnsrg/ethereum-p2p/cmd/utils"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/console"
+	"github.com/teamnsrg/ethereum-p2p/eth"
+	"github.com/teamnsrg/ethereum-p2p/ethclient"
+	"github.com/teamnsrg/ethereum-p2p/internal/debug"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/metrics"
+	"github.com/teamnsrg/ethereum-p2p/node"
 )
 
 const (

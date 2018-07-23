@@ -19,7 +19,7 @@ package vm
 import (
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/params"
 )
 
 const (

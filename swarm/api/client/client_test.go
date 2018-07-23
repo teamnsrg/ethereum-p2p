@@ -25,8 +25,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/swarm/api"
-	"github.com/teamnsrg/go-ethereum/swarm/testutil"
+	"github.com/teamnsrg/ethereum-p2p/swarm/api"
+	"github.com/teamnsrg/ethereum-p2p/swarm/testutil"
 )
 
 // TestClientUploadDownloadRaw test uploading and downloading raw data to swarm

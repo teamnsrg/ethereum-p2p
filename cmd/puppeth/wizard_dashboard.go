@@ -19,7 +19,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 // deployDashboard queries the user for various input on deploying a web-service

@@ -23,8 +23,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/common/math"
-	"github.com/teamnsrg/go-ethereum/core/vm"
+	"github.com/teamnsrg/ethereum-p2p/common/math"
+	"github.com/teamnsrg/ethereum-p2p/core/vm"
 )
 
 // Compiler contains information about the parsed source

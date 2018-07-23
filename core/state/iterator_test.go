@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/common"
+	"github.com/teamnsrg/ethereum-p2p/common"
 )
 
 // Tests that the node iterator indeed walks over the entire database contents.
