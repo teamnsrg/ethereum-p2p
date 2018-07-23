@@ -21,9 +21,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/teamnsrg/go-ethereum/core/state"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/core/state"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/params"
 )
 
 var (

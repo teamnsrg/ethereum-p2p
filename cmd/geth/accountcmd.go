@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/teamnsrg/go-ethereum/accounts"
-	"github.com/teamnsrg/go-ethereum/accounts/keystore"
-	"github.com/teamnsrg/go-ethereum/cmd/utils"
-	"github.com/teamnsrg/go-ethereum/console"
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/accounts"
+	"github.com/teamnsrg/ethereum-p2p/accounts/keystore"
+	"github.com/teamnsrg/ethereum-p2p/cmd/utils"
+	"github.com/teamnsrg/ethereum-p2p/console"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/log"
 	"gopkg.in/urfave/cli.v1"
 )
 

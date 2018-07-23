@@ -21,15 +21,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/consensus/ethash"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/core/vm"
-	"github.com/teamnsrg/go-ethereum/eth/downloader"
-	"github.com/teamnsrg/go-ethereum/ethdb"
-	"github.com/teamnsrg/go-ethereum/event"
-	"github.com/teamnsrg/go-ethereum/p2p"
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/consensus/ethash"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/core/vm"
+	"github.com/teamnsrg/ethereum-p2p/eth/downloader"
+	"github.com/teamnsrg/ethereum-p2p/ethdb"
+	"github.com/teamnsrg/ethereum-p2p/event"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
+	"github.com/teamnsrg/ethereum-p2p/params"
 )
 
 // Tests that protocol versions and modes of operations are matched up properly.

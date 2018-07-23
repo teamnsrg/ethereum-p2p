@@ -28,8 +28,8 @@ import (
 	"strings"
 
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/teamnsrg/go-ethereum/node"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/node"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
 )
 
 // DockerAdapter is a NodeAdapter which runs simulation nodes inside Docker

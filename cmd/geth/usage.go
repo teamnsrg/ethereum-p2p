@@ -25,8 +25,8 @@ import (
 
 	"gopkg.in/urfave/cli.v1"
 
-	"github.com/teamnsrg/go-ethereum/cmd/utils"
-	"github.com/teamnsrg/go-ethereum/internal/debug"
+	"github.com/teamnsrg/ethereum-p2p/cmd/utils"
+	"github.com/teamnsrg/ethereum-p2p/internal/debug"
 )
 
 // AppHelpTemplate is the test template for the default, global app help topic.

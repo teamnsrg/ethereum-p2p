@@ -11,9 +11,9 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/teamnsrg/go-ethereum/common/mticker"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/p2p/discover"
+	"github.com/teamnsrg/ethereum-p2p/common/mticker"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/p2p/discover"
 	"syscall"
 )
 

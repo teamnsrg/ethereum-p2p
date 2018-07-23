@@ -3,7 +3,7 @@ package discover
 import (
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
 )
 
 func (t *udp) queueNeighbors(neighbors []rpcNode, currentTime time.Time) {

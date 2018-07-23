@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/log"
-	"github.com/teamnsrg/go-ethereum/p2p"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/log"
+	"github.com/teamnsrg/ethereum-p2p/p2p"
 )
 
 func (pm *ProtocolManager) storeNodeEthInfo(p *peer, statusWrapper *statusDataWrapper) {

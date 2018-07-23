@@ -20,9 +20,9 @@ import (
 	"math/big"
 	"sync/atomic"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/crypto"
-	"github.com/teamnsrg/go-ethereum/params"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
+	"github.com/teamnsrg/ethereum-p2p/params"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already

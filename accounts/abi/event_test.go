@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/crypto"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/crypto"
 )
 
 func TestEventId(t *testing.T) {

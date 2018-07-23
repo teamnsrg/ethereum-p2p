@@ -22,13 +22,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/teamnsrg/go-ethereum/common"
-	"github.com/teamnsrg/go-ethereum/common/mclock"
-	"github.com/teamnsrg/go-ethereum/consensus"
-	"github.com/teamnsrg/go-ethereum/core"
-	"github.com/teamnsrg/go-ethereum/core/types"
-	"github.com/teamnsrg/go-ethereum/light"
-	"github.com/teamnsrg/go-ethereum/log"
+	"github.com/teamnsrg/ethereum-p2p/common"
+	"github.com/teamnsrg/ethereum-p2p/common/mclock"
+	"github.com/teamnsrg/ethereum-p2p/consensus"
+	"github.com/teamnsrg/ethereum-p2p/core"
+	"github.com/teamnsrg/ethereum-p2p/core/types"
+	"github.com/teamnsrg/ethereum-p2p/light"
+	"github.com/teamnsrg/ethereum-p2p/log"
 )
 
 const (
